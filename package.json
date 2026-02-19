@@ -1,0 +1,20 @@
+{
+  "name": "royal-battalion-bot",
+  "version": "1.0.0",
+  "description": "Royal Battalion gaming community Discord bot",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "bun run src/index.js",
+    "dev": "bun --watch run src/index.js",
+    "deploy-commands": "bun run src/utils/deploy-commands.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "mariadb": "^3.4.0",
+    "pino": "^9.6.0"
+  },
+  "devDependencies": {
+    "pino-pretty": "^13.0.0"
+  }
+}

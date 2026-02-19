@@ -1,0 +1,160 @@
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { createEmbed } from '../utils/embed.js';
+import { validateDateOfBirth, validateSquadHours } from '../utils/validation.js';
+import { validateSteamInput } from '../services/steamService.js';
+import { createProspect, getProspectByChannel, closeProspect, extendProspect } from '../services/prospect/prospectService.js';
+import logger from '../logger.js';
+
+const log = logger.child({ module: 'prospectModals' });
+
+// In-memory store for Part 1 data between the two modals (keyed by userId)
+const pendingApplications = new Map();
+const PENDING_TTL = 15 * 60 * 1000; // 15 minutes
+
+/**
+ * Store Part 1 data for a user (called from the button handler before showing modal 2).
+ */
+export function storePart1(userId, data) {
+  pendingApplications.set(userId, data);
+  setTimeout(() => pendingApplications.delete(userId), PENDING_TTL);
+}
+
+export async function handleModal1(interaction) {
+  const alias = interaction.fields.getTextInputValue('alias').trim();
+  const nationality = interaction.fields.getTextInputValue('nationality').trim();
+  const dateOfBirth = interaction.fields.getTextInputValue('date_of_birth').trim();
+  const squadHours = interaction.fields.getTextInputValue('squad_hours').trim();
+  const preferredRoles = interaction.fields.getTextInputValue('preferred_roles').trim();
+
+  const errors = [];
+  if (!alias || alias.length > 32) errors.push('**Alias**: must be 1-32 characters.');
+  if (!nationality) errors.push('**Nationality**: required.');
+
+  const dobError = validateDateOfBirth(dateOfBirth);
+  if (dobError) errors.push(dobError);
+
+  const hoursError = validateSquadHours(squadHours);
+  if (hoursError) errors.push(hoursError);
+
+  if (!preferredRoles) errors.push('**Preferred Roles**: required.');
+
+  if (errors.length > 0) {
+    return interaction.reply({
+      content: `Please fix the following:\n${errors.join('\n')}`,
+      flags: ['Ephemeral'],
+    });
+  }
+
+  const summaryEmbed = createEmbed('Prospect')
+    .setTitle('Application Part 1 — Received')
+    .setDescription('Click **Continue Application** to complete part 2.')
+    .addFields(
+      { name: 'Alias', value: alias, inline: true },
+      { name: 'Nationality', value: nationality, inline: true },
+      { name: 'Date of Birth', value: dateOfBirth, inline: true },
+      { name: 'Hours in Squad', value: squadHours, inline: true },
+      { name: 'Preferred Roles', value: preferredRoles, inline: true },
+    )
+    .setColor(0x57f287);
+
+  const continueRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('prospect_modal_2_open')
+      .setLabel('Continue Application')
+      .setStyle(ButtonStyle.Success)
+  );
+
+  await interaction.reply({
+    embeds: [summaryEmbed],
+    components: [continueRow],
+    flags: ['Ephemeral'],
+  });
+}
+
+export async function handleModal2(interaction) {
+  await interaction.deferReply({ flags: ['Ephemeral'] });
+
+  const prevClan = interaction.fields.getTextInputValue('prev_clan').trim();
+  const whyRb = interaction.fields.getTextInputValue('why_rb').trim();
+  const activeHours = interaction.fields.getTextInputValue('active_hours').trim();
+  const competitive = interaction.fields.getTextInputValue('competitive').trim();
+  const steamId = interaction.fields.getTextInputValue('steam_id').trim();
+
+  const errors = [];
+  if (!prevClan) errors.push('**Previous Clan**: required (can be "No").');
+  if (!whyRb || whyRb.length < 10) errors.push('**Why RB**: required, minimum 10 characters.');
+  if (!activeHours) errors.push('**Active Hours**: required.');
+  if (!competitive) errors.push('**Competitive Interest**: required.');
+
+  const steamValidation = validateSteamInput(steamId);
+  if (!steamValidation.valid) {
+    errors.push(`**Steam ID**: ${steamValidation.reason}`);
+  }
+
+  if (errors.length > 0) {
+    return interaction.editReply({
+      content: `Please fix the following:\n${errors.join('\n')}`,
+    });
+  }
+
+  const validatedSteamId = steamValidation.steamId;
+
+  const part1 = pendingApplications.get(interaction.user.id);
+  if (!part1) {
+    return interaction.editReply({
+      content: 'Your Part 1 data has expired. Please start over by clicking **Join RB** again.',
+    });
+  }
+  pendingApplications.delete(interaction.user.id);
+
+  const formData = {
+    alias: part1.alias,
+    nationality: part1.nationality,
+    dateOfBirth: part1.dateOfBirth,
+    squadHours: Number(part1.squadHours),
+    preferredRoles: part1.preferredRoles,
+    prevClan,
+    whyRb,
+    activeHours,
+    competitive,
+    steamId: validatedSteamId,
+  };
+
+  const result = await createProspect(interaction.user.id, interaction.guild, formData);
+  if (result.error) {
+    return interaction.editReply({ content: result.error });
+  }
+
+  await interaction.editReply({
+    content: 'Your application has been submitted! Check your DMs for confirmation.',
+  });
+
+  log.info({ userId: interaction.user.id, channelId: result.channel.id }, 'Prospect created via modal');
+}
+
+export async function handleDenyModal(interaction) {
+  await interaction.deferReply({ flags: ['Ephemeral'] });
+  const prospect = await getProspectByChannel(interaction.channel.id);
+  if (!prospect) return interaction.editReply({ content: 'No open prospect found for this channel.' });
+
+  const reason = interaction.fields.getTextInputValue('deny_reason').trim();
+  await closeProspect(prospect, interaction.user.id, 'denied', interaction.guild, reason);
+  log.info({ prospectId: prospect.id, deniedBy: interaction.user.id, reason }, 'Prospect denied via button');
+  await interaction.channel.delete().catch(() => null);
+}
+
+export async function handleExtendModal(interaction) {
+  await interaction.deferReply({ flags: ['Ephemeral'] });
+  const prospect = await getProspectByChannel(interaction.channel.id);
+  if (!prospect) return interaction.editReply({ content: 'No open prospect found for this channel.' });
+
+  const daysInput = interaction.fields.getTextInputValue('extend_days').trim();
+  const days = parseInt(daysInput, 10);
+  if (isNaN(days) || days < 1 || days > 365) {
+    return interaction.editReply({ content: 'Please enter a valid number of days (1-365).' });
+  }
+
+  await extendProspect(prospect, days, interaction.user.id, interaction.guild);
+  await interaction.editReply({ content: `Extended **${prospect.alias}**'s prospect period by **${days}** day(s).` });
+  log.info({ prospectId: prospect.id, days, actorId: interaction.user.id }, 'Prospect extended via modal');
+}

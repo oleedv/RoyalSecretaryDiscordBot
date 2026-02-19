@@ -1,0 +1,170 @@
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { createEmbed } from '../../utils/embed.js';
+import config from '../../config.js';
+
+export function buildProspectInfoEmbed(member, prospect, forumUrl) {
+  const userTag = member?.user.tag || prospect.user_id;
+  const { periodDays, voteDaysBefore } = config.prospects;
+
+  const steamId = prospect.steam_id;
+  const steamLinks = steamId && steamId.toUpperCase() !== 'Q'
+    ? [
+        `[steamid.io](https://steamid.io/lookup/${steamId})`,
+        `[BattleMetrics](https://www.battlemetrics.com/rcon/players?filter[search]=${steamId})`,
+        `[CBL](https://communitybanlist.com/search/${steamId})`,
+      ].join(' | ')
+    : steamId;
+
+  const embed = createEmbed('Prospect')
+    .setTitle('Prospect Application')
+    .setDescription(`Applicant: **${userTag}** (<@${prospect.user_id}>)`)
+    .addFields(
+      { name: 'Alias', value: prospect.alias, inline: true },
+      { name: 'Nationality', value: prospect.nationality, inline: true },
+      { name: 'Date of Birth', value: prospect.date_of_birth, inline: true },
+      { name: 'Hours in Squad', value: String(prospect.squad_hours), inline: true },
+      { name: 'Preferred Roles', value: prospect.preferred_roles, inline: true },
+      { name: 'Previous Clan', value: prospect.prev_clan, inline: true },
+      { name: 'Why RB?', value: prospect.why_rb },
+      { name: 'Active Hours (UTC)', value: prospect.active_hours, inline: true },
+      { name: 'Competitive Interest', value: prospect.competitive, inline: true },
+      { name: 'Links', value: steamLinks, inline: true },
+    )
+    .setColor(0x57f287);
+
+  if (prospect.mentor_id) {
+    embed.addFields({ name: 'Mentor', value: `<@${prospect.mentor_id}>`, inline: true });
+  }
+
+  if (prospect.paused_at) {
+    embed.addFields({ name: 'Status', value: 'PAUSED', inline: true });
+  }
+
+  if (prospect.forum_thread_id) {
+    const extra = prospect.extra_days || 0;
+    const totalPeriod = periodDays + extra;
+    const daysUntilVote = (periodDays - voteDaysBefore) + extra;
+
+    const endDate = new Date(prospect.created_at);
+    endDate.setDate(endDate.getDate() + totalPeriod);
+    const endDateStr = `<t:${Math.floor(endDate.getTime() / 1000)}:D>`;
+    embed.addFields({ name: 'Period Ends', value: endDateStr, inline: true });
+
+    const voteDate = new Date(prospect.created_at);
+    voteDate.setDate(voteDate.getDate() + daysUntilVote);
+    const voteDateStr = `<t:${Math.floor(voteDate.getTime() / 1000)}:D>`;
+    embed.addFields({ name: 'Vote Date', value: voteDateStr, inline: true });
+
+    if (extra > 0) {
+      embed.addFields({ name: 'Extended', value: `+${extra} day(s)`, inline: true });
+    }
+  }
+
+  if (forumUrl) {
+    embed.addFields({ name: 'Forum Thread', value: `[View Thread](${forumUrl})`, inline: true });
+  }
+
+  if (member) {
+    embed.setThumbnail(member.user.displayAvatarURL());
+  }
+
+  return embed;
+}
+
+export function buildForumIntroEmbed(member, prospect) {
+  const userTag = member?.user.tag || 'Unknown';
+
+  return createEmbed('Prospect')
+    .setTitle(`${prospect.alias} — Prospect Application`)
+    .setDescription(`Applicant: **${userTag}** (<@${prospect.user_id}>)`)
+    .addFields(
+      { name: 'Alias', value: prospect.alias, inline: true },
+      { name: 'Nationality', value: prospect.nationality, inline: true },
+      { name: 'Hours in Squad', value: String(prospect.squad_hours), inline: true },
+      { name: 'Preferred Roles', value: prospect.preferred_roles, inline: true },
+      { name: 'Previous Clan', value: prospect.prev_clan, inline: true },
+      { name: 'Why RB?', value: prospect.why_rb },
+      { name: 'Active Hours (UTC)', value: prospect.active_hours, inline: true },
+      { name: 'Competitive Interest', value: prospect.competitive, inline: true },
+      { name: 'Steam ID', value: prospect.steam_id, inline: true },
+    )
+    .setColor(0x57f287)
+    .setThumbnail(member?.user.displayAvatarURL() || null);
+}
+
+export function buildProspectComponents(prospect) {
+  if (!prospect?.mentor_id) {
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('prospect_claim')
+        .setLabel('Claim')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('💬'),
+      new ButtonBuilder()
+        .setCustomId('prospect_deny')
+        .setLabel('Denied')
+        .setStyle(ButtonStyle.Danger),
+    );
+    return [row];
+  }
+
+  const decisionRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('prospect_accept')
+      .setLabel('Accepted')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId('prospect_deny')
+      .setLabel('Denied')
+      .setStyle(ButtonStyle.Danger),
+  );
+
+  const actionRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('prospect_voice_invite')
+      .setLabel('Invite to Voice')
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji('🔊'),
+  );
+
+  return [decisionRow, actionRow];
+}
+
+export function buildProspectAcceptedComponents(prospect) {
+  const isPaused = !!prospect?.paused_at;
+
+  const actionRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('prospect_pause')
+      .setLabel(isPaused ? 'Resume' : 'Pause')
+      .setStyle(isPaused ? ButtonStyle.Success : ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('prospect_extend')
+      .setLabel('Extend')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId('prospect_test_vote')
+      .setLabel('Test Vote')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('prospect_deny')
+      .setLabel('Denied')
+      .setStyle(ButtonStyle.Danger),
+  );
+  return [actionRow];
+}
+
+export function buildVoteEmbed(prospect) {
+  const { voteEmojis } = config.prospects;
+
+  return createEmbed('Prospect')
+    .setTitle(`Vote — ${prospect.alias}`)
+    .setDescription(
+      `The prospect period for **${prospect.alias}** is coming to an end. Cast your vote!\n\n` +
+      `React with:\n` +
+      `${voteEmojis.yes ? `<:yes:${voteEmojis.yes}>` : '👍'} — **Yes**, accept\n` +
+      `${voteEmojis.no ? `<:no:${voteEmojis.no}>` : '👎'} — **No**, deny\n` +
+      `${voteEmojis.unsure ? `<:unsure:${voteEmojis.unsure}>` : '🤷'} — **Unsure**`
+    )
+    .setColor(0xfee75c);
+}
