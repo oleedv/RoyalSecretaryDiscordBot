@@ -49,6 +49,8 @@ jobs:
           script: |
             cd ~/RoyalInfrastructure
 
+            echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
+
             cat > .env.staging << EOF
             GHCR_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
             BOT_IMAGE_TAG_STAGING=staging
