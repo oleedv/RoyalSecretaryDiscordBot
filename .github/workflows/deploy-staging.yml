@@ -73,3 +73,28 @@ jobs:
         env:
           REGISTRY: ghcr.io
           IMAGE_NAME: ${{ github.repository_owner }}/royalsecretarydiscordbot
+
+      - name: Notify Discord
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            COLOR=3066993
+            STATUS="Deployed"
+          else
+            COLOR=15158332
+            STATUS="Failed"
+          fi
+
+          curl -s -H "Content-Type: application/json" -d "{
+            \"embeds\": [{
+              \"title\": \"Staging ${STATUS}\",
+              \"color\": ${COLOR},
+              \"fields\": [
+                { \"name\": \"Environment\", \"value\": \"Staging\", \"inline\": true },
+                { \"name\": \"Commit\", \"value\": \"[\`${GITHUB_SHA::7}\`](https://github.com/${{ github.repository }}/commit/${GITHUB_SHA})\", \"inline\": true },
+                { \"name\": \"By\", \"value\": \"${{ github.actor }}\", \"inline\": true },
+                { \"name\": \"Message\", \"value\": $(echo '${{ github.event.head_commit.message }}' | head -1 | jq -Rs .) }
+              ],
+              \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+            }]
+          }" "${{ secrets.DISCORD_DEPLOY_WEBHOOK }}"
