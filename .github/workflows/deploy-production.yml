@@ -1,4 +1,4 @@
-name: 🚀 Deploy to Production
+name: Deploy to Production
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ env:
 
 jobs:
   build:
-    name: 📦 Build & Push Image
+    name: Build & Push Image
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     permissions:
@@ -37,7 +37,7 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:prod-${{ github.sha }}
 
   deploy:
-    name: 🚢 Deploy to Server
+    name: Deploy to Server
     needs: build
     runs-on: ubuntu-latest
     environment: production
@@ -70,7 +70,7 @@ jobs:
           IMAGE_NAME: ${{ github.repository_owner }}/royalsecretarydiscordbot
 
   health-check:
-    name: 🩺 Health Check
+    name: Health Check
     needs: deploy
     runs-on: ubuntu-latest
     steps:
@@ -96,7 +96,7 @@ jobs:
             echo "Container is healthy"
 
   notify:
-    name: 📣 Notify Discord
+    name: Notify Discord
     needs: [build, deploy, health-check]
     if: always() && github.event.pull_request.merged == true
     runs-on: ubuntu-latest
