@@ -1,4 +1,4 @@
-name: Deploy to Production
+name: 🚀 Deploy to Production
 
 on:
   pull_request:
@@ -10,7 +10,8 @@ env:
   IMAGE_NAME: ${{ github.repository_owner }}/royalsecretarydiscordbot
 
 jobs:
-  build-and-push:
+  build:
+    name: 📦 Build & Push Image
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     permissions:
@@ -36,11 +37,12 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:prod-${{ github.sha }}
 
   deploy:
-    needs: build-and-push
+    name: 🚢 Deploy to Server
+    needs: build
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - name: Deploy to production server
+      - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -63,30 +65,63 @@ jobs:
 
             docker compose -f docker-compose.prod.yml --env-file .env.prod pull royal-secretary-bot
             docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
-
-            echo "Waiting for bot to start..."
-            sleep 10
-            docker ps --filter name=royal-secretary-bot-prod --format "{{.Names}}: {{.Status}}"
         env:
           REGISTRY: ghcr.io
           IMAGE_NAME: ${{ github.repository_owner }}/royalsecretarydiscordbot
 
-      - name: Notify Discord
-        if: always()
+  health-check:
+    name: 🩺 Health Check
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for startup
+        run: sleep 15
+
+      - name: Verify container is running
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            STATUS=$(docker ps --filter name=royal-secretary-bot-prod --format "{{.Status}}")
+            echo "Container status: ${STATUS}"
+
+            if [ -z "$STATUS" ]; then
+              echo "Container is not running!"
+              docker logs --tail 30 royal-secretary-bot-prod 2>&1 || true
+              exit 1
+            fi
+
+            echo "Container is healthy"
+
+  notify:
+    name: 📣 Notify Discord
+    needs: [build, deploy, health-check]
+    if: always() && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send webhook
         run: |
-          if [ "${{ job.status }}" = "success" ]; then
+          if [ "${{ needs.build.result }}" = "success" ] && \
+             [ "${{ needs.deploy.result }}" = "success" ] && \
+             [ "${{ needs.health-check.result }}" = "success" ]; then
             COLOR=3066993
             STATUS="Deployed"
           else
+            FAILED=""
+            [ "${{ needs.build.result }}" != "success" ] && FAILED="Build"
+            [ "${{ needs.deploy.result }}" != "success" ] && FAILED="${FAILED:+$FAILED, }Deploy"
+            [ "${{ needs.health-check.result }}" != "success" ] && FAILED="${FAILED:+$FAILED, }Health Check"
             COLOR=15158332
-            STATUS="Failed"
+            STATUS="Failed (${FAILED})"
           fi
 
           COMMIT_MSG=$(echo '${{ github.event.pull_request.title }}' | jq -Rs .)
 
           curl -s -H "Content-Type: application/json" -d "{
             \"embeds\": [{
-              \"title\": \"Production ${STATUS}\",
+              \"title\": \"${STATUS}\",
               \"color\": ${COLOR},
               \"fields\": [
                 { \"name\": \"Environment\", \"value\": \"Production\", \"inline\": true },
