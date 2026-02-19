@@ -5,6 +5,6 @@ COPY package.json bun.lockb* ./
 RUN bun install --frozen-lockfile || bun install
 
 COPY src/ ./src/
-COPY settings.js ./
+COPY settings.js settings.staging.js settings.production.js ./
 
 CMD ["bun", "run", "start"]
