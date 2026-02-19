@@ -74,6 +74,7 @@ jobs:
     name: Health Check
     needs: deploy
     runs-on: ubuntu-latest
+    environment: staging
     steps:
       - name: Wait for startup
         run: sleep 15
