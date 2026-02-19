@@ -6,7 +6,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: ${{ github.repository_owner }}/royalsecretarydiscordbot
 
 jobs:
   build-and-push:
@@ -70,4 +70,4 @@ jobs:
             docker ps --filter name=royal-secretary-bot-staging --format "{{.Names}}: {{.Status}}"
         env:
           REGISTRY: ghcr.io
-          IMAGE_NAME: ${{ github.repository }}
+          IMAGE_NAME: ${{ github.repository_owner }}/royalsecretarydiscordbot
