@@ -20,7 +20,7 @@ const config = Object.freeze({
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     databases: {
-      secretary: 'Royal_secretary',
+      secretary: process.env.DB_NAME || 'Royal_secretary_staging',
       squadjs: 'SquadJS',
     },
   },
