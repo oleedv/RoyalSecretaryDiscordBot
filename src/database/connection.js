@@ -1,4 +1,4 @@
-import mariadb from 'mariadb';
+import { createPool } from 'mariadb';
 import config from '../config.js';
 import logger from '../logger.js';
 
@@ -7,7 +7,7 @@ const log = logger.child({ module: 'database' });
 const pools = {};
 
 function createPoolForDb(name, database) {
-  const pool = mariadb.createPool({
+  const pool = createPool({
     host: config.database.host,
     port: config.database.port,
     user: config.database.user,
