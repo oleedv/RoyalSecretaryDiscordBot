@@ -1,5 +1,5 @@
 import { createEmbed } from '../../utils/embed.js';
-import { buildVoteEmbed } from './prospectEmbeds.js';
+import { buildVoteEmbed, buildVoteComponents } from './prospectEmbeds.js';
 import { query } from '../../database/connection.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
@@ -14,26 +14,31 @@ export async function getProspectByVoteMessage(messageId) {
   return rows[0] || null;
 }
 
-export async function upsertVote(prospectId, voterId, voterTag, vote) {
+export async function upsertVote(prospectId, voterId, voterTag, vote, reason = null) {
   await query(
-    `INSERT INTO prospect_votes (prospect_id, voter_id, voter_tag, vote) VALUES (?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE vote = VALUES(vote), voter_tag = VALUES(voter_tag), created_at = NOW()`,
-    [prospectId, voterId, voterTag, vote]
+    `INSERT INTO prospect_votes (prospect_id, voter_id, voter_tag, vote, reason) VALUES (?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE vote = VALUES(vote), voter_tag = VALUES(voter_tag), reason = VALUES(reason), created_at = NOW()`,
+    [prospectId, voterId, voterTag, vote, reason]
   );
 }
 
-export async function removeVote(prospectId, voterId, vote) {
-  await query(
-    'DELETE FROM prospect_votes WHERE prospect_id = ? AND voter_id = ? AND vote = ?',
-    [prospectId, voterId, vote]
+export async function getVoteCounts(prospectId) {
+  const rows = await query(
+    `SELECT vote, COUNT(*) as count FROM prospect_votes WHERE prospect_id = ? GROUP BY vote`,
+    [prospectId]
   );
+  const counts = { yes: 0, no: 0, unsure: 0 };
+  for (const row of rows) {
+    counts[row.vote] = row.count;
+  }
+  return counts;
 }
 
 export async function postVote(prospect, client) {
   const guild = client.guilds.cache.first();
   if (!guild) return;
 
-  const { forumChannelId, whitelistRoleId, voteEmojis } = config.prospects;
+  const { forumChannelId, whitelistRoleId } = config.prospects;
   if (!forumChannelId || !prospect.forum_thread_id) return;
 
   const forumChannel = await guild.channels.fetch(forumChannelId).catch(() => null);
@@ -43,11 +48,9 @@ export async function postVote(prospect, client) {
   if (!thread) return;
 
   const voteEmbed = buildVoteEmbed(prospect);
-  const voteMsg = await thread.send({ embeds: [voteEmbed] });
-
-  if (voteEmojis.yes) await voteMsg.react(voteEmojis.yes).catch(() => null);
-  if (voteEmojis.no) await voteMsg.react(voteEmojis.no).catch(() => null);
-  if (voteEmojis.unsure) await voteMsg.react(voteEmojis.unsure).catch(() => null);
+  const counts = { yes: 0, no: 0, unsure: 0 };
+  const components = buildVoteComponents(counts);
+  const voteMsg = await thread.send({ embeds: [voteEmbed], components });
 
   if (whitelistRoleId) {
     const member = await guild.members.fetch(prospect.user_id).catch(() => null);

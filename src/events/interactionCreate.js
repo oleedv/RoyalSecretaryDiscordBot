@@ -23,7 +23,7 @@ const buttonHandlers = {
     const getField = (name) => embed.fields?.find((f) => f.name === name)?.value || '';
     prospectModals.storePart1(interaction.user.id, {
       alias: getField('Alias'),
-      nationality: getField('Nationality'),
+      country: getField('Country'),
       dateOfBirth: getField('Date of Birth'),
       squadHours: getField('Hours in Squad'),
       preferredRoles: getField('Preferred Roles'),
@@ -32,12 +32,16 @@ const buttonHandlers = {
     return prospectButtons.handleModal2Open(interaction);
   },
   prospect_claim: prospectButtons.handleClaim,
+  prospect_unclaim: prospectButtons.handleUnclaim,
   prospect_accept: prospectButtons.handleAccept,
   prospect_deny: prospectButtons.handleDeny,
   prospect_voice_invite: prospectButtons.handleVoiceInvite,
   prospect_pause: prospectButtons.handlePause,
   prospect_extend: prospectButtons.handleExtend,
   prospect_test_vote: prospectButtons.handleTestVote,
+  vote_yes: prospectButtons.handleVoteYes,
+  vote_no: prospectButtons.handleVoteNo,
+  vote_unsure: prospectButtons.handleVoteUnsure,
 };
 
 const modalHandlers = {
@@ -75,7 +79,10 @@ export default {
     }
 
     if (interaction.isModalSubmit()) {
-      const handler = modalHandlers[interaction.customId];
+      let handler = modalHandlers[interaction.customId];
+      if (!handler && interaction.customId.startsWith('vote_no_reason_modal:')) {
+        handler = prospectModals.handleVoteNoModal;
+      }
       if (handler) {
         try {
           await handler(interaction);

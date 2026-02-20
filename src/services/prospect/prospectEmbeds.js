@@ -20,7 +20,7 @@ export function buildProspectInfoEmbed(member, prospect, forumUrl) {
     .setDescription(`Applicant: **${userTag}** (<@${prospect.user_id}>)`)
     .addFields(
       { name: 'Alias', value: prospect.alias, inline: true },
-      { name: 'Nationality', value: prospect.nationality, inline: true },
+      { name: 'Country', value: prospect.nationality, inline: true },
       { name: 'Date of Birth', value: prospect.date_of_birth, inline: true },
       { name: 'Hours in Squad', value: String(prospect.squad_hours), inline: true },
       { name: 'Preferred Roles', value: prospect.preferred_roles, inline: true },
@@ -79,7 +79,7 @@ export function buildForumIntroEmbed(member, prospect) {
     .setDescription(`Applicant: **${userTag}** (<@${prospect.user_id}>)`)
     .addFields(
       { name: 'Alias', value: prospect.alias, inline: true },
-      { name: 'Nationality', value: prospect.nationality, inline: true },
+      { name: 'Country', value: prospect.nationality, inline: true },
       { name: 'Hours in Squad', value: String(prospect.squad_hours), inline: true },
       { name: 'Preferred Roles', value: prospect.preferred_roles, inline: true },
       { name: 'Previous Clan', value: prospect.prev_clan, inline: true },
@@ -117,6 +117,10 @@ export function buildProspectComponents(prospect) {
       .setCustomId('prospect_deny')
       .setLabel('Denied')
       .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId('prospect_unclaim')
+      .setLabel('Unclaim')
+      .setStyle(ButtonStyle.Secondary),
   );
 
   const actionRow = new ActionRowBuilder().addComponents(
@@ -144,7 +148,7 @@ export function buildProspectAcceptedComponents(prospect) {
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
       .setCustomId('prospect_test_vote')
-      .setLabel('Test Vote')
+      .setLabel('Force Vote')
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId('prospect_deny')
@@ -155,16 +159,29 @@ export function buildProspectAcceptedComponents(prospect) {
 }
 
 export function buildVoteEmbed(prospect) {
-  const { voteEmojis } = config.prospects;
-
   return createEmbed('Prospect')
     .setTitle(`Vote — ${prospect.alias}`)
     .setDescription(
       `The prospect period for **${prospect.alias}** is coming to an end. Cast your vote!\n\n` +
-      `React with:\n` +
-      `${voteEmojis.yes ? `<:yes:${voteEmojis.yes}>` : '👍'} — **Yes**, accept\n` +
-      `${voteEmojis.no ? `<:no:${voteEmojis.no}>` : '👎'} — **No**, deny\n` +
-      `${voteEmojis.unsure ? `<:unsure:${voteEmojis.unsure}>` : '🤷'} — **Unsure**`
+      `Click a button below to vote.`
     )
     .setColor(0xfee75c);
+}
+
+export function buildVoteComponents(voteCounts) {
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('vote_yes')
+      .setLabel(`Yes (${voteCounts.yes})`)
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId('vote_no')
+      .setLabel(`No (${voteCounts.no})`)
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId('vote_unsure')
+      .setLabel(`Unsure (${voteCounts.unsure})`)
+      .setStyle(ButtonStyle.Secondary),
+  );
+  return [row];
 }

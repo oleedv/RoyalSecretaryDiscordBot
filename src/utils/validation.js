@@ -13,7 +13,7 @@ export function validateDateOfBirth(dateOfBirth) {
   const age = (Date.now() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
 
   if (isNaN(dob.getTime())) return '**Date of Birth**: invalid date.';
-  if (age < 16) return '**Date of Birth**: you must be at least 16 years old.';
+  if (age < 18) return '**Date of Birth**: you must be at least 18 years old.';
 
   return null;
 }

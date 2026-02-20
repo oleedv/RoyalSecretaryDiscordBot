@@ -1,8 +1,11 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { createEmbed } from '../utils/embed.js';
 import { validateDateOfBirth, validateSquadHours } from '../utils/validation.js';
+import { validateCountry } from '../utils/countries.js';
 import { validateSteamInput } from '../services/steamService.js';
 import { createProspect, getProspectByChannel, closeProspect, extendProspect } from '../services/prospect/prospectService.js';
+import { upsertVote, getVoteCounts } from '../services/prospect/prospectVoting.js';
+import { buildVoteComponents } from '../services/prospect/prospectEmbeds.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'prospectModals' });
@@ -21,14 +24,20 @@ export function storePart1(userId, data) {
 
 export async function handleModal1(interaction) {
   const alias = interaction.fields.getTextInputValue('alias').trim();
-  const nationality = interaction.fields.getTextInputValue('nationality').trim();
+  const countryInput = interaction.fields.getTextInputValue('country').trim();
   const dateOfBirth = interaction.fields.getTextInputValue('date_of_birth').trim();
   const squadHours = interaction.fields.getTextInputValue('squad_hours').trim();
   const preferredRoles = interaction.fields.getTextInputValue('preferred_roles').trim();
 
   const errors = [];
   if (!alias || alias.length > 32) errors.push('**Alias**: must be 1-32 characters.');
-  if (!nationality) errors.push('**Nationality**: required.');
+
+  const countryResult = validateCountry(countryInput);
+  if (!countryInput) {
+    errors.push('**Country**: required.');
+  } else if (!countryResult.valid) {
+    errors.push('**Country**: not recognized. Please enter your country name (e.g. Germany, United States).');
+  }
 
   const dobError = validateDateOfBirth(dateOfBirth);
   if (dobError) errors.push(dobError);
@@ -50,7 +59,7 @@ export async function handleModal1(interaction) {
     .setDescription('Click **Continue Application** to complete part 2.')
     .addFields(
       { name: 'Alias', value: alias, inline: true },
-      { name: 'Nationality', value: nationality, inline: true },
+      { name: 'Country', value: countryResult.valid ? countryResult.country : countryInput, inline: true },
       { name: 'Date of Birth', value: dateOfBirth, inline: true },
       { name: 'Hours in Squad', value: squadHours, inline: true },
       { name: 'Preferred Roles', value: preferredRoles, inline: true },
@@ -109,7 +118,7 @@ export async function handleModal2(interaction) {
 
   const formData = {
     alias: part1.alias,
-    nationality: part1.nationality,
+    nationality: part1.country,
     dateOfBirth: part1.dateOfBirth,
     squadHours: Number(part1.squadHours),
     preferredRoles: part1.preferredRoles,
@@ -157,4 +166,18 @@ export async function handleExtendModal(interaction) {
   await extendProspect(prospect, days, interaction.user.id, interaction.guild);
   await interaction.editReply({ content: `Extended **${prospect.alias}**'s prospect period by **${days}** day(s).` });
   log.info({ prospectId: prospect.id, days, actorId: interaction.user.id }, 'Prospect extended via modal');
+}
+
+export async function handleVoteNoModal(interaction) {
+  await interaction.deferUpdate();
+  const prospectId = parseInt(interaction.customId.split(':')[1], 10);
+  if (isNaN(prospectId)) return;
+
+  const reason = interaction.fields.getTextInputValue('vote_no_reason').trim();
+  await upsertVote(prospectId, interaction.user.id, interaction.user.tag, 'no', reason);
+
+  const counts = await getVoteCounts(prospectId);
+  const components = buildVoteComponents(counts);
+  await interaction.message.edit({ components });
+  log.info({ prospectId, voterId: interaction.user.id, vote: 'no' }, 'No vote recorded with reason');
 }

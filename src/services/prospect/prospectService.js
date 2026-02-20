@@ -38,6 +38,9 @@ async function fetchCblData(steamId) {
                 }
               }
             }
+            expiredBans: bans(expired: true, first: 0) {
+              edges { node { id } }
+            }
           }
         }`,
       }),
@@ -60,7 +63,9 @@ function formatCblEmbed(cblData) {
   const repPoints = cblData?.reputationPoints ?? 0;
   const bans = cblData?.bans?.edges?.map((e) => e.node) ?? [];
 
-  let text = `**Risk:** ${riskRating}/10 · **Rep:** ${repPoints} pts`;
+  const expiredCount = cblData?.expiredBans?.edges?.length ?? 0;
+
+  let text = `**Risk:** ${riskRating}/10 · **Rep:** ${repPoints} pts · **Expired Bans:** ${expiredCount}`;
 
   if (bans.length === 0) {
     text += '\nNo active bans';
@@ -238,13 +243,50 @@ export async function claimProspect(prospect, mentorId, guild) {
   return {};
 }
 
+export async function unclaimProspect(prospect, actorId, guild) {
+  if (!prospect.mentor_id) return { error: 'This prospect does not have a mentor.' };
+
+  await query('UPDATE prospects SET mentor_id = NULL WHERE id = ?', [prospect.id]);
+
+  await query(
+    'INSERT INTO prospect_events (prospect_id, event_type, actor_id) VALUES (?, ?, ?)',
+    [prospect.id, 'unclaimed', actorId]
+  );
+
+  const staffChannel = await guild.channels.fetch(prospect.channel_id).catch(() => null);
+  if (staffChannel) {
+    const member = await guild.members.fetch(prospect.user_id).catch(() => null);
+    const updated = (await query('SELECT * FROM prospects WHERE id = ?', [prospect.id]))[0];
+    const infoEmbed = buildProspectInfoEmbed(member, updated);
+    const components = buildProspectComponents(updated);
+
+    const topMsg = await findBotMessageByCustomId(staffChannel, guild.client.user.id, ['prospect_claim', 'prospect_accept', 'prospect_deny', 'prospect_unclaim']);
+    if (topMsg) {
+      await topMsg.edit({ embeds: [infoEmbed], components });
+      appendCblToMessage(topMsg, updated.steam_id);
+    }
+
+    const actor = await guild.members.fetch(actorId).catch(() => null);
+    const actorTag = actor?.user.tag || actorId;
+    const notifEmbed = createEmbed('Prospect')
+      .setTitle('Mentor Unclaimed')
+      .setDescription(`**${actorTag}** has unclaimed this prospect. DM relay is no longer active.`)
+      .setColor(0xed4245);
+    await staffChannel.send({ embeds: [notifEmbed] });
+  }
+
+  log.info({ prospectId: prospect.id, actorId }, 'Mentor unclaimed prospect');
+  return {};
+}
+
 export async function acceptProspect(prospect, acceptedById, guild) {
   const { forumChannelId, periodDays } = config.prospects;
+
+  const member = await guild.members.fetch(prospect.user_id).catch(() => null);
 
   let forumThreadId = null;
   const forumChannel = forumChannelId ? await guild.channels.fetch(forumChannelId).catch(() => null) : null;
   if (forumChannel) {
-    const member = await guild.members.fetch(prospect.user_id).catch(() => null);
     const introEmbed = buildForumIntroEmbed(member, prospect);
 
     const thread = await forumChannel.threads.create({
@@ -266,7 +308,6 @@ export async function acceptProspect(prospect, acceptedById, guild) {
 
   const staffChannel = await guild.channels.fetch(prospect.channel_id).catch(() => null);
   if (staffChannel) {
-    const member = await guild.members.fetch(prospect.user_id).catch(() => null);
     const forumUrl = forumThreadId ? `https://discord.com/channels/${guild.id}/${forumThreadId}` : null;
 
     const updated = (await query('SELECT * FROM prospects WHERE id = ?', [prospect.id]))[0];
@@ -287,6 +328,12 @@ export async function acceptProspect(prospect, acceptedById, guild) {
       )
       .setColor(0x57f287);
     await staffChannel.send({ embeds: [notifEmbed] });
+  }
+
+  if (member) {
+    await member.setNickname(`P | ${member.displayName}`).catch((err) =>
+      log.warn({ err, userId: prospect.user_id }, 'Failed to set P | nickname')
+    );
   }
 
   const user = await guild.client.users.fetch(prospect.user_id).catch(() => null);
@@ -331,6 +378,20 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
   if (member) {
     if (prospectRoleId) await member.roles.remove(prospectRoleId).catch(() => null);
     if (whitelistRoleId) await member.roles.remove(whitelistRoleId).catch(() => null);
+
+    if (outcome === 'accepted') {
+      const strippedName = member.displayName.replace(/^P \| /, '');
+      await member.setNickname(`RB | ${strippedName}`).catch((err) =>
+        log.warn({ err, userId: prospect.user_id }, 'Failed to set RB | nickname')
+      );
+    } else {
+      const currentName = member.displayName;
+      if (currentName.startsWith('P | ')) {
+        await member.setNickname(currentName.replace(/^P \| /, '')).catch((err) =>
+          log.warn({ err, userId: prospect.user_id }, 'Failed to strip P | nickname')
+        );
+      }
+    }
   }
 
   const user = await guild.client.users.fetch(prospect.user_id).catch(() => null);

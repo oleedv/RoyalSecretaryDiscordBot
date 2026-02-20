@@ -4,8 +4,9 @@ import {
   TextInputStyle,
   ActionRowBuilder,
 } from 'discord.js';
-import { getOpenProspectByUser, getProspectByChannel, claimProspect, acceptProspect, togglePause, extendProspect } from '../services/prospect/prospectService.js';
-import { postVote } from '../services/prospect/prospectVoting.js';
+import { getOpenProspectByUser, getProspectByChannel, claimProspect, unclaimProspect, acceptProspect, togglePause, extendProspect } from '../services/prospect/prospectService.js';
+import { postVote, getProspectByVoteMessage, upsertVote, getVoteCounts } from '../services/prospect/prospectVoting.js';
+import { buildVoteComponents } from '../services/prospect/prospectEmbeds.js';
 import config from '../config.js';
 import logger from '../logger.js';
 
@@ -32,8 +33,8 @@ export async function handleApply(interaction) {
     ),
     new ActionRowBuilder().addComponents(
       new TextInputBuilder()
-        .setCustomId('nationality')
-        .setLabel('Nationality')
+        .setCustomId('country')
+        .setLabel('Country')
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
     ),
@@ -123,6 +124,18 @@ export async function handleClaim(interaction) {
 
   await interaction.editReply({ content: `You are now the mentor for **${prospect.alias}**. DM relay is active.` });
   log.info({ prospectId: prospect.id, mentorId: interaction.user.id }, 'Mentor claimed prospect');
+}
+
+export async function handleUnclaim(interaction) {
+  await interaction.deferReply({ flags: ['Ephemeral'] });
+  const prospect = await getProspectByChannel(interaction.channel.id);
+  if (!prospect) return interaction.editReply({ content: 'No open prospect found for this channel.' });
+
+  const result = await unclaimProspect(prospect, interaction.user.id, interaction.guild);
+  if (result.error) return interaction.editReply({ content: result.error });
+
+  await interaction.editReply({ content: `Mentor has been unclaimed from **${prospect.alias}**.` });
+  log.info({ prospectId: prospect.id, actorId: interaction.user.id }, 'Mentor unclaimed prospect');
 }
 
 export async function handleAccept(interaction) {
@@ -221,6 +234,54 @@ export async function handleTestVote(interaction) {
   if (prospect.vote_posted_at) return interaction.editReply({ content: 'A vote has already been posted for this prospect.' });
 
   await postVote(prospect, interaction.client);
-  await interaction.editReply({ content: `Test vote posted for **${prospect.alias}**.` });
-  log.info({ prospectId: prospect.id, actorId: interaction.user.id }, 'Test vote triggered');
+  await interaction.editReply({ content: `Force vote posted for **${prospect.alias}**.` });
+  log.info({ prospectId: prospect.id, actorId: interaction.user.id }, 'Force vote triggered');
+}
+
+export async function handleVoteYes(interaction) {
+  await interaction.deferUpdate();
+  const prospect = await getProspectByVoteMessage(interaction.message.id);
+  if (!prospect) return;
+
+  await upsertVote(prospect.id, interaction.user.id, interaction.user.tag, 'yes');
+  const counts = await getVoteCounts(prospect.id);
+  const components = buildVoteComponents(counts);
+  await interaction.message.edit({ components });
+  log.info({ prospectId: prospect.id, voterId: interaction.user.id, vote: 'yes' }, 'Vote recorded');
+}
+
+export async function handleVoteUnsure(interaction) {
+  await interaction.deferUpdate();
+  const prospect = await getProspectByVoteMessage(interaction.message.id);
+  if (!prospect) return;
+
+  await upsertVote(prospect.id, interaction.user.id, interaction.user.tag, 'unsure');
+  const counts = await getVoteCounts(prospect.id);
+  const components = buildVoteComponents(counts);
+  await interaction.message.edit({ components });
+  log.info({ prospectId: prospect.id, voterId: interaction.user.id, vote: 'unsure' }, 'Vote recorded');
+}
+
+export async function handleVoteNo(interaction) {
+  const prospect = await getProspectByVoteMessage(interaction.message.id);
+  if (!prospect) {
+    return interaction.reply({ content: 'Could not find the associated prospect.', flags: ['Ephemeral'] });
+  }
+
+  const modal = new ModalBuilder()
+    .setCustomId(`vote_no_reason_modal:${prospect.id}`)
+    .setTitle('Vote No — Reason');
+
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('vote_no_reason')
+        .setLabel('Why are you voting no?')
+        .setStyle(TextInputStyle.Paragraph)
+        .setMinLength(5)
+        .setRequired(true)
+    )
+  );
+
+  await interaction.showModal(modal);
 }

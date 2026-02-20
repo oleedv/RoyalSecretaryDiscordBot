@@ -123,7 +123,8 @@ export async function initSchema() {
   // Prospect table migrations
   await query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS extra_days INT DEFAULT 0`);
   await query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS paused_at TIMESTAMP NULL`);
-  await query(`ALTER TABLE prospect_events MODIFY COLUMN event_type ENUM('created', 'vote_started', 'accepted', 'denied', 'closed', 'paused', 'unpaused', 'extended') NOT NULL`);
+  await query(`ALTER TABLE prospect_events MODIFY COLUMN event_type ENUM('created', 'vote_started', 'accepted', 'denied', 'closed', 'paused', 'unpaused', 'extended', 'unclaimed') NOT NULL`);
+  await query(`ALTER TABLE prospect_votes ADD COLUMN IF NOT EXISTS reason TEXT NULL`);
 
   log.info('Database schema initialized');
 }
