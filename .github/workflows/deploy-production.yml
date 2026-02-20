@@ -4,6 +4,7 @@ on:
   pull_request:
     branches: [production]
     types: [closed]
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
@@ -64,7 +65,7 @@ jobs:
             EOF
 
             docker compose -f docker-compose.prod.yml --env-file .env.prod pull royal-secretary-bot
-            docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+            docker compose -f docker-compose.prod.yml --env-file .env.prod up -d royal-secretary-bot
         env:
           REGISTRY: ghcr.io
           IMAGE_NAME: ${{ github.repository_owner }}/royalsecretarydiscordbot
