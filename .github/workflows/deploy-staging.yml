@@ -65,8 +65,8 @@ jobs:
             MARIADB_PASSWORD_STAGING=${{ secrets.DB_PASSWORD }}
             EOF
 
-            docker compose -f docker-compose.staging.yml --env-file .env.staging pull royal-secretary-bot
-            docker compose -f docker-compose.staging.yml --env-file .env.staging up -d royal-secretary-bot
+            docker compose -f docker-compose.staging.yml --env-file .env.staging pull royal-secretary-bot-staging
+            docker compose -f docker-compose.staging.yml --env-file .env.staging up -d royal-secretary-bot-staging
         env:
           REGISTRY: ghcr.io
           IMAGE_NAME: ${{ github.repository_owner }}/royalsecretarydiscordbot
