@@ -195,9 +195,11 @@ export async function createProspect(userId, guild, formData) {
 
   const user = await guild.client.users.fetch(userId).catch(() => null);
   if (user) {
-    await user.send(
-      `**[Prospect]** Your application to **Royal Battalion** has been received! A mentor will contact you shortly.`
-    ).catch(() => null);
+    const dmEmbed = createEmbed('Prospect')
+      .setTitle('Application Received')
+      .setDescription('Your application to **Royal Battalion** has been received! A mentor will contact you shortly.')
+      .setColor(0x5865f2);
+    await user.send({ embeds: [dmEmbed] }).catch(() => null);
   }
 
   log.info({ uuid, userId, channelId: channel.id }, 'Prospect created');
@@ -234,9 +236,11 @@ export async function claimProspect(prospect, mentorId, guild) {
 
   const user = await guild.client.users.fetch(prospect.user_id).catch(() => null);
   if (user) {
-    await user.send(
-      `**[Prospect]** A mentor has been assigned to you! You can now communicate with them by sending messages here in DMs.`
-    ).catch(() => null);
+    const dmEmbed = createEmbed('Prospect')
+      .setTitle('Mentor Assigned')
+      .setDescription('A mentor has been assigned to you! You can now communicate with them by sending messages here in DMs.')
+      .setColor(0x5865f2);
+    await user.send({ embeds: [dmEmbed] }).catch(() => null);
   }
 
   log.info({ prospectId: prospect.id, mentorId }, 'Mentor claimed prospect');
@@ -338,9 +342,11 @@ export async function acceptProspect(prospect, acceptedById, guild) {
 
   const user = await guild.client.users.fetch(prospect.user_id).catch(() => null);
   if (user) {
-    await user.send(
-      `**[Prospect]** Great news! You've passed the interview and have been **accepted** as a prospect in **Royal Battalion**! Your prospect period has now started.`
-    ).catch(() => null);
+    const dmEmbed = createEmbed('Prospect')
+      .setTitle('Interview Passed')
+      .setDescription("Great news! You've passed the interview and have been **accepted** as a prospect in **Royal Battalion**! Your prospect period has now started.")
+      .setColor(0x57f287);
+    await user.send({ embeds: [dmEmbed] }).catch(() => null);
   }
 
   log.info({ prospectId: prospect.id, acceptedBy: acceptedById, forumThreadId }, 'Prospect accepted, forum thread created');
@@ -409,14 +415,26 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
 
   const user = await guild.client.users.fetch(prospect.user_id).catch(() => null);
   if (user) {
-    const messages = {
-      accepted: '**[Prospect]** Congratulations! Your application to **Royal Battalion** has been **accepted**! Welcome to the team.',
-      denied: reason
-        ? `**[Prospect]** Your application to **Royal Battalion** has been **denied**.\n\n**Reason:** ${reason}\n\nThank you for your interest.`
-        : '**[Prospect]** Your application to **Royal Battalion** has been **denied**. Thank you for your interest.',
-      closed: '**[Prospect]** Your prospect application has been closed.',
+    const dmEmbeds = {
+      accepted: createEmbed('Prospect')
+        .setTitle('Welcome to Royal Battalion')
+        .setDescription('Congratulations! Your application to **Royal Battalion** has been **accepted**! Welcome to the team.')
+        .setColor(0x57f287),
+      denied: createEmbed('Prospect')
+        .setTitle('Application Denied')
+        .setDescription(
+          reason
+            ? `Your application to **Royal Battalion** has been **denied**.\n\n**Reason:** ${reason}\n\nThank you for your interest.`
+            : 'Your application to **Royal Battalion** has been **denied**. Thank you for your interest.'
+        )
+        .setColor(0xed4245),
+      closed: createEmbed('Prospect')
+        .setTitle('Application Closed')
+        .setDescription('Your prospect application has been closed.')
+        .setColor(0x95a5a6),
     };
-    await user.send(messages[outcome] || messages.closed).catch(() => null);
+    const dmEmbed = dmEmbeds[outcome] || dmEmbeds.closed;
+    await user.send({ embeds: [dmEmbed] }).catch(() => null);
   }
 
   log.info({ prospectId: prospect.id, closedBy: closedById, outcome }, 'Prospect closed');
