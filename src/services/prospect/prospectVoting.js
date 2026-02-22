@@ -1,5 +1,5 @@
 import { createEmbed } from '../../utils/embed.js';
-import { buildVoteEmbed, buildVoteComponents } from './prospectEmbeds.js';
+import { buildVoteEmbed, buildVoteComponents, buildVoteAnnouncementEmbed } from './prospectEmbeds.js';
 import { query } from '../../database/connection.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
@@ -78,6 +78,19 @@ export async function postVote(prospect, client) {
       .setDescription(`A vote has been posted in the [forum thread](https://discord.com/channels/${guild.id}/${prospect.forum_thread_id}/${voteMsg.id}).`)
       .setColor(0xfee75c);
     await staffChannel.send({ embeds: [notifEmbed] });
+  }
+
+  const { loungeChannelId } = config.prospects;
+  if (loungeChannelId) {
+    const loungeChannel = await guild.channels.fetch(loungeChannelId).catch(() => null);
+    if (loungeChannel) {
+      const member = await guild.members.fetch(prospect.user_id).catch(() => null);
+      const forumUrl = `https://discord.com/channels/${guild.id}/${prospect.forum_thread_id}`;
+      const announceEmbed = buildVoteAnnouncementEmbed(member, prospect, forumUrl);
+      await loungeChannel.send({ embeds: [announceEmbed] }).catch((err) =>
+        log.error({ err, prospectId: prospect.id }, 'Failed to send vote announcement to lounge')
+      );
+    }
   }
 
   log.info({ prospectId: prospect.id, voteMessageId: voteMsg.id }, 'Vote posted');

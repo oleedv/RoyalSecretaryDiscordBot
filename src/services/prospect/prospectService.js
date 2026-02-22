@@ -3,7 +3,7 @@ import { ChannelType, EmbedBuilder } from 'discord.js';
 import { createEmbed } from '../../utils/embed.js';
 import { buildPrivateChannelPermissions } from '../../utils/permissions.js';
 import { findBotMessageByCustomId } from '../../utils/messageSearch.js';
-import { buildProspectInfoEmbed, buildForumIntroEmbed, buildProspectComponents, buildProspectAcceptedComponents } from './prospectEmbeds.js';
+import { buildProspectInfoEmbed, buildForumIntroEmbed, buildProspectComponents, buildProspectAcceptedComponents, buildAcceptedAnnouncementEmbed } from './prospectEmbeds.js';
 import { query } from '../../database/connection.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
@@ -389,6 +389,19 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
       if (currentName.startsWith('P | ')) {
         await member.setNickname(currentName.replace(/^P \| /, '')).catch((err) =>
           log.warn({ err, userId: prospect.user_id }, 'Failed to strip P | nickname')
+        );
+      }
+    }
+  }
+
+  if (outcome === 'accepted') {
+    const { loungeChannelId } = config.prospects;
+    if (loungeChannelId) {
+      const loungeChannel = await guild.channels.fetch(loungeChannelId).catch(() => null);
+      if (loungeChannel) {
+        const announceEmbed = buildAcceptedAnnouncementEmbed(member, prospect);
+        await loungeChannel.send({ embeds: [announceEmbed] }).catch((err) =>
+          log.error({ err, prospectId: prospect.id }, 'Failed to send accepted announcement to lounge')
         );
       }
     }

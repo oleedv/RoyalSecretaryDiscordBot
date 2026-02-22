@@ -158,6 +158,28 @@ export function buildProspectAcceptedComponents(prospect) {
   return [actionRow];
 }
 
+export function buildVoteAnnouncementEmbed(member, prospect, forumUrl) {
+  return createEmbed('Prospect')
+    .setTitle('Prospect Up for Voting')
+    .setDescription(
+      `**${prospect.alias}** is up for voting!\n\n` +
+      `Head over to the [forum post](${forumUrl}) to cast your vote.`
+    )
+    .setColor(0xfee75c)
+    .setThumbnail(member?.user.displayAvatarURL() || null);
+}
+
+export function buildAcceptedAnnouncementEmbed(member, prospect) {
+  return createEmbed('Prospect')
+    .setTitle('New Member')
+    .setDescription(
+      `**${prospect.alias}** has been accepted into **Royal Battalion**!\n\n` +
+      `Welcome to the team, <@${prospect.user_id}>!`
+    )
+    .setColor(0x57f287)
+    .setThumbnail(member?.user.displayAvatarURL() || null);
+}
+
 export function buildVoteEmbed(prospect) {
   return createEmbed('Prospect')
     .setTitle(`Vote — ${prospect.alias}`)

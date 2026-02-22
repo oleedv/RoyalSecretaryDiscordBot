@@ -24,6 +24,7 @@ export default {
     categoryId: '1473786285943685190',
     panelChannelId: '1473761516888264805',
     forumChannelId: '1473786537975222354',
+    loungeChannelId: '',
     periodDays: 21,
     voteDaysBefore: 7,
     roles: ['195412349153312768'],

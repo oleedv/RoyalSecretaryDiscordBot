@@ -25,6 +25,7 @@ export default {
     categoryId: '',                   // Prospect category
     panelChannelId: '',               // "Join RB" panel channel
     forumChannelId: '',               // Forum channel for public posts
+    loungeChannelId: '',              // Public announcements (voting, accepted)
     periodDays: 21,
     voteDaysBefore: 7,
     roles: [''],                      // Staff roles
