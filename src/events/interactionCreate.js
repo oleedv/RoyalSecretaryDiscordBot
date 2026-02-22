@@ -42,6 +42,7 @@ const buttonHandlers = {
   vote_yes: prospectButtons.handleVoteYes,
   vote_no: prospectButtons.handleVoteNo,
   vote_unsure: prospectButtons.handleVoteUnsure,
+  vote_end: prospectButtons.handleEndVote,
 };
 
 const modalHandlers = {

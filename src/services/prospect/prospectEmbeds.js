@@ -181,13 +181,30 @@ export function buildAcceptedAnnouncementEmbed(member, prospect) {
 }
 
 export function buildVoteEmbed(prospect) {
-  return createEmbed('Prospect')
+  const { periodDays } = config.prospects;
+  const extra = prospect.extra_days || 0;
+  const totalPeriod = periodDays + extra;
+
+  const endDate = new Date(prospect.created_at);
+  endDate.setDate(endDate.getDate() + totalPeriod);
+  const endDateStr = `<t:${Math.floor(endDate.getTime() / 1000)}:D>`;
+
+  const embed = createEmbed('Prospect')
     .setTitle(`Vote — ${prospect.alias}`)
     .setDescription(
       `The prospect period for **${prospect.alias}** is coming to an end. Cast your vote!\n\n` +
       `Click a button below to vote.`
     )
+    .addFields(
+      { name: 'Period Ends', value: endDateStr, inline: true },
+    )
     .setColor(0xfee75c);
+
+  if (prospect.mentor_id) {
+    embed.addFields({ name: 'Mentor', value: `<@${prospect.mentor_id}>`, inline: true });
+  }
+
+  return embed;
 }
 
 export function buildVoteComponents(voteCounts) {
@@ -203,6 +220,10 @@ export function buildVoteComponents(voteCounts) {
     new ButtonBuilder()
       .setCustomId('vote_unsure')
       .setLabel(`Unsure (${voteCounts.unsure})`)
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('vote_end')
+      .setLabel('End Vote')
       .setStyle(ButtonStyle.Secondary),
   );
   return [row];

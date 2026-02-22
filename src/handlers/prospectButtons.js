@@ -4,7 +4,7 @@ import {
   TextInputStyle,
   ActionRowBuilder,
 } from 'discord.js';
-import { getOpenProspectByUser, getProspectByChannel, claimProspect, unclaimProspect, acceptProspect, togglePause, extendProspect } from '../services/prospect/prospectService.js';
+import { getOpenProspectByUser, getProspectByChannel, claimProspect, unclaimProspect, acceptProspect, togglePause, extendProspect, closeProspect } from '../services/prospect/prospectService.js';
 import { postVote, getProspectByVoteMessage, upsertVote, getVoteCounts } from '../services/prospect/prospectVoting.js';
 import { buildVoteComponents } from '../services/prospect/prospectEmbeds.js';
 import config from '../config.js';
@@ -260,6 +260,29 @@ export async function handleVoteUnsure(interaction) {
   const components = buildVoteComponents(counts);
   await interaction.message.edit({ components });
   log.info({ prospectId: prospect.id, voterId: interaction.user.id, vote: 'unsure' }, 'Vote recorded');
+}
+
+export async function handleEndVote(interaction) {
+  await interaction.deferUpdate();
+  const prospect = await getProspectByVoteMessage(interaction.message.id);
+  if (!prospect) return;
+
+  const counts = await getVoteCounts(prospect.id);
+
+  const outcome = counts.yes > counts.no ? 'accepted' : 'denied';
+  const reason = outcome === 'denied' ? `Vote result: ${counts.yes} yes, ${counts.no} no, ${counts.unsure} unsure` : undefined;
+
+  await closeProspect(prospect, interaction.user.id, outcome, interaction.guild, reason);
+
+  const disabledRow = buildVoteComponents(counts);
+  for (const row of disabledRow) {
+    for (const component of row.components) {
+      component.setDisabled(true);
+    }
+  }
+  await interaction.message.edit({ components: disabledRow });
+
+  log.info({ prospectId: prospect.id, outcome, counts, actorId: interaction.user.id }, 'Vote ended');
 }
 
 export async function handleVoteNo(interaction) {
