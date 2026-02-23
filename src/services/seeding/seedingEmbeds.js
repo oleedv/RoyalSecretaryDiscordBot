@@ -6,7 +6,9 @@ import logger from '../../logger.js';
 const log = logger.child({ module: 'seedingEmbeds' });
 const cropCache = new Map();
 
-export function buildSeedingCallEmbed({ mapName, playerCount, threshold, thumbnailUrl, imageAttachment, avgSeedTime }) {
+const trendArrows = { up: '↑', down: '↓', stable: '→' };
+
+export function buildSeedingCallEmbed({ mapName, playerCount, threshold, thumbnailUrl, imageAttachment, avgSeedTime, avgSeedTrend }) {
   const embed = createEmbed('Seeding')
     .setTitle('Seeding Time!')
     .setDescription(
@@ -21,7 +23,9 @@ export function buildSeedingCallEmbed({ mapName, playerCount, threshold, thumbna
     );
 
   if (avgSeedTime) {
-    embed.addFields({ name: 'Avg Seed Time', value: `~${avgSeedTime} min`, inline: true });
+    const arrow = trendArrows[avgSeedTrend] || '';
+    const value = arrow ? `~${avgSeedTime} min (${arrow})` : `~${avgSeedTime} min`;
+    embed.addFields({ name: 'Avg Seed Time', value, inline: true });
   }
 
   if (imageAttachment) {

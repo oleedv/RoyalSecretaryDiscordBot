@@ -3,6 +3,7 @@ import {
   getSeedingConfig, getActiveSession, startSession, completeSession,
   resetSession, updateSessionPeak, updateSessionCallMessage,
   expireOldSessions, getAverageSeedTime, trackMessage,
+  getLastCompletionMessage, deleteTrackedMessage,
 } from './seedingService.js';
 import { AttachmentBuilder } from 'discord.js';
 import {
@@ -80,8 +81,8 @@ async function checkDailyCall(client) {
     const currentTime = getCurrentTime(tz);
     const today = getTodayDate(tz);
 
-    // Support "HH:MM", "HHMM", or legacy integer hour
-    let configuredTime = cfg.daily_time || `${String(cfg.daily_hour ?? 16).padStart(2, '0')}:00`;
+    // Support "HH:MM" or "HHMM" formats
+    let configuredTime = cfg.daily_time || '16:00';
     // Normalize HHMM to HH:MM
     if (/^\d{4}$/.test(configuredTime)) {
       configuredTime = `${configuredTime.slice(0, 2)}:${configuredTime.slice(2)}`;
@@ -150,6 +151,18 @@ async function postSeedingCall(client, cfg) {
     return;
   }
 
+  // Delete previous completion message
+  try {
+    const prev = await getLastCompletionMessage(cfg.channel_id);
+    if (prev) {
+      const oldMsg = await channel.messages.fetch(prev.message_id).catch(() => null);
+      if (oldMsg) await oldMsg.delete().catch(() => null);
+      await deleteTrackedMessage(prev.message_id);
+    }
+  } catch (err) {
+    log.warn({ err }, 'Failed to delete old completion message');
+  }
+
   const state = getServerState();
   const stats = await getAverageSeedTime();
   const thumbnailUrl = getMapThumbnailUrl(state.currentLayer);
@@ -164,6 +177,7 @@ async function postSeedingCall(client, cfg) {
     thumbnailUrl: croppedBuf ? undefined : thumbnailUrl,
     imageAttachment: croppedBuf ? 'map.jpg' : undefined,
     avgSeedTime: stats.avgMinutes,
+    avgSeedTrend: stats.trend,
   });
   if (croppedBuf) files.push(new AttachmentBuilder(croppedBuf, { name: 'map.jpg' }));
 
@@ -230,6 +244,7 @@ async function updateCallMessage(client, cfg, session, state) {
       thumbnailUrl: croppedBuf ? undefined : thumbnailUrl,
       imageAttachment: croppedBuf ? 'map.jpg' : undefined,
       avgSeedTime: stats.avgMinutes,
+      avgSeedTrend: stats.trend,
     });
     if (croppedBuf) files.push(new AttachmentBuilder(croppedBuf, { name: 'map.jpg' }));
 

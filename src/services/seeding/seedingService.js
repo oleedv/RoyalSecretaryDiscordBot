@@ -103,27 +103,60 @@ export async function trackMessage(messageId, channelId, messageType, sessionId 
   );
 }
 
+export async function getLastCompletionMessage(channelId) {
+  const rows = await query(
+    `SELECT message_id, channel_id FROM seeding_messages
+     WHERE channel_id = ? AND message_type = 'completion'
+     ORDER BY created_at DESC LIMIT 1`,
+    [channelId]
+  );
+  return rows[0] || null;
+}
+
+export async function deleteTrackedMessage(messageId) {
+  await query('DELETE FROM seeding_messages WHERE message_id = ?', [messageId]);
+}
+
 // ── Stats ──
 
 export async function getAverageSeedTime(days = 30) {
-  const rows = await query(
-    `SELECT
-       AVG(duration_minutes) as avg_minutes,
-       COUNT(*) as total_sessions,
-       MIN(duration_minutes) as fastest,
-       MAX(duration_minutes) as slowest
-     FROM seeding_sessions
-     WHERE status = 'completed' AND started_at > NOW() - INTERVAL ? DAY`,
-    [days]
-  );
-  const row = rows[0];
+  const [currentRows, prevRows] = await Promise.all([
+    query(
+      `SELECT AVG(duration_minutes) as avg_minutes, COUNT(*) as total_sessions,
+              MIN(duration_minutes) as fastest, MAX(duration_minutes) as slowest
+       FROM seeding_sessions
+       WHERE status = 'completed' AND started_at > NOW() - INTERVAL ? DAY`,
+      [days]
+    ),
+    query(
+      `SELECT AVG(duration_minutes) as avg_minutes
+       FROM seeding_sessions
+       WHERE status = 'completed'
+         AND started_at > NOW() - INTERVAL ? DAY
+         AND started_at <= NOW() - INTERVAL ? DAY`,
+      [days * 2, days]
+    ),
+  ]);
+
+  const row = currentRows[0];
   if (!row || !row.total_sessions) {
-    return { avgMinutes: null, totalSessions: 0, fastest: null, slowest: null };
+    return { avgMinutes: null, totalSessions: 0, fastest: null, slowest: null, trend: null };
   }
+
+  const currentAvg = Math.round(row.avg_minutes);
+  const prevAvg = prevRows[0]?.avg_minutes ? Math.round(prevRows[0].avg_minutes) : null;
+  let trend = null;
+  if (prevAvg != null) {
+    if (currentAvg > prevAvg + 5) trend = 'up';
+    else if (currentAvg < prevAvg - 5) trend = 'down';
+    else trend = 'stable';
+  }
+
   return {
-    avgMinutes: Math.round(row.avg_minutes),
+    avgMinutes: currentAvg,
     totalSessions: row.total_sessions,
     fastest: row.fastest,
     slowest: row.slowest,
+    trend,
   };
 }
