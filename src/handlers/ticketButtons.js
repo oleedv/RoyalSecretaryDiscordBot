@@ -5,25 +5,35 @@ import {
   ActionRowBuilder,
 } from 'discord.js';
 import { getTicketByChannel, escalateTicket, closeTicket } from '../services/ticket/ticketService.js';
+import { getStoredSteamId } from '../services/userService.js';
 import { errorEmbed, successEmbed, infoEmbed } from '../utils/embed.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'ticketButtons' });
 
 export async function handleCreate(interaction) {
+  const storedSteamId = await getStoredSteamId(interaction.user.id);
+
   const ticketModal = new ModalBuilder()
-    .setCustomId('ticket_create_modal')
+    .setCustomId(storedSteamId ? 'ticket_create_modal_quick' : 'ticket_create_modal')
     .setTitle('Create a Support Ticket');
 
-  ticketModal.addComponents(
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('ticket_steam_id')
-        .setLabel('Steam ID (Steam64, profile URL, or Q to skip)')
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('e.g. 76561198012345678')
-        .setRequired(true)
-    ),
+  const components = [];
+
+  if (!storedSteamId) {
+    components.push(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('ticket_steam_id')
+          .setLabel('Steam ID (Steam64, profile URL, or Q to skip)')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('e.g. 76561198012345678')
+          .setRequired(true)
+      )
+    );
+  }
+
+  components.push(
     new ActionRowBuilder().addComponents(
       new TextInputBuilder()
         .setCustomId('ticket_reason')
@@ -36,6 +46,7 @@ export async function handleCreate(interaction) {
     )
   );
 
+  ticketModal.addComponents(...components);
   await interaction.showModal(ticketModal);
 }
 

@@ -30,6 +30,7 @@ const config = Object.freeze({
     databases: {
       secretary: process.env.DB_NAME || 'Royal_secretary_staging',
       squadjs: 'SquadJS',
+      website: process.env.WEBSITE_DB_NAME || 'royal_battalion_stg',
     },
   },
   squadjs: parseSquadJsServers(process.env.SQUADJS_SERVERS),
