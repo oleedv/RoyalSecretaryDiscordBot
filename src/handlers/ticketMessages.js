@@ -4,6 +4,7 @@ import { parseTextCommand } from '../utils/commands.js';
 import { trySendWithFiles } from '../utils/discord.js';
 import { getTicketByChannel, saveMessage, closeTicket, getClosedTicketsByUser } from '../services/ticket/ticketService.js';
 import { detectSteamIds, buildSteamEmbed, buildVanityEmbed } from '../services/steamService.js';
+import config from '../config.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'ticketMessages' });
@@ -38,7 +39,10 @@ export async function handleGuild(message) {
         const preview = t.first_message
           ? t.first_message.slice(0, 10) + (t.first_message.length > 10 ? '..' : '')
           : '*no message*';
-        return `${i + 1}. **${tier}** - ${preview} - \`${t.uuid}\``;
+        const uuidDisplay = config.webBaseUrl
+          ? `[${t.uuid}](${config.webBaseUrl}/ticket/${t.uuid})`
+          : `\`${t.uuid}\``;
+        return `${i + 1}. **${tier}** - ${preview} - ${uuidDisplay}`;
       });
 
       const pages = [];

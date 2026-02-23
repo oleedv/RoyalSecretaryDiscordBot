@@ -6,6 +6,7 @@ export default {
     name: 'Royal Secretary',
     version: '1.0.0',
   },
+  webBaseUrl: 'https://stg.royalbattalion.xyz',
   guild: {
     id: '1143282481253077002',
   },
@@ -39,7 +40,7 @@ export default {
     },
   },
   dm: {
-    infoChannelId: '1143282482150654125',
+    infoChannelId: '1474146687344836691',
   },
   seeding: {
     defaultThreshold: 40,

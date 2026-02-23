@@ -7,6 +7,7 @@ export default {
     name: 'Royal Secretary',
     version: '1.0.0',
   },
+  webBaseUrl: 'https://royalbattalion.xyz',
   guild: {
     id: '',                           // Production guild ID
   },

@@ -31,7 +31,7 @@ export async function handleCreateModal(interaction) {
 
   const user = await interaction.client.users.fetch(interaction.user.id).catch(() => null);
   if (user) {
-    await user.send({ embeds: [infoEmbed('Your ticket has been created. A staff member will be with you shortly.')] }).catch(() => null);
+    await user.send({ embeds: [infoEmbed('Your ticket has been created. A staff member will be with you shortly.\n\nFeel free to send any additional details, screenshots, or information here while you wait — it helps us resolve your issue faster.')] }).catch(() => null);
   }
 
   await interaction.editReply({
