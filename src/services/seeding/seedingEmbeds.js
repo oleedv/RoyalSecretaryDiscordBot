@@ -1,18 +1,18 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { createEmbed } from '../../utils/embed.js';
 
-export function buildSeedingCallEmbed({ mapName, layerName, playerCount, threshold, thumbnailUrl, avgSeedTime, serverName }) {
+export function buildSeedingCallEmbed({ mapName, playerCount, threshold, thumbnailUrl, avgSeedTime }) {
   const embed = createEmbed('Seeding')
     .setTitle('Seeding Time!')
     .setDescription(
-      'The server needs seeders! Join now and help us get the server populated.\n\n' +
-      'Every seeder makes a difference — hop in, grab a squad, and hold the line until we hit capacity.'
+      'Join the server now and help us get the population up!\n' +
+      `Stay until we reach ${threshold}+ players for the best experience.\n` +
+      'Every volunteer makes a difference!'
     )
     .setColor(0xfee75c)
     .addFields(
-      { name: 'Server', value: serverName || 'Royal Battalion', inline: true },
       { name: 'Current Map', value: mapName || 'Unknown', inline: true },
-      { name: 'Players', value: `${playerCount} / ${threshold} needed`, inline: true },
+      { name: 'Players', value: `${playerCount} / ${threshold}`, inline: true },
     );
 
   if (avgSeedTime) {
@@ -30,8 +30,14 @@ export function buildSeedingCompletionEmbed({ mapName, playerCount, duration }) 
   const embed = createEmbed('Seeding')
     .setTitle('Server Fully Seeded!')
     .setDescription(
-      'The server has reached the seeding threshold. Thanks to everyone who helped seed!\n\n' +
-      'Time to switch to your regular gameplay. See you on the battlefield!'
+      'Amazing work, seeders! The server is now populated and ready for action!\n\n' +
+      'Time to switch from seeding to playing!\n' +
+      'Join the server now for the best Squad experience!\n' +
+      'Thanks to all our dedicated seeders who made this possible!\n\n' +
+      '**What\'s Next?**\n' +
+      '- Join the server and enjoy the populated gameplay!\n' +
+      '- Continue playing to keep the momentum going!\n' +
+      '- Great work!'
     )
     .setColor(0x57f287);
 
@@ -44,11 +50,12 @@ export function buildSeedingCompletionEmbed({ mapName, playerCount, duration }) 
   return embed;
 }
 
-export function buildSeederRoleComponents() {
+export function buildSeederRoleComponents(seederCount = null) {
+  const joinLabel = seederCount != null ? `Join Seeders (${seederCount})` : 'Join Seeders';
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId('seeding_join')
-      .setLabel('Join Seeders')
+      .setLabel(joinLabel)
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
       .setCustomId('seeding_leave')

@@ -18,6 +18,7 @@ let monitorInterval = null;
 let unsubscribeSocket = null;
 let lastDailyCallDate = null;
 let checking = false;
+let lastKnownPlayerCount = null;
 
 export async function startScheduler(client) {
   log.info('Starting seeding scheduler');
@@ -118,12 +119,20 @@ async function checkPopulation(client) {
         );
         await completeSession(session.id, state.playerCount);
         await postCompletionMessage(client, cfg, session, state, duration);
+        lastKnownPlayerCount = null;
         return;
       }
 
       if (state.playerCount < cfg.reset_threshold && session.peak_players >= cfg.reset_threshold) {
         await resetSession(session.id);
+        lastKnownPlayerCount = null;
         return;
+      }
+
+      // Live-update the call message player count
+      if (lastKnownPlayerCount !== state.playerCount) {
+        lastKnownPlayerCount = state.playerCount;
+        await updateCallMessage(client, cfg, session, state);
       }
     }
   } catch (err) {
@@ -146,16 +155,23 @@ async function postSeedingCall(client, cfg) {
 
   const embed = buildSeedingCallEmbed({
     mapName: state.currentMap,
-    layerName: state.currentLayer,
     playerCount: state.playerCount,
     threshold: cfg.seed_threshold,
     thumbnailUrl,
     avgSeedTime: stats.avgMinutes,
-    serverName: cfg.server_name || 'Royal Battalion',
   });
 
-  const components = buildSeederRoleComponents();
-  const content = cfg.role_id ? `<@&${cfg.role_id}>` : undefined;
+  // Fetch seeder role member count for button label
+  let seederCount = null;
+  if (cfg.role_id && channel.guild) {
+    try {
+      const role = await channel.guild.roles.fetch(cfg.role_id);
+      seederCount = role?.members?.size ?? null;
+    } catch { /* role may not exist */ }
+  }
+
+  const components = buildSeederRoleComponents(seederCount);
+  const content = [cfg.role_id].filter(Boolean).map(id => `<@&${id}>`).join(' ') || undefined;
 
   const msg = await channel.send({ content, embeds: [embed], components });
 
@@ -163,6 +179,7 @@ async function postSeedingCall(client, cfg) {
   const session = await startSession(state.currentMap, state.currentLayer, state.playerCount);
   await updateSessionCallMessage(session.id, msg.id);
   await trackMessage(msg.id, cfg.channel_id, 'call', session.id);
+  lastKnownPlayerCount = state.playerCount;
 
   log.info({ messageId: msg.id, sessionId: session.id }, 'Seeding call posted');
 }
@@ -177,8 +194,37 @@ async function postCompletionMessage(client, cfg, session, state, duration) {
     duration,
   });
 
-  const msg = await channel.send({ embeds: [embed] });
+  const content = [cfg.role_id].filter(Boolean).map(id => `<@&${id}>`).join(' ') || undefined;
+
+  const msg = await channel.send({ content, embeds: [embed] });
   await trackMessage(msg.id, cfg.channel_id, 'completion', session.id);
 
   log.info({ sessionId: session.id, duration, players: state.playerCount }, 'Seeding completion posted');
+}
+
+async function updateCallMessage(client, cfg, session, state) {
+  if (!session.call_message_id || !cfg.channel_id) return;
+
+  try {
+    const channel = await client.channels.fetch(cfg.channel_id).catch(() => null);
+    if (!channel) return;
+
+    const message = await channel.messages.fetch(session.call_message_id).catch(() => null);
+    if (!message) return;
+
+    const stats = await getAverageSeedTime();
+    const thumbnailUrl = getMapThumbnailUrl(state.currentLayer);
+
+    const embed = buildSeedingCallEmbed({
+      mapName: state.currentMap,
+      playerCount: state.playerCount,
+      threshold: cfg.seed_threshold,
+      thumbnailUrl,
+      avgSeedTime: stats.avgMinutes,
+    });
+
+    await message.edit({ embeds: [embed] });
+  } catch (err) {
+    log.warn({ err, messageId: session.call_message_id }, 'Failed to update call message');
+  }
 }
