@@ -56,10 +56,10 @@ export function connect() {
   // Primary server info event
   socket.on('UPDATED_A2S_INFORMATION', (data) => {
     serverState.playerCount = data.a2sPlayerCount ?? data.playerCount ?? serverState.playerCount;
-    serverState.currentMap = data.currentMap ?? serverState.currentMap;
-    serverState.currentLayer = data.currentLayer ?? serverState.currentLayer;
+    serverState.currentMap = data.currentMap ?? data.map ?? serverState.currentMap;
+    serverState.currentLayer = data.currentLayer ?? data.layer ?? serverState.currentLayer;
     serverState.serverName = data.serverName ?? serverState.serverName;
-    log.debug({ playerCount: serverState.playerCount, map: serverState.currentMap }, 'A2S update');
+    log.debug({ playerCount: serverState.playerCount, map: serverState.currentMap, dataKeys: data ? Object.keys(data) : null }, 'A2S update');
     notifyListeners();
   });
 
