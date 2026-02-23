@@ -38,4 +38,12 @@ export default {
       unsure: '1472142752538955807',
     },
   },
+  seeding: {
+    defaultThreshold: 40,
+    defaultResetThreshold: 20,
+    defaultHour: 16,
+    defaultTimezone: 'UTC',
+    monitorIntervalMs: 120000,
+    schedulerCheckMs: 60000,
+  },
 };

@@ -126,5 +126,52 @@ export async function initSchema() {
   await query(`ALTER TABLE prospect_events MODIFY COLUMN event_type ENUM('created', 'vote_started', 'accepted', 'denied', 'closed', 'paused', 'unpaused', 'extended', 'unclaimed') NOT NULL`);
   await query(`ALTER TABLE prospect_votes ADD COLUMN IF NOT EXISTS reason TEXT NULL`);
 
+  // ── Seeding tables ──
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS seeding_config (
+      id INT PRIMARY KEY DEFAULT 1,
+      enabled TINYINT(1) DEFAULT 0,
+      channel_id VARCHAR(20),
+      role_id VARCHAR(20),
+      seed_threshold INT DEFAULT 40,
+      reset_threshold INT DEFAULT 20,
+      daily_hour INT DEFAULT 16,
+      timezone VARCHAR(50) DEFAULT 'UTC',
+      server_name VARCHAR(100),
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CHECK (id = 1)
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS seeding_sessions (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      completed_at TIMESTAMP NULL,
+      duration_minutes INT NULL,
+      start_players INT DEFAULT 0,
+      peak_players INT DEFAULT 0,
+      end_players INT DEFAULT 0,
+      map_name VARCHAR(100),
+      layer_name VARCHAR(200),
+      status ENUM('active', 'completed', 'reset', 'expired') DEFAULT 'active',
+      call_message_id VARCHAR(20),
+      completion_message_id VARCHAR(20)
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS seeding_messages (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      message_id VARCHAR(20) NOT NULL,
+      channel_id VARCHAR(20) NOT NULL,
+      message_type ENUM('call', 'completion', 'update') NOT NULL,
+      session_id INT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (session_id) REFERENCES seeding_sessions(id) ON DELETE SET NULL
+    )
+  `);
+
   log.info('Database schema initialized');
 }

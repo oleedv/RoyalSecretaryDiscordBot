@@ -4,6 +4,8 @@ import { createPools, testConnections, closePools } from './database/connection.
 import { initSchema } from './database/schema.js';
 import { createBot } from './bot.js';
 import { stopScheduler } from './services/prospect/prospectScheduler.js';
+import { stopScheduler as stopSeedingScheduler } from './services/seeding/seedingScheduler.js';
+import { disconnect as disconnectSquadJS } from './services/seeding/seedingSocket.js';
 
 const log = logger.child({ module: 'main' });
 
@@ -28,6 +30,8 @@ async function main() {
   const shutdown = async (signal) => {
     log.info(`Received ${signal}, shutting down gracefully...`);
     stopScheduler();
+    stopSeedingScheduler();
+    disconnectSquadJS();
     client.destroy();
     await closePools();
     log.info('Shutdown complete');

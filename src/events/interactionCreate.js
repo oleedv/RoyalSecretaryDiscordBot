@@ -3,6 +3,7 @@ import * as ticketButtons from '../handlers/ticketButtons.js';
 import * as ticketModals from '../handlers/ticketModals.js';
 import * as prospectButtons from '../handlers/prospectButtons.js';
 import * as prospectModals from '../handlers/prospectModals.js';
+import * as seedingButtons from '../handlers/seedingButtons.js';
 import { errorEmbed } from '../utils/embed.js';
 import logger from '../logger.js';
 
@@ -44,6 +45,8 @@ const buttonHandlers = {
   vote_no: prospectButtons.handleVoteNo,
   vote_unsure: prospectButtons.handleVoteUnsure,
   vote_end: prospectButtons.handleEndVote,
+  seeding_join: seedingButtons.handleJoin,
+  seeding_leave: seedingButtons.handleLeave,
 };
 
 const modalHandlers = {

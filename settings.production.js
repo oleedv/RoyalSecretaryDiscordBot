@@ -39,4 +39,12 @@ export default {
       unsure: '',                     // UNSURE emoji ID
     },
   },
+  seeding: {
+    defaultThreshold: 40,
+    defaultResetThreshold: 20,
+    defaultHour: 16,
+    defaultTimezone: 'UTC',
+    monitorIntervalMs: 120000,
+    schedulerCheckMs: 60000,
+  },
 };

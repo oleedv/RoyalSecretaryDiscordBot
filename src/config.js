@@ -9,6 +9,14 @@ export function validateConfig() {
   }
 }
 
+function parseSquadJsServers(envStr) {
+  if (!envStr) return [];
+  return envStr.split(',').map((entry) => {
+    const [name, url, token] = entry.trim().split('|');
+    return { name, url, token };
+  });
+}
+
 const config = Object.freeze({
   discord: {
     token: process.env.DISCORD_TOKEN,
@@ -24,6 +32,7 @@ const config = Object.freeze({
       squadjs: 'SquadJS',
     },
   },
+  squadjs: parseSquadJsServers(process.env.SQUADJS_SERVERS),
   ...settings,
 });
 
