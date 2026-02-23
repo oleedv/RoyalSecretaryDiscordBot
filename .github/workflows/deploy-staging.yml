@@ -53,16 +53,20 @@ jobs:
             echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
 
             cat > .env.staging << EOF
+            GHCR_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+            BOT_IMAGE_TAG_STAGING=staging
             DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}
-            DISCORD_APPLICATION_ID=${{ secrets.DISCORD_APPLICATION_ID }}
-            MARIADB_ROOT_PASSWORD=${{ secrets.MARIADB_ROOT_PASSWORD }}
-            MARIADB_DATABASE=${{ secrets.MARIADB_DATABASE }}
-            MARIADB_USER=${{ secrets.MARIADB_USER }}
-            MARIADB_PASSWORD=${{ secrets.MARIADB_PASSWORD }}
+            DISCORD_CLIENT_ID=${{ secrets.DISCORD_CLIENT_ID }}
+            DB_USER=${{ secrets.DB_USER }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            MARIADB_ROOT_PASSWORD_STAGING=${{ secrets.DB_ROOT_PASSWORD }}
+            MARIADB_DATABASE_STAGING=${{ secrets.DB_NAME }}
+            MARIADB_USER_STAGING=${{ secrets.DB_USER }}
+            MARIADB_PASSWORD_STAGING=${{ secrets.DB_PASSWORD }}
             EOF
 
-            docker compose -f docker-compose.staging.yml pull royal-secretary-bot-staging
-            docker compose -f docker-compose.staging.yml up -d royal-secretary-bot-staging
+            docker compose -f docker-compose.staging.yml --env-file .env.staging pull royal-secretary-bot-staging
+            docker compose -f docker-compose.staging.yml --env-file .env.staging up -d royal-secretary-bot-staging
         env:
           REGISTRY: ghcr.io
           IMAGE_NAME: ${{ github.repository_owner }}/royalsecretarydiscordbot
