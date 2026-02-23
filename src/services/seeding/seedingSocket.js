@@ -15,6 +15,15 @@ const serverState = {
   connected: false,
 };
 
+// Extract map name from layer string, e.g. "Mutaha_Seed_v1" -> "Mutaha"
+function extractMapName(layerName) {
+  if (!layerName) return null;
+  // Layer format: "MapName_GameMode_vX" or "Map Name GameMode vX"
+  const normalized = layerName.replace(/\s+/g, '_');
+  const match = normalized.match(/^(.+?)_(?:AAS|RAAS|Invasion|Insurgency|Seed|Skirmish|TC|TA|Destruction)_/i);
+  return match ? match[1].replace(/_/g, ' ') : layerName.split('_')[0];
+}
+
 function notifyListeners() {
   for (const cb of stateListeners) {
     try { cb(serverState); } catch (err) {
@@ -56,17 +65,17 @@ export function connect() {
   // Primary server info event
   socket.on('UPDATED_A2S_INFORMATION', (data) => {
     serverState.playerCount = data.a2sPlayerCount ?? data.playerCount ?? serverState.playerCount;
-    serverState.currentMap = data.currentMap ?? data.map ?? serverState.currentMap;
-    serverState.currentLayer = data.currentLayer ?? data.layer ?? serverState.currentLayer;
+    serverState.currentLayer = data.currentLayer ?? serverState.currentLayer;
+    serverState.currentMap = extractMapName(serverState.currentLayer);
     serverState.serverName = data.serverName ?? serverState.serverName;
-    log.debug({ playerCount: serverState.playerCount, map: serverState.currentMap, dataKeys: data ? Object.keys(data) : null }, 'A2S update');
+    log.debug({ playerCount: serverState.playerCount, map: serverState.currentMap, layer: serverState.currentLayer }, 'A2S update');
     notifyListeners();
   });
 
   // Map change event
   socket.on('NEW_GAME', (data) => {
-    serverState.currentMap = data.currentMap ?? data.map ?? serverState.currentMap;
     serverState.currentLayer = data.currentLayer ?? data.layer ?? serverState.currentLayer;
+    serverState.currentMap = extractMapName(serverState.currentLayer);
     serverState.playerCount = 0;
     log.info({ map: serverState.currentMap, layer: serverState.currentLayer }, 'New game started');
     notifyListeners();
@@ -83,9 +92,11 @@ export function connect() {
     notifyListeners();
   });
 
-  // Log all events for discovery
-  socket.onAny((event, ...args) => {
-    log.debug({ event, argCount: args.length, arg0Type: typeof args[0], arg0: args[0] }, 'SquadJS raw event');
+  // Log unknown events at debug level for discovery
+  socket.onAny((event, data) => {
+    if (!['UPDATED_A2S_INFORMATION', 'NEW_GAME', 'PLAYER_CONNECTED', 'PLAYER_DISCONNECTED'].includes(event)) {
+      log.debug({ event, dataKeys: data ? Object.keys(data) : null }, 'SquadJS event');
+    }
   });
 }
 
