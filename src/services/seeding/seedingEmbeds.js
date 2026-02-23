@@ -1,7 +1,12 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import sharp from 'sharp';
 import { createEmbed } from '../../utils/embed.js';
+import logger from '../../logger.js';
 
-export function buildSeedingCallEmbed({ mapName, playerCount, threshold, thumbnailUrl, avgSeedTime }) {
+const log = logger.child({ module: 'seedingEmbeds' });
+const cropCache = new Map();
+
+export function buildSeedingCallEmbed({ mapName, playerCount, threshold, thumbnailUrl, imageAttachment, avgSeedTime }) {
   const embed = createEmbed('Seeding')
     .setTitle('Seeding Time!')
     .setDescription(
@@ -19,7 +24,9 @@ export function buildSeedingCallEmbed({ mapName, playerCount, threshold, thumbna
     embed.addFields({ name: 'Avg Seed Time', value: `~${avgSeedTime} min`, inline: true });
   }
 
-  if (thumbnailUrl) {
+  if (imageAttachment) {
+    embed.setImage(`attachment://${imageAttachment}`);
+  } else if (thumbnailUrl) {
     embed.setImage(thumbnailUrl);
   }
 
@@ -73,4 +80,32 @@ export function getMapThumbnailUrl(layerName) {
     .replace(/\s+/g, '_')
     .replace(/__+/g, '_');
   return `https://raw.githubusercontent.com/mahtoid/SquadMaps/master/img/maps/thumbnails/${normalized}.jpg`;
+}
+
+export async function cropMapThumbnail(url) {
+  if (!url) return null;
+  if (cropCache.has(url)) return cropCache.get(url);
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+
+    const buf = Buffer.from(await res.arrayBuffer());
+    const meta = await sharp(buf).metadata();
+    const cropW = Math.round(meta.width * 0.5);
+    const cropH = Math.round(meta.height * 0.5);
+    const left = Math.round(meta.width * 0.25);
+    const top = Math.round(meta.height * 0.25);
+
+    const cropped = await sharp(buf)
+      .extract({ left, top, width: cropW, height: cropH })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+
+    cropCache.set(url, cropped);
+    return cropped;
+  } catch (err) {
+    log.warn({ err, url }, 'Failed to crop map thumbnail');
+    return null;
+  }
 }

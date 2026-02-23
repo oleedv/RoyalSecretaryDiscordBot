@@ -4,9 +4,10 @@ import {
   resetSession, updateSessionPeak, updateSessionCallMessage,
   expireOldSessions, getAverageSeedTime, trackMessage,
 } from './seedingService.js';
+import { AttachmentBuilder } from 'discord.js';
 import {
   buildSeedingCallEmbed, buildSeedingCompletionEmbed,
-  buildSeederRoleComponents, getMapThumbnailUrl,
+  buildSeederRoleComponents, getMapThumbnailUrl, cropMapThumbnail,
 } from './seedingEmbeds.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
@@ -153,13 +154,18 @@ async function postSeedingCall(client, cfg) {
   const stats = await getAverageSeedTime();
   const thumbnailUrl = getMapThumbnailUrl(state.currentLayer);
 
+  // Crop map image for a zoomed-in view
+  const croppedBuf = await cropMapThumbnail(thumbnailUrl);
+  const files = [];
   const embed = buildSeedingCallEmbed({
     mapName: state.currentMap,
     playerCount: state.playerCount,
     threshold: cfg.seed_threshold,
-    thumbnailUrl,
+    thumbnailUrl: croppedBuf ? undefined : thumbnailUrl,
+    imageAttachment: croppedBuf ? 'map.jpg' : undefined,
     avgSeedTime: stats.avgMinutes,
   });
+  if (croppedBuf) files.push(new AttachmentBuilder(croppedBuf, { name: 'map.jpg' }));
 
   // Fetch seeder role member count for button label
   let seederCount = null;
@@ -173,7 +179,7 @@ async function postSeedingCall(client, cfg) {
   const components = buildSeederRoleComponents(seederCount);
   const content = [cfg.role_id].filter(Boolean).map(id => `<@&${id}>`).join(' ') || undefined;
 
-  const msg = await channel.send({ content, embeds: [embed], components });
+  const msg = await channel.send({ content, embeds: [embed], components, files });
 
   // Start a seeding session
   const session = await startSession(state.currentMap, state.currentLayer, state.playerCount);
@@ -215,15 +221,19 @@ async function updateCallMessage(client, cfg, session, state) {
     const stats = await getAverageSeedTime();
     const thumbnailUrl = getMapThumbnailUrl(state.currentLayer);
 
+    const croppedBuf = await cropMapThumbnail(thumbnailUrl);
+    const files = [];
     const embed = buildSeedingCallEmbed({
       mapName: state.currentMap,
       playerCount: state.playerCount,
       threshold: cfg.seed_threshold,
-      thumbnailUrl,
+      thumbnailUrl: croppedBuf ? undefined : thumbnailUrl,
+      imageAttachment: croppedBuf ? 'map.jpg' : undefined,
       avgSeedTime: stats.avgMinutes,
     });
+    if (croppedBuf) files.push(new AttachmentBuilder(croppedBuf, { name: 'map.jpg' }));
 
-    await message.edit({ embeds: [embed] });
+    await message.edit({ embeds: [embed], files });
   } catch (err) {
     log.warn({ err, messageId: session.call_message_id }, 'Failed to update call message');
   }
