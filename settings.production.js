@@ -39,6 +39,9 @@ export default {
       unsure: '',                     // UNSURE emoji ID
     },
   },
+  dm: {
+    infoChannelId: '',                  // Server info/rules channel
+  },
   seeding: {
     defaultThreshold: 40,
     defaultResetThreshold: 20,

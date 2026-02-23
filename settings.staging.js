@@ -38,6 +38,9 @@ export default {
       unsure: '1472142752538955807',
     },
   },
+  dm: {
+    infoChannelId: '1143282482150654125',
+  },
   seeding: {
     defaultThreshold: 40,
     defaultResetThreshold: 20,

@@ -1,9 +1,10 @@
-import { Events } from 'discord.js';
+import { Events, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { getOpenTicketByUser } from '../services/ticket/ticketService.js';
 import { getOpenProspectByUser } from '../services/prospect/prospectService.js';
 import * as ticketMessages from '../handlers/ticketMessages.js';
 import * as prospectMessages from '../handlers/prospectMessages.js';
-import { infoEmbed } from '../utils/embed.js';
+import { infoEmbed, createEmbed } from '../utils/embed.js';
+import config from '../config.js';
 
 export default {
   name: Events.MessageCreate,
@@ -33,7 +34,35 @@ async function handleDM(message) {
     return prospectMessages.handleDM(message, prospect);
   }
 
-  return message.reply({ embeds: [infoEmbed('You don\'t have an open ticket or prospect application. Use the panels in the server to create one.')] });
+  const embed = createEmbed()
+    .setTitle('Royal Battalion')
+    .setDescription(
+      'Welcome! How can we help you today?\n\n' +
+      'Use the buttons below to get started. Create a ticket for support requests, player reports, or any questions.'
+    );
+
+  const buttons = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('ticket_create')
+      .setLabel('Create Ticket')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId('prospect_apply')
+      .setLabel('Join RB')
+      .setStyle(ButtonStyle.Success),
+  );
+
+  const infoChannelId = config.dm?.infoChannelId;
+  if (infoChannelId) {
+    buttons.addComponents(
+      new ButtonBuilder()
+        .setLabel('Server Info')
+        .setStyle(ButtonStyle.Link)
+        .setURL(`https://discord.com/channels/${config.guild.id}/${infoChannelId}`),
+    );
+  }
+
+  return message.reply({ embeds: [embed], components: [buttons] });
 }
 
 async function handleGuild(message) {

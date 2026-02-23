@@ -1,6 +1,7 @@
 import { validateSteamInput } from '../services/steamService.js';
 import { createTicket } from '../services/ticket/ticketService.js';
 import { errorEmbed, successEmbed, infoEmbed } from '../utils/embed.js';
+import config from '../config.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'ticketModals' });
@@ -19,7 +20,8 @@ export async function handleCreateModal(interaction) {
 
   await interaction.deferReply({ flags: ['Ephemeral'] });
 
-  const result = await createTicket(interaction.user.id, interaction.guild, {
+  const guild = interaction.guild ?? await interaction.client.guilds.fetch(config.guild.id);
+  const result = await createTicket(interaction.user.id, guild, {
     steamId: steamValidation.steamId,
     reason,
   });

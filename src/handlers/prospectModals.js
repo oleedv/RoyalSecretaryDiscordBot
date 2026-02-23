@@ -6,6 +6,7 @@ import { validateSteamInput } from '../services/steamService.js';
 import { createProspect, getProspectByChannel, closeProspect, extendProspect } from '../services/prospect/prospectService.js';
 import { upsertVote, getVoteCounts } from '../services/prospect/prospectVoting.js';
 import { buildVoteComponents } from '../services/prospect/prospectEmbeds.js';
+import config from '../config.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'prospectModals' });
@@ -133,7 +134,8 @@ export async function handleModal2(interaction) {
     steamId: validatedSteamId,
   };
 
-  const result = await createProspect(interaction.user.id, interaction.guild, formData);
+  const guild = interaction.guild ?? await interaction.client.guilds.fetch(config.guild.id);
+  const result = await createProspect(interaction.user.id, guild, formData);
   if (result.error) {
     return interaction.editReply({ embeds: [errorEmbed(result.error)] });
   }
