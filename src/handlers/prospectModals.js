@@ -12,6 +12,7 @@ const log = logger.child({ module: 'prospectModals' });
 
 // In-memory store for Part 1 data between the two modals (keyed by userId)
 const pendingApplications = new Map();
+const pendingCleanups = new Map();
 const PENDING_TTL = 15 * 60 * 1000; // 15 minutes
 
 /**
@@ -78,6 +79,9 @@ export async function handleModal1(interaction) {
     components: [continueRow],
     flags: ['Ephemeral'],
   });
+
+  pendingCleanups.set(interaction.user.id, () => interaction.deleteReply().catch(() => null));
+  setTimeout(() => pendingCleanups.delete(interaction.user.id), PENDING_TTL);
 }
 
 export async function handleModal2(interaction) {
@@ -137,6 +141,12 @@ export async function handleModal2(interaction) {
   await interaction.editReply({
     content: 'Your application has been submitted! Check your DMs for confirmation.',
   });
+
+  const cleanup = pendingCleanups.get(interaction.user.id);
+  if (cleanup) {
+    pendingCleanups.delete(interaction.user.id);
+    cleanup();
+  }
 
   log.info({ userId: interaction.user.id, channelId: result.channel.id }, 'Prospect created via modal');
 }

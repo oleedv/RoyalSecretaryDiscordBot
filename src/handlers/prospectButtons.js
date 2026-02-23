@@ -3,6 +3,8 @@ import {
   TextInputBuilder,
   TextInputStyle,
   ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
 } from 'discord.js';
 import { getOpenProspectByUser, getProspectByChannel, claimProspect, unclaimProspect, acceptProspect, togglePause, extendProspect, closeProspect } from '../services/prospect/prospectService.js';
 import { postVote, getProspectByVoteMessage, upsertVote, getVoteCounts } from '../services/prospect/prospectVoting.js';
@@ -263,9 +265,9 @@ export async function handleVoteUnsure(interaction) {
 }
 
 export async function handleEndVote(interaction) {
-  await interaction.deferUpdate();
-  const prospect = await getProspectByVoteMessage(interaction.message.id);
-  if (!prospect) return;
+  await interaction.deferReply({ flags: ['Ephemeral'] });
+  const prospect = await getProspectByChannel(interaction.channel.id);
+  if (!prospect) return interaction.editReply({ content: 'No open prospect found for this channel.' });
 
   const counts = await getVoteCounts(prospect.id);
 
@@ -274,14 +276,17 @@ export async function handleEndVote(interaction) {
 
   await closeProspect(prospect, interaction.user.id, outcome, interaction.guild, reason);
 
-  const disabledRow = buildVoteComponents(counts);
-  for (const row of disabledRow) {
-    for (const component of row.components) {
-      component.setDisabled(true);
-    }
-  }
-  await interaction.message.edit({ components: disabledRow });
+  // Disable the End Vote button on the staff channel message
+  const disabledRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('vote_end')
+      .setLabel('Vote Ended')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(true),
+  );
+  await interaction.message.edit({ components: [disabledRow] }).catch(() => null);
 
+  await interaction.editReply({ content: `Vote ended for **${prospect.alias}** — outcome: **${outcome}**.` });
   log.info({ prospectId: prospect.id, outcome, counts, actorId: interaction.user.id }, 'Vote ended');
 }
 

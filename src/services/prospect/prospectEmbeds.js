@@ -221,10 +221,16 @@ export function buildVoteComponents(voteCounts) {
       .setCustomId('vote_unsure')
       .setLabel(`Unsure (${voteCounts.unsure})`)
       .setStyle(ButtonStyle.Secondary),
+  );
+  return [row];
+}
+
+export function buildEndVoteComponents() {
+  const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId('vote_end')
       .setLabel('End Vote')
-      .setStyle(ButtonStyle.Secondary),
+      .setStyle(ButtonStyle.Danger),
   );
   return [row];
 }

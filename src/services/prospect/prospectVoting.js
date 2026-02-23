@@ -1,5 +1,5 @@
 import { createEmbed } from '../../utils/embed.js';
-import { buildVoteEmbed, buildVoteComponents, buildVoteAnnouncementEmbed } from './prospectEmbeds.js';
+import { buildVoteEmbed, buildVoteComponents, buildVoteAnnouncementEmbed, buildEndVoteComponents } from './prospectEmbeds.js';
 import { query } from '../../database/connection.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
@@ -77,7 +77,8 @@ export async function postVote(prospect, client) {
       .setTitle('Vote Started')
       .setDescription(`A vote has been posted in the [forum thread](https://discord.com/channels/${guild.id}/${prospect.forum_thread_id}/${voteMsg.id}).`)
       .setColor(0xfee75c);
-    await staffChannel.send({ embeds: [notifEmbed] });
+    const endVoteComponents = buildEndVoteComponents();
+    await staffChannel.send({ embeds: [notifEmbed], components: endVoteComponents });
   }
 
   const { loungeChannelId } = config.prospects;
