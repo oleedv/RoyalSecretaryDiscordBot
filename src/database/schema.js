@@ -136,7 +136,7 @@ export async function initSchema() {
       role_id VARCHAR(20),
       seed_threshold INT DEFAULT 40,
       reset_threshold INT DEFAULT 20,
-      daily_hour INT DEFAULT 16,
+      daily_time VARCHAR(5) DEFAULT '16:00',
       timezone VARCHAR(50) DEFAULT 'UTC',
       server_name VARCHAR(100),
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -172,6 +172,13 @@ export async function initSchema() {
       FOREIGN KEY (session_id) REFERENCES seeding_sessions(id) ON DELETE SET NULL
     )
   `);
+
+  // Seeding migrations
+  await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS daily_time VARCHAR(5) DEFAULT '16:00'`);
+  // Migrate daily_hour to daily_time if daily_hour column exists
+  try {
+    await query(`UPDATE seeding_config SET daily_time = CONCAT(LPAD(daily_hour, 2, '0'), ':00') WHERE daily_hour IS NOT NULL AND (daily_time IS NULL OR daily_time = '16:00')`);
+  } catch { /* daily_hour column may not exist on fresh installs */ }
 
   log.info('Database schema initialized');
 }

@@ -13,12 +13,12 @@ export async function getSeedingConfig() {
   // Insert default row from settings fallback
   const defaults = config.seeding || {};
   await query(
-    `INSERT IGNORE INTO seeding_config (id, seed_threshold, reset_threshold, daily_hour, timezone)
+    `INSERT IGNORE INTO seeding_config (id, seed_threshold, reset_threshold, daily_time, timezone)
      VALUES (1, ?, ?, ?, ?)`,
     [
       defaults.defaultThreshold || 40,
       defaults.defaultResetThreshold || 20,
-      defaults.defaultHour || 16,
+      defaults.defaultTime || '16:00',
       defaults.defaultTimezone || 'UTC',
     ]
   );

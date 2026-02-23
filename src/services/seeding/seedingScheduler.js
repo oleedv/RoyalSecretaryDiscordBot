@@ -43,15 +43,21 @@ export function stopScheduler() {
   log.info('Seeding scheduler stopped');
 }
 
-function getCurrentHour(timezone) {
+function getCurrentTime(timezone) {
   try {
+    const now = new Date();
     const hour = parseInt(
-      new Intl.DateTimeFormat('en', { hour: 'numeric', hour12: false, timeZone: timezone }).format(new Date()),
+      new Intl.DateTimeFormat('en', { hour: 'numeric', hour12: false, timeZone: timezone }).format(now),
       10,
     );
-    return hour;
+    const minute = parseInt(
+      new Intl.DateTimeFormat('en', { minute: 'numeric', timeZone: timezone }).format(now),
+      10,
+    );
+    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
   } catch {
-    return new Date().getUTCHours();
+    const now = new Date();
+    return `${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}`;
   }
 }
 
@@ -68,13 +74,17 @@ async function checkDailyCall(client) {
     const cfg = await getSeedingConfig();
     if (!cfg?.enabled || !cfg.channel_id) return;
 
-    const currentHour = getCurrentHour(cfg.timezone || 'UTC');
-    const today = getTodayDate(cfg.timezone || 'UTC');
+    const tz = cfg.timezone || 'UTC';
+    const currentTime = getCurrentTime(tz);
+    const today = getTodayDate(tz);
 
-    if (currentHour !== cfg.daily_hour || lastDailyCallDate === today) return;
+    // Support both "HH:MM" (daily_time) and legacy integer hour (daily_hour)
+    const configuredTime = cfg.daily_time || `${String(cfg.daily_hour ?? 16).padStart(2, '0')}:00`;
+
+    if (currentTime !== configuredTime || lastDailyCallDate === today) return;
 
     lastDailyCallDate = today;
-    log.info({ hour: currentHour, date: today }, 'Posting daily seeding call');
+    log.info({ time: currentTime, date: today }, 'Posting daily seeding call');
 
     await postSeedingCall(client, cfg);
   } catch (err) {

@@ -42,7 +42,7 @@ export default {
   seeding: {
     defaultThreshold: 40,
     defaultResetThreshold: 20,
-    defaultHour: 16,
+    defaultTime: '16:00',
     defaultTimezone: 'UTC',
     monitorIntervalMs: 120000,
     schedulerCheckMs: 60000,
