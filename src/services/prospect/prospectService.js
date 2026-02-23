@@ -119,6 +119,10 @@ export async function getOpenProspectByUser(userId) {
   return rows[0] || null;
 }
 
+export async function getOpenProspectsByMentor(mentorId) {
+  return query('SELECT * FROM prospects WHERE mentor_id = ? AND status = ?', [mentorId, 'open']);
+}
+
 export async function getProspectByChannel(channelId) {
   const rows = await query(
     'SELECT * FROM prospects WHERE channel_id = ? AND status = ?',
