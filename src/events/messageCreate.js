@@ -6,6 +6,9 @@ import * as prospectMessages from '../handlers/prospectMessages.js';
 import { infoEmbed, createEmbed } from '../utils/embed.js';
 import { logMessage } from '../services/admin/messageLogger.js';
 import config from '../config.js';
+import logger from '../logger.js';
+
+const log = logger.child({ module: 'messageCreate' });
 
 export default {
   name: Events.MessageCreate,
@@ -15,10 +18,14 @@ export default {
 
     logMessage(message);
 
-    if (!message.guild) {
-      await handleDM(message);
-    } else {
-      await handleGuild(message);
+    try {
+      if (!message.guild) {
+        await handleDM(message);
+      } else {
+        await handleGuild(message);
+      }
+    } catch (err) {
+      log.error({ err, userId: message.author.id, channelId: message.channel.id }, 'Error handling message');
     }
   },
 };
@@ -69,6 +76,12 @@ async function handleDM(message) {
 }
 
 async function handleGuild(message) {
+  const parentId = message.channel.parentId;
+  if (!parentId) return;
+
+  const relevantCategories = [config.ticket?.categoryId, config.prospect?.categoryId].filter(Boolean);
+  if (relevantCategories.length > 0 && !relevantCategories.includes(parentId)) return;
+
   const handled = await ticketMessages.handleGuild(message);
   if (handled) return;
 

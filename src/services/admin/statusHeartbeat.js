@@ -1,4 +1,4 @@
-import { query, testConnections } from '../../database/connection.js';
+import { query } from '../../database/connection.js';
 import { isConnected as isSquadJsConnected } from '../seeding/seedingSocket.js';
 import { isSchedulerActive as isSeedingActive } from '../seeding/seedingScheduler.js';
 
@@ -29,7 +29,7 @@ export async function stopHeartbeat() {
 async function tick(client) {
   try {
     let dbConnected = 0;
-    try { await testConnections(); dbConnected = 1; } catch { /* noop */ }
+    try { await query('SELECT 1'); dbConnected = 1; } catch { /* noop */ }
 
     const memberCount = client.guilds.cache.reduce((sum, g) => sum + g.memberCount, 0);
 

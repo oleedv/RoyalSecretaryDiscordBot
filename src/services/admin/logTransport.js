@@ -3,6 +3,7 @@ import { Writable } from 'stream';
 const LEVEL_LABELS = { 10: 'trace', 20: 'debug', 30: 'info', 40: 'warn', 50: 'error', 60: 'fatal' };
 const FLUSH_INTERVAL = 5000;
 const MAX_BATCH = 50;
+const MAX_BUFFER = 500;
 
 let buffer = [];
 let timer = null;
@@ -51,6 +52,8 @@ export const dbLogStream = new Writable({
       const { level, msg, module, err, time, pid, hostname, ...rest } = obj;
       const data = { ...rest };
       if (err) data.err = typeof err === 'object' ? { message: err.message, stack: err.stack, ...err } : err;
+
+      if (buffer.length >= MAX_BUFFER) buffer.shift();
 
       buffer.push({
         level,

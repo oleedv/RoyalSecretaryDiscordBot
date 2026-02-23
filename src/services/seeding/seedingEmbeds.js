@@ -5,6 +5,7 @@ import logger from '../../logger.js';
 
 const log = logger.child({ module: 'seedingEmbeds' });
 const cropCache = new Map();
+const MAX_CROP_CACHE = 20;
 
 const trendArrows = { up: '↑', down: '↓', stable: '→' };
 
@@ -106,6 +107,10 @@ export async function cropMapThumbnail(url) {
       .jpeg({ quality: 85 })
       .toBuffer();
 
+    if (cropCache.size >= MAX_CROP_CACHE) {
+      const oldest = cropCache.keys().next().value;
+      cropCache.delete(oldest);
+    }
     cropCache.set(url, cropped);
     return cropped;
   } catch (err) {

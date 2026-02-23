@@ -46,6 +46,10 @@ async function main() {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
 
+process.on('unhandledRejection', (err) => {
+  log.fatal({ err }, 'Unhandled rejection');
+});
+
 main().catch((err) => {
   log.fatal({ err }, 'Fatal startup error');
   process.exit(1);

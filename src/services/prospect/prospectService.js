@@ -19,8 +19,8 @@ async function fetchCblData(steamId) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        query: `query {
-          steamUser(id: "${steamId}") {
+        query: `query($id: String!) {
+          steamUser(id: $id) {
             id
             riskRating
             reputationPoints
@@ -43,6 +43,7 @@ async function fetchCblData(steamId) {
             }
           }
         }`,
+        variables: { id: steamId },
       }),
     });
     if (!res.ok) {

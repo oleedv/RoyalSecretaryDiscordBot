@@ -7,6 +7,8 @@ import { detectSteamIds, buildSteamEmbed, buildVanityEmbed } from '../services/s
 import config from '../config.js';
 import logger from '../logger.js';
 
+const fetchGuild = (client) => client.guilds.fetch(config.guild.id);
+
 const log = logger.child({ module: 'ticketMessages' });
 
 export async function handleGuild(message) {
@@ -154,8 +156,7 @@ export async function handleGuild(message) {
 }
 
 export async function handleDM(message, ticket) {
-  const client = message.client;
-  const guild = client.guilds.cache.first();
+  const guild = await fetchGuild(message.client);
   if (!guild) return;
 
   const channel = await guild.channels.fetch(ticket.channel_id).catch(() => null);

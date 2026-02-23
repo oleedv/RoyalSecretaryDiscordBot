@@ -193,6 +193,8 @@ export async function handleVoteNoModal(interaction) {
 
   const counts = await getVoteCounts(prospectId);
   const components = buildVoteComponents(counts);
-  await interaction.message.edit({ components });
+  if (interaction.message) {
+    await interaction.message.edit({ components });
+  }
   log.info({ prospectId, voterId: interaction.user.id, vote: 'no' }, 'No vote recorded with reason');
 }

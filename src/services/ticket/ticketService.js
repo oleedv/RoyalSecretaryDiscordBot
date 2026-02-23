@@ -95,7 +95,7 @@ export async function createTicket(userId, guild, { steamId, reason } = {}) {
   return { ticket, channel };
 }
 
-export async function escalateTicket(ticket, tier, channel) {
+export async function escalateTicket(ticket, tier, channel, actorId = null) {
   if (ticket.tier !== 'normal') {
     return { error: 'This ticket has already been escalated.' };
   }
@@ -126,7 +126,7 @@ export async function escalateTicket(ticket, tier, channel) {
 
   await query(
     'INSERT INTO ticket_events (ticket_id, event_type, actor_id, detail) VALUES (?, ?, ?, ?)',
-    [ticket.id, 'escalated', channel.guild.members.me.id, tier]
+    [ticket.id, 'escalated', actorId || channel.guild.members.me.id, tier]
   );
 
   const member = await channel.guild.members.fetch(ticket.user_id).catch(() => null);

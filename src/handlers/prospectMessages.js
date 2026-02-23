@@ -3,7 +3,10 @@ import { formatForDb, applyAttachments } from '../utils/attachments.js';
 import { parseTextCommand } from '../utils/commands.js';
 import { trySendWithFiles } from '../utils/discord.js';
 import { getProspectByChannel, saveProspectMessage, closeProspect } from '../services/prospect/prospectService.js';
+import config from '../config.js';
 import logger from '../logger.js';
+
+const fetchGuild = (client) => client.guilds.fetch(config.guild.id);
 
 const log = logger.child({ module: 'prospectMessages' });
 
@@ -80,8 +83,7 @@ export async function handleGuild(message) {
 }
 
 export async function handleDM(message, prospect) {
-  const client = message.client;
-  const guild = client.guilds.cache.first();
+  const guild = await fetchGuild(message.client);
   if (!guild) return;
 
   const channel = await guild.channels.fetch(prospect.channel_id).catch(() => null);

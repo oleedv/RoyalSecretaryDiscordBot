@@ -236,5 +236,13 @@ export async function initSchema() {
     )
   `);
 
+  // ── Performance indexes ──
+
+  await query(`CREATE INDEX IF NOT EXISTS idx_tickets_user_status ON tickets (user_id, status)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_tickets_channel_status ON tickets (channel_id, status)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_prospects_user_status ON prospects (user_id, status)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_prospects_channel_status ON prospects (channel_id, status)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_ticket_messages_source ON ticket_messages (source_message_id)`);
+
   log.info('Database schema initialized');
 }

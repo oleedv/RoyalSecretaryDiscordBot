@@ -35,7 +35,7 @@ export async function getVoteCounts(prospectId) {
 }
 
 export async function postVote(prospect, client) {
-  const guild = client.guilds.cache.first();
+  const guild = await client.guilds.fetch(config.guild.id);
   if (!guild) return;
 
   const { forumChannelId, whitelistRoleId } = config.prospects;

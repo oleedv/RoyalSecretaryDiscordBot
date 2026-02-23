@@ -7,13 +7,14 @@ export async function getStoredSteamId(discordId) {
   try {
     const rows = await query('SELECT steamId FROM User WHERE discordId = ?', [discordId], 'website');
     return rows[0]?.steamId || null;
-  } catch {
+  } catch (err) {
+    log.warn({ err, discordId }, 'Failed to fetch stored Steam ID');
     return null;
   }
 }
 
 export async function linkSteamId(discordId, steamId) {
-  if (!steamId || steamId === 'Q') return;
+  if (!steamId || steamId.toUpperCase() === 'Q') return;
   try {
     await query(
       'UPDATE User SET steamId = ? WHERE discordId = ? AND (steamId IS NULL OR steamId = ?)',

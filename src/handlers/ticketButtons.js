@@ -56,7 +56,7 @@ export async function handleEscalate(interaction) {
   if (!ticket) return interaction.editReply({ embeds: [errorEmbed('No open ticket found for this channel.')] });
 
   const tier = interaction.customId === 'ticket_escalate_co' ? 'community_officer' : 'admin_officer';
-  const result = await escalateTicket(ticket, tier, interaction.channel);
+  const result = await escalateTicket(ticket, tier, interaction.channel, interaction.user.id);
   if (result.error) {
     return interaction.editReply({ embeds: [errorEmbed(result.error)] });
   }
