@@ -63,6 +63,7 @@ jobs:
             MARIADB_DATABASE_STAGING=${{ secrets.DB_NAME }}
             MARIADB_USER_STAGING=${{ secrets.DB_USER }}
             MARIADB_PASSWORD_STAGING=${{ secrets.DB_PASSWORD }}
+            SQUADJS_SERVERS=${{ secrets.SQUADJS_SERVERS }}
             EOF
 
             docker compose -f docker-compose.staging.yml --env-file .env.staging pull royal-secretary-bot-staging
