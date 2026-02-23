@@ -4,6 +4,7 @@ import { getOpenProspectByUser } from '../services/prospect/prospectService.js';
 import * as ticketMessages from '../handlers/ticketMessages.js';
 import * as prospectMessages from '../handlers/prospectMessages.js';
 import { infoEmbed, createEmbed } from '../utils/embed.js';
+import { logMessage } from '../services/admin/messageLogger.js';
 import config from '../config.js';
 
 export default {
@@ -11,6 +12,8 @@ export default {
 
   async execute(message) {
     if (message.author.bot) return;
+
+    logMessage(message);
 
     if (!message.guild) {
       await handleDM(message);

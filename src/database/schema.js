@@ -181,5 +181,60 @@ export async function initSchema() {
     await query(`ALTER TABLE seeding_config DROP COLUMN IF EXISTS daily_hour`);
   } catch { /* daily_hour column may not exist on fresh installs */ }
 
+  // ── Admin / console tables ──
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS bot_messages (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      message_id VARCHAR(20) NOT NULL,
+      channel_id VARCHAR(20) NOT NULL,
+      channel_name VARCHAR(100),
+      guild_id VARCHAR(20),
+      author_id VARCHAR(20) NOT NULL,
+      author_tag VARCHAR(100) NOT NULL,
+      content TEXT,
+      attachments JSON,
+      is_dm TINYINT(1) DEFAULT 0,
+      direction ENUM('incoming', 'outgoing') DEFAULT 'incoming',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_author (author_id),
+      INDEX idx_channel (channel_id),
+      INDEX idx_created (created_at)
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS bot_logs (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      level SMALLINT NOT NULL,
+      level_label VARCHAR(10) NOT NULL,
+      module VARCHAR(50),
+      message TEXT NOT NULL,
+      data JSON,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_level (level),
+      INDEX idx_module (module),
+      INDEX idx_created (created_at)
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS bot_status (
+      id INT PRIMARY KEY DEFAULT 1,
+      status ENUM('online', 'offline', 'starting') DEFAULT 'offline',
+      uptime_seconds INT DEFAULT 0,
+      guild_count INT DEFAULT 0,
+      member_count INT DEFAULT 0,
+      latency_ms INT DEFAULT 0,
+      db_connected TINYINT(1) DEFAULT 0,
+      squadjs_connected TINYINT(1) DEFAULT 0,
+      seeding_scheduler_active TINYINT(1) DEFAULT 0,
+      prospect_scheduler_active TINYINT(1) DEFAULT 0,
+      last_heartbeat TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      started_at TIMESTAMP NULL,
+      CHECK (id = 1)
+    )
+  `);
+
   log.info('Database schema initialized');
 }

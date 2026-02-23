@@ -22,6 +22,10 @@ let lastDailyCallDate = null;
 let checking = false;
 let lastKnownPlayerCount = null;
 
+export function isSchedulerActive() {
+  return !!dailyCheckInterval;
+}
+
 export async function startScheduler(client) {
   log.info('Starting seeding scheduler');
 
