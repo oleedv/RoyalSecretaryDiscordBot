@@ -1,4 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
+import { infoEmbed, successEmbed } from '../utils/embed.js';
 
 export default {
   data: new SlashCommandBuilder()
@@ -6,12 +7,12 @@ export default {
     .setDescription('Check bot latency'),
 
   async execute(interaction) {
-    const response = await interaction.reply({ content: 'Pinging...', withResponse: true });
+    const response = await interaction.reply({ embeds: [infoEmbed('Pinging...')], withResponse: true });
     const roundtrip = response.resource.message.createdTimestamp - interaction.createdTimestamp;
     const wsHeartbeat = interaction.client.ws.ping;
 
-    await interaction.editReply(
-      `Pong! Roundtrip: **${roundtrip}ms** | WebSocket: **${wsHeartbeat}ms**`
-    );
+    await interaction.editReply({
+      embeds: [successEmbed(`Pong! Roundtrip: **${roundtrip}ms** | WebSocket: **${wsHeartbeat}ms**`)],
+    });
   },
 };

@@ -1,4 +1,4 @@
-import { createEmbed } from '../utils/embed.js';
+import { createEmbed, infoEmbed } from '../utils/embed.js';
 import { formatForDb, applyAttachments } from '../utils/attachments.js';
 import { parseTextCommand } from '../utils/commands.js';
 import { trySendWithFiles } from '../utils/discord.js';
@@ -19,7 +19,7 @@ export async function handleGuild(message) {
 
     const user = await message.client.users.fetch(ticket.user_id).catch(() => null);
     if (user) {
-      await user.send('**[Ticket]** Your ticket has been closed. Thank you!').catch(() => null);
+      await user.send({ embeds: [infoEmbed('Your ticket has been closed. Thank you!')] }).catch(() => null);
     }
 
     await message.channel.delete().catch(() => null);

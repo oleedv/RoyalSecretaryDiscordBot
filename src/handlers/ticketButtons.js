@@ -5,6 +5,7 @@ import {
   ActionRowBuilder,
 } from 'discord.js';
 import { getTicketByChannel, escalateTicket, closeTicket } from '../services/ticket/ticketService.js';
+import { errorEmbed, successEmbed, infoEmbed } from '../utils/embed.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'ticketButtons' });
@@ -41,29 +42,29 @@ export async function handleCreate(interaction) {
 export async function handleEscalate(interaction) {
   await interaction.deferReply({ flags: ['Ephemeral'] });
   const ticket = await getTicketByChannel(interaction.channel.id);
-  if (!ticket) return interaction.editReply({ content: 'No open ticket found for this channel.' });
+  if (!ticket) return interaction.editReply({ embeds: [errorEmbed('No open ticket found for this channel.')] });
 
   const tier = interaction.customId === 'ticket_escalate_co' ? 'community_officer' : 'admin_officer';
   const result = await escalateTicket(ticket, tier, interaction.channel);
   if (result.error) {
-    return interaction.editReply({ content: result.error });
+    return interaction.editReply({ embeds: [errorEmbed(result.error)] });
   }
 
   const tierLabel = tier === 'community_officer' ? 'Community Officer' : 'Admin Officer';
-  await interaction.editReply({ content: `Ticket escalated to ${tierLabel}.` });
+  await interaction.editReply({ embeds: [successEmbed(`Ticket escalated to ${tierLabel}.`)] });
   log.info({ ticketId: ticket.id, tier }, 'Ticket escalated');
 }
 
 export async function handleClose(interaction) {
   await interaction.deferReply({ flags: ['Ephemeral'] });
   const ticket = await getTicketByChannel(interaction.channel.id);
-  if (!ticket) return interaction.editReply({ content: 'No open ticket found for this channel.' });
+  if (!ticket) return interaction.editReply({ embeds: [errorEmbed('No open ticket found for this channel.')] });
 
   await closeTicket(ticket, interaction.user.id);
 
   const user = await interaction.client.users.fetch(ticket.user_id).catch(() => null);
   if (user) {
-    await user.send('**[Ticket]** Your ticket has been closed. Thank you!').catch(() => null);
+    await user.send({ embeds: [infoEmbed('Your ticket has been closed. Thank you!')] }).catch(() => null);
   }
 
   log.info({ ticketId: ticket.id, closedBy: interaction.user.id }, 'Ticket closed via button');

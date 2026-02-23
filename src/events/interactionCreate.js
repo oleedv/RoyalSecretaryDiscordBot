@@ -3,6 +3,7 @@ import * as ticketButtons from '../handlers/ticketButtons.js';
 import * as ticketModals from '../handlers/ticketModals.js';
 import * as prospectButtons from '../handlers/prospectButtons.js';
 import * as prospectModals from '../handlers/prospectModals.js';
+import { errorEmbed } from '../utils/embed.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'interactions' });
@@ -17,7 +18,7 @@ const buttonHandlers = {
     // Extract Part 1 data from the embed before showing modal 2
     const embed = interaction.message.embeds[0];
     if (!embed) {
-      return interaction.reply({ content: 'Could not read application data. Please start over.', flags: ['Ephemeral'] });
+      return interaction.reply({ embeds: [errorEmbed('Could not read application data. Please start over.')], flags: ['Ephemeral'] });
     }
 
     const getField = (name) => embed.fields?.find((f) => f.name === name)?.value || '';
@@ -68,7 +69,7 @@ export default {
           await handler(interaction);
         } catch (err) {
           log.error({ err, customId: interaction.customId }, 'Button interaction failed');
-          const reply = { content: 'Something went wrong.', flags: ['Ephemeral'] };
+          const reply = { embeds: [errorEmbed('Something went wrong.')], flags: ['Ephemeral'] };
           if (interaction.replied || interaction.deferred) {
             await interaction.followUp(reply);
           } else {
@@ -89,7 +90,7 @@ export default {
           await handler(interaction);
         } catch (err) {
           log.error({ err, customId: interaction.customId }, 'Modal interaction failed');
-          const reply = { content: 'Something went wrong.', flags: ['Ephemeral'] };
+          const reply = { embeds: [errorEmbed('Something went wrong.')], flags: ['Ephemeral'] };
           if (interaction.replied || interaction.deferred) {
             await interaction.followUp(reply);
           } else {
@@ -117,7 +118,7 @@ async function handleCommand(interaction) {
   } catch (err) {
     log.error({ err, command: interaction.commandName }, 'Command execution failed');
 
-    const reply = { content: 'There was an error executing this command.', flags: ['Ephemeral'] };
+    const reply = { embeds: [errorEmbed('There was an error executing this command.')], flags: ['Ephemeral'] };
     if (interaction.replied || interaction.deferred) {
       await interaction.followUp(reply);
     } else {

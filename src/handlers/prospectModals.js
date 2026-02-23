@@ -1,5 +1,5 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
-import { createEmbed } from '../utils/embed.js';
+import { createEmbed, errorEmbed, successEmbed } from '../utils/embed.js';
 import { validateDateOfBirth, validateSquadHours } from '../utils/validation.js';
 import { validateCountry } from '../utils/countries.js';
 import { validateSteamInput } from '../services/steamService.js';
@@ -50,7 +50,7 @@ export async function handleModal1(interaction) {
 
   if (errors.length > 0) {
     return interaction.reply({
-      content: `Please fix the following:\n${errors.join('\n')}`,
+      embeds: [errorEmbed(`Please fix the following:\n${errors.join('\n')}`)],
       flags: ['Ephemeral'],
     });
   }
@@ -106,7 +106,7 @@ export async function handleModal2(interaction) {
 
   if (errors.length > 0) {
     return interaction.editReply({
-      content: `Please fix the following:\n${errors.join('\n')}`,
+      embeds: [errorEmbed(`Please fix the following:\n${errors.join('\n')}`)],
     });
   }
 
@@ -115,7 +115,7 @@ export async function handleModal2(interaction) {
   const part1 = pendingApplications.get(interaction.user.id);
   if (!part1) {
     return interaction.editReply({
-      content: 'Your Part 1 data has expired. Please start over by clicking **Join RB** again.',
+      embeds: [errorEmbed('Your Part 1 data has expired. Please start over by clicking **Join RB** again.')],
     });
   }
   pendingApplications.delete(interaction.user.id);
@@ -135,11 +135,11 @@ export async function handleModal2(interaction) {
 
   const result = await createProspect(interaction.user.id, interaction.guild, formData);
   if (result.error) {
-    return interaction.editReply({ content: result.error });
+    return interaction.editReply({ embeds: [errorEmbed(result.error)] });
   }
 
   await interaction.editReply({
-    content: 'Your application has been submitted! Check your DMs for confirmation.',
+    embeds: [successEmbed('Your application has been submitted! Check your DMs for confirmation.')],
   });
 
   const cleanup = pendingCleanups.get(interaction.user.id);
@@ -154,7 +154,7 @@ export async function handleModal2(interaction) {
 export async function handleDenyModal(interaction) {
   await interaction.deferReply({ flags: ['Ephemeral'] });
   const prospect = await getProspectByChannel(interaction.channel.id);
-  if (!prospect) return interaction.editReply({ content: 'No open prospect found for this channel.' });
+  if (!prospect) return interaction.editReply({ embeds: [errorEmbed('No open prospect found for this channel.')] });
 
   const reason = interaction.fields.getTextInputValue('deny_reason').trim();
   await closeProspect(prospect, interaction.user.id, 'denied', interaction.guild, reason);
@@ -165,16 +165,16 @@ export async function handleDenyModal(interaction) {
 export async function handleExtendModal(interaction) {
   await interaction.deferReply({ flags: ['Ephemeral'] });
   const prospect = await getProspectByChannel(interaction.channel.id);
-  if (!prospect) return interaction.editReply({ content: 'No open prospect found for this channel.' });
+  if (!prospect) return interaction.editReply({ embeds: [errorEmbed('No open prospect found for this channel.')] });
 
   const daysInput = interaction.fields.getTextInputValue('extend_days').trim();
   const days = parseInt(daysInput, 10);
   if (isNaN(days) || days < 1 || days > 365) {
-    return interaction.editReply({ content: 'Please enter a valid number of days (1-365).' });
+    return interaction.editReply({ embeds: [errorEmbed('Please enter a valid number of days (1-365).')] });
   }
 
   await extendProspect(prospect, days, interaction.user.id, interaction.guild);
-  await interaction.editReply({ content: `Extended **${prospect.alias}**'s prospect period by **${days}** day(s).` });
+  await interaction.editReply({ embeds: [successEmbed(`Extended **${prospect.alias}**'s prospect period by **${days}** day(s).`)] });
   log.info({ prospectId: prospect.id, days, actorId: interaction.user.id }, 'Prospect extended via modal');
 }
 

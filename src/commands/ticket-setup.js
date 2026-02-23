@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { buildPanelMessage } from '../services/ticket/ticketPanel.js';
+import { errorEmbed, successEmbed } from '../utils/embed.js';
 import config from '../config.js';
 
 export default {
@@ -11,15 +12,15 @@ export default {
   async execute(interaction) {
     const channelId = config.tickets.panelChannelId;
     if (!channelId) {
-      return interaction.reply({ content: 'No panel channel configured in settings.js (`tickets.panelChannelId`).', flags: ['Ephemeral'] });
+      return interaction.reply({ embeds: [errorEmbed('No panel channel configured in settings.js (`tickets.panelChannelId`).')], flags: ['Ephemeral'] });
     }
 
     const channel = await interaction.guild.channels.fetch(channelId).catch(() => null);
     if (!channel) {
-      return interaction.reply({ content: `Could not find channel <#${channelId}>.`, flags: ['Ephemeral'] });
+      return interaction.reply({ embeds: [errorEmbed(`Could not find channel <#${channelId}>.`)], flags: ['Ephemeral'] });
     }
 
     await channel.send(buildPanelMessage());
-    await interaction.reply({ content: 'Ticket panel sent!', flags: ['Ephemeral'] });
+    await interaction.reply({ embeds: [successEmbed('Ticket panel sent!')], flags: ['Ephemeral'] });
   },
 };

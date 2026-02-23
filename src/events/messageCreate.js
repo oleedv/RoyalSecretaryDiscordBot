@@ -3,6 +3,7 @@ import { getOpenTicketByUser } from '../services/ticket/ticketService.js';
 import { getOpenProspectByUser } from '../services/prospect/prospectService.js';
 import * as ticketMessages from '../handlers/ticketMessages.js';
 import * as prospectMessages from '../handlers/prospectMessages.js';
+import { infoEmbed } from '../utils/embed.js';
 
 export default {
   name: Events.MessageCreate,
@@ -27,12 +28,12 @@ async function handleDM(message) {
   const prospect = await getOpenProspectByUser(message.author.id);
   if (prospect) {
     if (!prospect.mentor_id) {
-      return message.reply('**[Prospect]** Your application has been received. A mentor will contact you shortly — please wait for them to reach out.');
+      return message.reply({ embeds: [infoEmbed('Your application has been received. A mentor will contact you shortly — please wait for them to reach out.')] });
     }
     return prospectMessages.handleDM(message, prospect);
   }
 
-  return message.reply('You don\'t have an open ticket or prospect application. Use the panels in the server to create one.');
+  return message.reply({ embeds: [infoEmbed('You don\'t have an open ticket or prospect application. Use the panels in the server to create one.')] });
 }
 
 async function handleGuild(message) {

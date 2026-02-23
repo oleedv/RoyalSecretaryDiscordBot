@@ -9,6 +9,7 @@ import {
 import { getOpenProspectByUser, getProspectByChannel, claimProspect, unclaimProspect, acceptProspect, togglePause, extendProspect, closeProspect } from '../services/prospect/prospectService.js';
 import { postVote, getProspectByVoteMessage, upsertVote, getVoteCounts } from '../services/prospect/prospectVoting.js';
 import { buildVoteComponents } from '../services/prospect/prospectEmbeds.js';
+import { errorEmbed, successEmbed, infoEmbed } from '../utils/embed.js';
 import config from '../config.js';
 import logger from '../logger.js';
 
@@ -17,7 +18,7 @@ const log = logger.child({ module: 'prospectButtons' });
 export async function handleApply(interaction) {
   const existing = await getOpenProspectByUser(interaction.user.id);
   if (existing) {
-    return interaction.reply({ content: 'You already have an open prospect application.', flags: ['Ephemeral'] });
+    return interaction.reply({ embeds: [errorEmbed('You already have an open prospect application.')], flags: ['Ephemeral'] });
   }
 
   const modal = new ModalBuilder()
@@ -119,41 +120,41 @@ export async function handleModal2Open(interaction) {
 export async function handleClaim(interaction) {
   await interaction.deferReply({ flags: ['Ephemeral'] });
   const prospect = await getProspectByChannel(interaction.channel.id);
-  if (!prospect) return interaction.editReply({ content: 'No open prospect found for this channel.' });
+  if (!prospect) return interaction.editReply({ embeds: [errorEmbed('No open prospect found for this channel.')] });
 
   const result = await claimProspect(prospect, interaction.user.id, interaction.guild);
-  if (result.error) return interaction.editReply({ content: result.error });
+  if (result.error) return interaction.editReply({ embeds: [errorEmbed(result.error)] });
 
-  await interaction.editReply({ content: `You are now the mentor for **${prospect.alias}**. DM relay is active.` });
+  await interaction.editReply({ embeds: [successEmbed(`You are now the mentor for **${prospect.alias}**. DM relay is active.`)] });
   log.info({ prospectId: prospect.id, mentorId: interaction.user.id }, 'Mentor claimed prospect');
 }
 
 export async function handleUnclaim(interaction) {
   await interaction.deferReply({ flags: ['Ephemeral'] });
   const prospect = await getProspectByChannel(interaction.channel.id);
-  if (!prospect) return interaction.editReply({ content: 'No open prospect found for this channel.' });
+  if (!prospect) return interaction.editReply({ embeds: [errorEmbed('No open prospect found for this channel.')] });
 
   const result = await unclaimProspect(prospect, interaction.user.id, interaction.guild);
-  if (result.error) return interaction.editReply({ content: result.error });
+  if (result.error) return interaction.editReply({ embeds: [errorEmbed(result.error)] });
 
-  await interaction.editReply({ content: `Mentor has been unclaimed from **${prospect.alias}**.` });
+  await interaction.editReply({ embeds: [successEmbed(`Mentor has been unclaimed from **${prospect.alias}**.`)] });
   log.info({ prospectId: prospect.id, actorId: interaction.user.id }, 'Mentor unclaimed prospect');
 }
 
 export async function handleAccept(interaction) {
   await interaction.deferReply({ flags: ['Ephemeral'] });
   const prospect = await getProspectByChannel(interaction.channel.id);
-  if (!prospect) return interaction.editReply({ content: 'No open prospect found for this channel.' });
-  if (prospect.forum_thread_id) return interaction.editReply({ content: 'This prospect has already been accepted.' });
+  if (!prospect) return interaction.editReply({ embeds: [errorEmbed('No open prospect found for this channel.')] });
+  if (prospect.forum_thread_id) return interaction.editReply({ embeds: [errorEmbed('This prospect has already been accepted.')] });
 
   await acceptProspect(prospect, interaction.user.id, interaction.guild);
-  await interaction.editReply({ content: `**${prospect.alias}** has been accepted. Forum post created and prospect period started.` });
+  await interaction.editReply({ embeds: [successEmbed(`**${prospect.alias}** has been accepted. Forum post created and prospect period started.`)] });
   log.info({ prospectId: prospect.id, acceptedBy: interaction.user.id }, 'Prospect accepted via button');
 }
 
 export async function handleDeny(interaction) {
   const prospect = await getProspectByChannel(interaction.channel.id);
-  if (!prospect) return interaction.reply({ content: 'No open prospect found for this channel.', flags: ['Ephemeral'] });
+  if (!prospect) return interaction.reply({ embeds: [errorEmbed('No open prospect found for this channel.')], flags: ['Ephemeral'] });
 
   const modal = new ModalBuilder()
     .setCustomId('prospect_deny_modal')
@@ -176,37 +177,35 @@ export async function handleDeny(interaction) {
 
 export async function handleVoiceInvite(interaction) {
   const prospect = await getProspectByChannel(interaction.channel.id);
-  if (!prospect) return interaction.reply({ content: 'No open prospect found for this channel.', flags: ['Ephemeral'] });
+  if (!prospect) return interaction.reply({ embeds: [errorEmbed('No open prospect found for this channel.')], flags: ['Ephemeral'] });
 
   const { voiceChannelId } = config.prospects;
-  if (!voiceChannelId) return interaction.reply({ content: 'No voice channel configured in settings.js (`prospects.voiceChannelId`).', flags: ['Ephemeral'] });
+  if (!voiceChannelId) return interaction.reply({ embeds: [errorEmbed('No voice channel configured in settings.js (`prospects.voiceChannelId`).')], flags: ['Ephemeral'] });
 
   const user = await interaction.client.users.fetch(prospect.user_id).catch(() => null);
-  if (!user) return interaction.reply({ content: 'Could not find the prospect user.', flags: ['Ephemeral'] });
+  if (!user) return interaction.reply({ embeds: [errorEmbed('Could not find the prospect user.')], flags: ['Ephemeral'] });
 
   const voiceLink = `https://discord.com/channels/${interaction.guild.id}/${voiceChannelId}`;
-  await user.send(
-    `**[Prospect]** You've been invited to join a voice chat with a mentor! Click here to join: ${voiceLink}`
-  ).catch(() => null);
+  await user.send({ embeds: [infoEmbed(`You've been invited to join a voice chat with a mentor! Click here to join: ${voiceLink}`)] }).catch(() => null);
 
-  await interaction.reply({ content: `Voice invite sent to **${prospect.alias}**.`, flags: ['Ephemeral'] });
+  await interaction.reply({ embeds: [successEmbed(`Voice invite sent to **${prospect.alias}**.`)], flags: ['Ephemeral'] });
   log.info({ prospectId: prospect.id, invitedBy: interaction.user.id }, 'Voice invite sent to prospect');
 }
 
 export async function handlePause(interaction) {
   await interaction.deferReply({ flags: ['Ephemeral'] });
   const prospect = await getProspectByChannel(interaction.channel.id);
-  if (!prospect) return interaction.editReply({ content: 'No open prospect found for this channel.' });
+  if (!prospect) return interaction.editReply({ embeds: [errorEmbed('No open prospect found for this channel.')] });
 
   const result = await togglePause(prospect, interaction.user.id, interaction.guild);
   const state = result.paused ? 'paused' : 'resumed';
-  await interaction.editReply({ content: `Prospect **${prospect.alias}** has been **${state}**.` });
+  await interaction.editReply({ embeds: [successEmbed(`Prospect **${prospect.alias}** has been **${state}**.`)] });
   log.info({ prospectId: prospect.id, state, actorId: interaction.user.id }, 'Prospect pause toggled');
 }
 
 export async function handleExtend(interaction) {
   const prospect = await getProspectByChannel(interaction.channel.id);
-  if (!prospect) return interaction.reply({ content: 'No open prospect found for this channel.', flags: ['Ephemeral'] });
+  if (!prospect) return interaction.reply({ embeds: [errorEmbed('No open prospect found for this channel.')], flags: ['Ephemeral'] });
 
   const modal = new ModalBuilder()
     .setCustomId('prospect_extend_modal')
@@ -231,12 +230,12 @@ export async function handleExtend(interaction) {
 export async function handleTestVote(interaction) {
   await interaction.deferReply({ flags: ['Ephemeral'] });
   const prospect = await getProspectByChannel(interaction.channel.id);
-  if (!prospect) return interaction.editReply({ content: 'No open prospect found for this channel.' });
-  if (!prospect.forum_thread_id) return interaction.editReply({ content: 'This prospect has not been accepted yet.' });
-  if (prospect.vote_posted_at) return interaction.editReply({ content: 'A vote has already been posted for this prospect.' });
+  if (!prospect) return interaction.editReply({ embeds: [errorEmbed('No open prospect found for this channel.')] });
+  if (!prospect.forum_thread_id) return interaction.editReply({ embeds: [errorEmbed('This prospect has not been accepted yet.')] });
+  if (prospect.vote_posted_at) return interaction.editReply({ embeds: [errorEmbed('A vote has already been posted for this prospect.')] });
 
   await postVote(prospect, interaction.client);
-  await interaction.editReply({ content: `Force vote posted for **${prospect.alias}**.` });
+  await interaction.editReply({ embeds: [successEmbed(`Force vote posted for **${prospect.alias}**.`)] });
   log.info({ prospectId: prospect.id, actorId: interaction.user.id }, 'Force vote triggered');
 }
 
@@ -267,7 +266,7 @@ export async function handleVoteUnsure(interaction) {
 export async function handleEndVote(interaction) {
   await interaction.deferReply({ flags: ['Ephemeral'] });
   const prospect = await getProspectByChannel(interaction.channel.id);
-  if (!prospect) return interaction.editReply({ content: 'No open prospect found for this channel.' });
+  if (!prospect) return interaction.editReply({ embeds: [errorEmbed('No open prospect found for this channel.')] });
 
   const counts = await getVoteCounts(prospect.id);
 
@@ -286,14 +285,14 @@ export async function handleEndVote(interaction) {
   );
   await interaction.message.edit({ components: [disabledRow] }).catch(() => null);
 
-  await interaction.editReply({ content: `Vote ended for **${prospect.alias}** — outcome: **${outcome}**.` });
+  await interaction.editReply({ embeds: [successEmbed(`Vote ended for **${prospect.alias}** -- outcome: **${outcome}**.`)] });
   log.info({ prospectId: prospect.id, outcome, counts, actorId: interaction.user.id }, 'Vote ended');
 }
 
 export async function handleVoteNo(interaction) {
   const prospect = await getProspectByVoteMessage(interaction.message.id);
   if (!prospect) {
-    return interaction.reply({ content: 'Could not find the associated prospect.', flags: ['Ephemeral'] });
+    return interaction.reply({ embeds: [errorEmbed('Could not find the associated prospect.')], flags: ['Ephemeral'] });
   }
 
   const modal = new ModalBuilder()
