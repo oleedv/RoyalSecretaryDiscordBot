@@ -1,5 +1,4 @@
 import { Writable } from 'stream';
-import { query } from '../../database/connection.js';
 
 const LEVEL_LABELS = { 10: 'trace', 20: 'debug', 30: 'info', 40: 'warn', 50: 'error', 60: 'fatal' };
 const FLUSH_INTERVAL = 5000;
@@ -7,15 +6,25 @@ const MAX_BATCH = 50;
 
 let buffer = [];
 let timer = null;
+let _query = null;
+
+async function getQuery() {
+  if (!_query) {
+    const mod = await import('../../database/connection.js');
+    _query = mod.query;
+  }
+  return _query;
+}
 
 async function flush() {
   if (buffer.length === 0) return;
   const batch = buffer.splice(0, MAX_BATCH);
 
   try {
+    const q = await getQuery();
     const placeholders = batch.map(() => '(?, ?, ?, ?, ?)').join(', ');
     const values = batch.flatMap(r => [r.level, r.levelLabel, r.module, r.message, r.data]);
-    await query(
+    await q(
       `INSERT INTO bot_logs (level, level_label, module, message, data) VALUES ${placeholders}`,
       values
     );
