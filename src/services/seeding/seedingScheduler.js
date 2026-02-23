@@ -78,8 +78,12 @@ async function checkDailyCall(client) {
     const currentTime = getCurrentTime(tz);
     const today = getTodayDate(tz);
 
-    // Support both "HH:MM" (daily_time) and legacy integer hour (daily_hour)
-    const configuredTime = cfg.daily_time || `${String(cfg.daily_hour ?? 16).padStart(2, '0')}:00`;
+    // Support "HH:MM", "HHMM", or legacy integer hour
+    let configuredTime = cfg.daily_time || `${String(cfg.daily_hour ?? 16).padStart(2, '0')}:00`;
+    // Normalize HHMM to HH:MM
+    if (/^\d{4}$/.test(configuredTime)) {
+      configuredTime = `${configuredTime.slice(0, 2)}:${configuredTime.slice(2)}`;
+    }
 
     if (currentTime !== configuredTime || lastDailyCallDate === today) return;
 
