@@ -83,11 +83,9 @@ export function connect() {
     notifyListeners();
   });
 
-  // Log unknown events at debug level for discovery
-  socket.onAny((event, data) => {
-    if (!['UPDATED_A2S_INFORMATION', 'NEW_GAME', 'PLAYER_CONNECTED', 'PLAYER_DISCONNECTED'].includes(event)) {
-      log.debug({ event, dataKeys: data ? Object.keys(data) : null }, 'SquadJS event');
-    }
+  // Log all events for discovery
+  socket.onAny((event, ...args) => {
+    log.debug({ event, argCount: args.length, arg0Type: typeof args[0], arg0: args[0] }, 'SquadJS raw event');
   });
 }
 
