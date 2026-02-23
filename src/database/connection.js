@@ -5,6 +5,7 @@ import logger from '../logger.js';
 const log = logger.child({ module: 'database' });
 
 const pools = {};
+const OPTIONAL_POOLS = new Set(['website']);
 
 function createPoolForDb(name, database) {
   const pool = createPool({
@@ -54,6 +55,11 @@ export async function testConnections() {
       conn.release();
       log.info(`Connection verified: ${name}`);
     } catch (err) {
+      if (OPTIONAL_POOLS.has(name)) {
+        log.warn({ err, pool: name }, 'Optional connection failed — features using this pool will be disabled');
+        delete pools[name];
+        continue;
+      }
       log.error({ err, pool: name }, 'Connection failed');
       return false;
     }
