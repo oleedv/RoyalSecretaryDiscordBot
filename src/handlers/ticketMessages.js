@@ -116,7 +116,7 @@ export function buildLogsPage(tickets, page, userId, tier) {
   const lines = pageItems.map((t, i) => {
     const tierLabel = TIER_SHORT[t.tier] || t.tier;
     const preview = t.first_message
-      ? t.first_message.slice(0, 10) + (t.first_message.length > 10 ? '..' : '')
+      ? t.first_message.slice(0, 50) + (t.first_message.length > 50 ? '..' : '')
       : '*no message*';
     const shortUuid = t.uuid.slice(0, 6);
     const uuidDisplay = config.webBaseUrl
