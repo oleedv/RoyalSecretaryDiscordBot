@@ -54,7 +54,11 @@ export function buildTicketComponents(tier) {
     new ButtonBuilder()
       .setCustomId('ticket_close')
       .setLabel('Close Ticket')
-      .setStyle(ButtonStyle.Secondary)
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('ticket_timeout')
+      .setLabel('Timeout User')
+      .setStyle(ButtonStyle.Danger)
   );
 
   if (tier !== 'normal') {

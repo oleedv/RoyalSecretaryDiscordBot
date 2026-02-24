@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
-import { ChannelType } from 'discord.js';
-import { createEmbed } from '../../utils/embed.js';
+import { ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { createEmbed, infoEmbed } from '../../utils/embed.js';
 import { buildPrivateChannelPermissions } from '../../utils/permissions.js';
 import { findBotMessageByCustomId } from '../../utils/messageSearch.js';
 import { buildTicketInfoEmbed, buildTicketComponents } from './ticketEmbeds.js';
@@ -10,6 +10,11 @@ import config from '../../config.js';
 import logger from '../../logger.js';
 
 const log = logger.child({ module: 'tickets' });
+
+const GRACE_PERIOD_MS = 60 * 60 * 1000; // 1 hour
+
+// In-memory timer store for closing grace periods (channelId → timeout ref)
+const closingTimers = new Map();
 
 // ── DB Accessors ──
 
@@ -21,10 +26,26 @@ export async function getOpenTicketByUser(userId) {
   return rows[0] || null;
 }
 
+export async function getClosingTicketByUser(userId) {
+  const rows = await query(
+    'SELECT * FROM tickets WHERE user_id = ? AND status = ?',
+    [userId, 'closing']
+  );
+  return rows[0] || null;
+}
+
 export async function getTicketByChannel(channelId) {
   const rows = await query(
     'SELECT * FROM tickets WHERE channel_id = ? AND status = ?',
     [channelId, 'open']
+  );
+  return rows[0] || null;
+}
+
+export async function getTicketByChannelStatus(channelId, status) {
+  const rows = await query(
+    'SELECT * FROM tickets WHERE channel_id = ? AND status = ?',
+    [channelId, status]
   );
   return rows[0] || null;
 }
@@ -51,11 +72,44 @@ export async function getMessageBySourceId(sourceMessageId) {
   return rows[0] || null;
 }
 
+// ── Timeout Accessors ──
+
+export async function getActiveTimeout(userId) {
+  const rows = await query(
+    'SELECT * FROM ticket_timeouts WHERE user_id = ? AND expires_at > NOW()',
+    [userId]
+  );
+  return rows[0] || null;
+}
+
+export async function timeoutUser(userId, timedOutById) {
+  const existing = await getActiveTimeout(userId);
+  if (existing) return { error: 'This user is already timed out from creating tickets.' };
+
+  await query(
+    'INSERT INTO ticket_timeouts (user_id, timed_out_by, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 1 DAY))',
+    [userId, timedOutById]
+  );
+
+  log.info({ userId, timedOutById }, 'User timed out from creating tickets');
+  return {};
+}
+
 // ── Operations ──
 
 export async function createTicket(userId, guild, { steamId, reason } = {}) {
   const existing = await getOpenTicketByUser(userId);
   if (existing) return { error: 'You already have an open ticket.' };
+
+  const closing = await getClosingTicketByUser(userId);
+  if (closing) return { error: 'You have a ticket that was recently closed. Please reply to your DMs to reopen it, or wait for it to fully close.' };
+
+  const timeout = await getActiveTimeout(userId);
+  if (timeout) {
+    const expiresAt = new Date(timeout.expires_at);
+    const timeLeft = Math.ceil((expiresAt - Date.now()) / (1000 * 60 * 60));
+    return { error: `You are temporarily unable to create tickets. Try again in approximately ${timeLeft} hour${timeLeft === 1 ? '' : 's'}.` };
+  }
 
   const uuid = randomUUID();
   const shortId = uuid.slice(0, 6);
@@ -71,8 +125,8 @@ export async function createTicket(userId, guild, { steamId, reason } = {}) {
   });
 
   await query(
-    'INSERT INTO tickets (uuid, channel_id, user_id) VALUES (?, ?, ?)',
-    [uuid, channel.id, userId]
+    'INSERT INTO tickets (uuid, channel_id, user_id, reason) VALUES (?, ?, ?, ?)',
+    [uuid, channel.id, userId, reason || null]
   );
 
   const rows = await query('SELECT * FROM tickets WHERE uuid = ?', [uuid]);
@@ -135,7 +189,7 @@ export async function escalateTicket(ticket, tier, channel, actorId = null) {
 
   const steamId = await getStoredSteamId(ticket.user_id);
   const previousTickets = await getClosedTicketsByUser(ticket.user_id, tier);
-  const infoEmbed = buildTicketInfoEmbed(userTag, ticket.user_id, ticket.uuid, tier, previousTickets.length, { steamId });
+  const infoEmbed = buildTicketInfoEmbed(userTag, ticket.user_id, ticket.uuid, tier, previousTickets.length, { steamId, reason: ticket.reason });
   const components = buildTicketComponents(tier);
 
   const topMsg = await findBotMessageByCustomId(channel, channel.client.user.id, ['ticket_close', 'ticket_escalate_co']);
@@ -155,10 +209,10 @@ export async function escalateTicket(ticket, tier, channel, actorId = null) {
   return {};
 }
 
-export async function closeTicket(ticket, closedById) {
+export async function beginCloseGracePeriod(ticket, closedById, channel, client) {
   await query(
     'UPDATE tickets SET status = ?, closed_at = NOW(), closed_by = ? WHERE id = ?',
-    ['closed', closedById, ticket.id]
+    ['closing', closedById, ticket.id]
   );
 
   await query(
@@ -166,5 +220,118 @@ export async function closeTicket(ticket, closedById) {
     [ticket.id, 'closed', closedById]
   );
 
-  log.info({ ticketId: ticket.id, closedBy: closedById }, 'Ticket closed');
+  // Disable existing buttons on the info embed
+  const topMsg = await findBotMessageByCustomId(channel, client.user.id, ['ticket_close', 'ticket_escalate_co']);
+  if (topMsg) {
+    const disabledComponents = topMsg.components.map((row) => {
+      const newRow = ActionRowBuilder.from(row);
+      newRow.components = row.components.map((btn) =>
+        ButtonBuilder.from(btn).setDisabled(true)
+      );
+      return newRow;
+    });
+    await topMsg.edit({ components: disabledComponents }).catch(() => null);
+  }
+
+  // Send closing embed with Reopen button
+  const closedEmbed = createEmbed('Ticket')
+    .setTitle('Ticket Closed')
+    .setDescription('This ticket has been closed. The channel will be deleted in 1 hour.\n\nStaff can reopen it with the button below. The user can also reply via DM to reopen.')
+    .setColor(0x99aab5);
+
+  const reopenRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('ticket_reopen')
+      .setLabel('Reopen Ticket')
+      .setStyle(ButtonStyle.Success)
+  );
+
+  await channel.send({ embeds: [closedEmbed], components: [reopenRow] });
+
+  // DM the user
+  const user = await client.users.fetch(ticket.user_id).catch(() => null);
+  if (user) {
+    await user.send({
+      embeds: [infoEmbed('Your ticket has been closed. If you need to add anything, reply here within the next hour and your ticket will be reopened automatically.')],
+    }).catch(() => null);
+  }
+
+  // Schedule channel deletion after grace period
+  const timer = setTimeout(async () => {
+    closingTimers.delete(channel.id);
+    await query(
+      'UPDATE tickets SET status = ? WHERE id = ?',
+      ['closed', ticket.id]
+    );
+    await channel.delete().catch(() => null);
+    log.info({ ticketId: ticket.id }, 'Ticket channel deleted after grace period');
+  }, GRACE_PERIOD_MS);
+
+  closingTimers.set(channel.id, timer);
+  log.info({ ticketId: ticket.id, channelId: channel.id, closedBy: closedById }, 'Ticket closing grace period started');
+}
+
+export async function reopenTicket(ticket, reopenedById) {
+  const timer = closingTimers.get(ticket.channel_id);
+  if (timer) {
+    clearTimeout(timer);
+    closingTimers.delete(ticket.channel_id);
+  }
+
+  await query(
+    'UPDATE tickets SET status = ?, closed_at = NULL, closed_by = NULL WHERE id = ?',
+    ['open', ticket.id]
+  );
+
+  await query(
+    'INSERT INTO ticket_events (ticket_id, event_type, actor_id) VALUES (?, ?, ?)',
+    [ticket.id, 'reopened', reopenedById]
+  );
+
+  log.info({ ticketId: ticket.id, reopenedBy: reopenedById }, 'Ticket reopened');
+}
+
+/**
+ * Resume grace period timers for tickets stuck in 'closing' status after a bot restart.
+ * Call this from the ready event handler.
+ */
+export async function resumeClosingTimers(client) {
+  const rows = await query('SELECT * FROM tickets WHERE status = ?', ['closing']);
+  if (rows.length === 0) return;
+
+  const guild = await client.guilds.fetch(config.guild.id).catch(() => null);
+  if (!guild) return;
+
+  for (const ticket of rows) {
+    const channel = await guild.channels.fetch(ticket.channel_id).catch(() => null);
+    if (!channel) {
+      // Channel already gone — finalize as closed
+      await query('UPDATE tickets SET status = ? WHERE id = ?', ['closed', ticket.id]);
+      log.info({ ticketId: ticket.id }, 'Orphaned closing ticket finalized as closed');
+      continue;
+    }
+
+    // Calculate remaining time (closed_at + 1 hour - now)
+    const closedAt = new Date(ticket.closed_at).getTime();
+    const remaining = (closedAt + GRACE_PERIOD_MS) - Date.now();
+
+    if (remaining <= 0) {
+      // Grace period already expired
+      await query('UPDATE tickets SET status = ? WHERE id = ?', ['closed', ticket.id]);
+      await channel.delete().catch(() => null);
+      log.info({ ticketId: ticket.id }, 'Expired closing ticket finalized on restart');
+      continue;
+    }
+
+    // Schedule deletion for remaining time
+    const timer = setTimeout(async () => {
+      closingTimers.delete(channel.id);
+      await query('UPDATE tickets SET status = ? WHERE id = ?', ['closed', ticket.id]);
+      await channel.delete().catch(() => null);
+      log.info({ ticketId: ticket.id }, 'Ticket channel deleted after resumed grace period');
+    }, remaining);
+
+    closingTimers.set(channel.id, timer);
+    log.info({ ticketId: ticket.id, remainingMs: remaining }, 'Resumed closing timer for ticket');
+  }
 }

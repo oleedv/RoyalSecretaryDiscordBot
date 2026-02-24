@@ -3,7 +3,7 @@ import { createEmbed, infoEmbed } from '../utils/embed.js';
 import { formatForDb, applyAttachments } from '../utils/attachments.js';
 import { parseTextCommand } from '../utils/commands.js';
 import { trySendWithFiles } from '../utils/discord.js';
-import { getTicketByChannel, saveMessage, closeTicket, getClosedTicketsByUser } from '../services/ticket/ticketService.js';
+import { getTicketByChannel, saveMessage, beginCloseGracePeriod, getClosedTicketsByUser } from '../services/ticket/ticketService.js';
 import { detectSteamIds, buildSteamEmbed, buildVanityEmbed } from '../services/steamService.js';
 import config from '../config.js';
 import logger from '../logger.js';
@@ -19,14 +19,8 @@ export async function handleGuild(message) {
   const cmd = parseTextCommand(message.content);
 
   if (cmd?.type === 'close') {
-    await closeTicket(ticket, message.author.id);
-
-    const user = await message.client.users.fetch(ticket.user_id).catch(() => null);
-    if (user) {
-      await user.send({ embeds: [infoEmbed('Your ticket has been closed. Thank you!')] }).catch(() => null);
-    }
-
-    await message.channel.delete().catch(() => null);
+    await beginCloseGracePeriod(ticket, message.author.id, message.channel, message.client);
+    await message.delete().catch(() => null);
     log.info({ ticketId: ticket.id, closedBy: message.author.id }, 'Ticket closed via !close');
     return true;
   }

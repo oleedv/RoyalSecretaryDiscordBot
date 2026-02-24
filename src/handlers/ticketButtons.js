@@ -4,9 +4,19 @@ import {
   TextInputStyle,
   ActionRowBuilder,
 } from 'discord.js';
-import { getTicketByChannel, escalateTicket, closeTicket, getClosedTicketsByUser } from '../services/ticket/ticketService.js';
+import {
+  getTicketByChannel,
+  getTicketByChannelStatus,
+  escalateTicket,
+  beginCloseGracePeriod,
+  reopenTicket,
+  timeoutUser,
+  getClosedTicketsByUser,
+} from '../services/ticket/ticketService.js';
+import { buildTicketInfoEmbed, buildTicketComponents } from '../services/ticket/ticketEmbeds.js';
 import { getStoredSteamId } from '../services/userService.js';
 import { errorEmbed, infoEmbed } from '../utils/embed.js';
+import { findBotMessageByCustomId } from '../utils/messageSearch.js';
 import { buildLogsPage } from './ticketMessages.js';
 import logger from '../logger.js';
 
@@ -71,15 +81,70 @@ export async function handleClose(interaction) {
   const ticket = await getTicketByChannel(interaction.channel.id);
   if (!ticket) return interaction.editReply({ embeds: [errorEmbed('No open ticket found for this channel.')] });
 
-  await closeTicket(ticket, interaction.user.id);
+  await beginCloseGracePeriod(ticket, interaction.user.id, interaction.channel, interaction.client);
+  await interaction.deleteReply();
+  log.info({ ticketId: ticket.id, closedBy: interaction.user.id }, 'Ticket closed via button');
+}
 
+export async function handleReopen(interaction) {
+  await interaction.deferReply({ flags: ['Ephemeral'] });
+  const ticket = await getTicketByChannelStatus(interaction.channel.id, 'closing');
+  if (!ticket) return interaction.editReply({ embeds: [errorEmbed('No closing ticket found for this channel.')] });
+
+  await reopenTicket(ticket, interaction.user.id);
+
+  // Delete the "Ticket Closed" message that had the Reopen button
+  await interaction.message.delete().catch(() => null);
+
+  // Delete the old disabled info embed
+  const oldInfoMsg = await findBotMessageByCustomId(interaction.channel, interaction.client.user.id, ['ticket_close']);
+  if (oldInfoMsg) await oldInfoMsg.delete().catch(() => null);
+
+  // Send fresh info embed with active buttons
+  const member = await interaction.guild.members.fetch(ticket.user_id).catch(() => null);
+  const userTag = member?.user.tag || ticket.user_id;
+  const steamId = await getStoredSteamId(ticket.user_id);
+  const previousTickets = await getClosedTicketsByUser(ticket.user_id, ticket.tier);
+  const embed = buildTicketInfoEmbed(userTag, ticket.user_id, ticket.uuid, ticket.tier, previousTickets.length, { steamId, reason: ticket.reason });
+  const components = buildTicketComponents(ticket.tier);
+
+  await interaction.channel.send({ embeds: [embed], components });
+
+  // DM the user
   const user = await interaction.client.users.fetch(ticket.user_id).catch(() => null);
   if (user) {
-    await user.send({ embeds: [infoEmbed('Your ticket has been closed. Thank you!')] }).catch(() => null);
+    await user.send({ embeds: [infoEmbed('Your ticket has been reopened. A staff member will continue assisting you.')] }).catch(() => null);
   }
 
-  log.info({ ticketId: ticket.id, closedBy: interaction.user.id }, 'Ticket closed via button');
-  await interaction.channel.delete().catch(() => null);
+  await interaction.deleteReply();
+  log.info({ ticketId: ticket.id, reopenedBy: interaction.user.id }, 'Ticket reopened via button');
+}
+
+export async function handleTimeout(interaction) {
+  await interaction.deferReply({ flags: ['Ephemeral'] });
+  const ticket = await getTicketByChannel(interaction.channel.id);
+  if (!ticket) return interaction.editReply({ embeds: [errorEmbed('No open ticket found for this channel.')] });
+
+  const result = await timeoutUser(ticket.user_id, interaction.user.id);
+  if (result.error) {
+    return interaction.editReply({ embeds: [errorEmbed(result.error)] });
+  }
+
+  // DM the user
+  const user = await interaction.client.users.fetch(ticket.user_id).catch(() => null);
+  if (user) {
+    await user.send({
+      embeds: [errorEmbed('You have been temporarily prevented from creating support tickets for 24 hours. Please try again later.')],
+    }).catch(() => null);
+  }
+
+  // Notify the channel
+  await interaction.channel.send({
+    embeds: [infoEmbed(`<@${ticket.user_id}> has been timed out from creating tickets for 24 hours.`)],
+  });
+
+  await interaction.deleteReply();
+  log.info({ ticketId: ticket.id, targetUserId: ticket.user_id, staffId: interaction.user.id }, 'User timed out via ticket button');
 }
 
 export async function handleLogsPagination(interaction) {

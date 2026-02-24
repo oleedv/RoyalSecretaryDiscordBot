@@ -14,6 +14,8 @@ const buttonHandlers = {
   ticket_escalate_co: ticketButtons.handleEscalate,
   ticket_escalate_admin: ticketButtons.handleEscalate,
   ticket_close: ticketButtons.handleClose,
+  ticket_reopen: ticketButtons.handleReopen,
+  ticket_timeout: ticketButtons.handleTimeout,
   prospect_apply: prospectButtons.handleApply,
   prospect_modal_2_open: (interaction) => {
     // Extract Part 1 data from the embed before showing modal 2

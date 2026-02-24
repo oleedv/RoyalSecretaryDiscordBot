@@ -5,6 +5,7 @@ import { startScheduler } from '../services/prospect/prospectScheduler.js';
 import { connect as connectSquadJS } from '../services/seeding/seedingSocket.js';
 import { startScheduler as startSeedingScheduler } from '../services/seeding/seedingScheduler.js';
 import { startHeartbeat } from '../services/admin/statusHeartbeat.js';
+import { resumeClosingTimers } from '../services/ticket/ticketService.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'bot' });
@@ -19,6 +20,7 @@ export default {
 
     await ensureTicketPanel(client);
     await ensureProspectPanel(client);
+    await resumeClosingTimers(client);
     startScheduler(client);
     connectSquadJS();
     startSeedingScheduler(client);

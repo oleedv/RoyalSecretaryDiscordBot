@@ -12,13 +12,18 @@ export async function initSchema() {
       uuid CHAR(36) NOT NULL UNIQUE,
       channel_id VARCHAR(20) NOT NULL,
       user_id VARCHAR(20) NOT NULL,
-      status ENUM('open', 'closed') DEFAULT 'open',
+      status ENUM('open', 'closing', 'closed') DEFAULT 'open',
       tier ENUM('normal', 'community_officer', 'admin_officer') DEFAULT 'normal',
+      reason TEXT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       closed_at TIMESTAMP NULL,
       closed_by VARCHAR(20) NULL
     )
   `);
+
+  // Ticket table migrations
+  await query(`ALTER TABLE tickets MODIFY COLUMN status ENUM('open', 'closing', 'closed') DEFAULT 'open'`);
+  await query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS reason TEXT NULL`);
 
   await query(`
     CREATE TABLE IF NOT EXISTS ticket_messages (
@@ -44,11 +49,25 @@ export async function initSchema() {
     CREATE TABLE IF NOT EXISTS ticket_events (
       id INT AUTO_INCREMENT PRIMARY KEY,
       ticket_id INT NOT NULL,
-      event_type ENUM('created', 'escalated', 'closed') NOT NULL,
+      event_type ENUM('created', 'escalated', 'closed', 'reopened') NOT NULL,
       actor_id VARCHAR(20) NOT NULL,
       detail VARCHAR(255),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (ticket_id) REFERENCES tickets(id)
+    )
+  `);
+
+  await query(`ALTER TABLE ticket_events MODIFY COLUMN event_type ENUM('created', 'escalated', 'closed', 'reopened') NOT NULL`);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS ticket_timeouts (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id VARCHAR(20) NOT NULL,
+      timed_out_by VARCHAR(20) NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_timeout_user (user_id),
+      INDEX idx_timeout_expires (expires_at)
     )
   `);
 

@@ -1,5 +1,8 @@
 import { Events, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
-import { getOpenTicketByUser } from '../services/ticket/ticketService.js';
+import { getOpenTicketByUser, getClosingTicketByUser, reopenTicket, getClosedTicketsByUser } from '../services/ticket/ticketService.js';
+import { buildTicketInfoEmbed, buildTicketComponents } from '../services/ticket/ticketEmbeds.js';
+import { getStoredSteamId } from '../services/userService.js';
+import { findBotMessageByCustomId } from '../utils/messageSearch.js';
 import { getOpenProspectByUser } from '../services/prospect/prospectService.js';
 import * as ticketMessages from '../handlers/ticketMessages.js';
 import * as prospectMessages from '../handlers/prospectMessages.js';
@@ -34,6 +37,40 @@ async function handleDM(message) {
   const ticket = await getOpenTicketByUser(message.author.id);
   if (ticket) {
     return ticketMessages.handleDM(message, ticket);
+  }
+
+  // Check for a ticket in the closing grace period — auto-reopen on user reply
+  const closingTicket = await getClosingTicketByUser(message.author.id);
+  if (closingTicket) {
+    await reopenTicket(closingTicket, message.author.id);
+
+    const guild = await message.client.guilds.fetch(config.guild.id).catch(() => null);
+    if (guild) {
+      const channel = await guild.channels.fetch(closingTicket.channel_id).catch(() => null);
+      if (channel) {
+        // Clean up stale messages from the closing state
+        const closedMsg = await findBotMessageByCustomId(channel, message.client.user.id, ['ticket_reopen']);
+        if (closedMsg) await closedMsg.delete().catch(() => null);
+        const oldInfoMsg = await findBotMessageByCustomId(channel, message.client.user.id, ['ticket_close']);
+        if (oldInfoMsg) await oldInfoMsg.delete().catch(() => null);
+
+        // Send fresh info embed with active buttons
+        const member = await guild.members.fetch(closingTicket.user_id).catch(() => null);
+        const userTag = member?.user.tag || closingTicket.user_id;
+        const steamId = await getStoredSteamId(closingTicket.user_id);
+        const previousTickets = await getClosedTicketsByUser(closingTicket.user_id, closingTicket.tier);
+        const embed = buildTicketInfoEmbed(userTag, closingTicket.user_id, closingTicket.uuid, closingTicket.tier, previousTickets.length, { steamId, reason: closingTicket.reason });
+        const components = buildTicketComponents(closingTicket.tier);
+        await channel.send({ embeds: [embed], components });
+
+        await channel.send({
+          embeds: [infoEmbed(`<@${message.author.id}> replied and this ticket has been reopened.`)],
+        });
+      }
+    }
+
+    // Forward the DM message as if the ticket were open
+    return ticketMessages.handleDM(message, { ...closingTicket, status: 'open' });
   }
 
   const prospect = await getOpenProspectByUser(message.author.id);
