@@ -161,10 +161,14 @@ export async function escalateTicket(ticket, tier, channel, actorId = null) {
 
   const { roles } = config.tickets;
 
-  const allRoles = new Set([...roles.normal, ...roles.communityOfficer, ...roles.adminOfficer]);
-  const rolesToKeep = new Set(
-    tier === 'community_officer' ? roles.communityOfficer : roles.adminOfficer
-  );
+  const allRoles = new Set([...roles.normal, ...roles.communityOfficer, ...roles.adminOfficer, ...roles.compTeam, ...roles.whitelist]);
+  const tierRoleMap = {
+    community_officer: roles.communityOfficer,
+    admin_officer: roles.adminOfficer,
+    comp_team: roles.compTeam,
+    whitelist: roles.whitelist,
+  };
+  const rolesToKeep = new Set(tierRoleMap[tier]);
 
   for (const roleId of allRoles) {
     if (rolesToKeep.has(roleId)) {
@@ -196,21 +200,33 @@ export async function escalateTicket(ticket, tier, channel, actorId = null) {
   const infoEmbed = buildTicketInfoEmbed(userTag, ticket.user_id, ticket.uuid, tier, previousTickets.length, { steamId, reason: ticket.reason });
   const components = buildTicketComponents(tier);
 
-  const topMsg = await findBotMessageByCustomId(channel, channel.client.user.id, ['ticket_close', 'ticket_escalate_co']);
+  const topMsg = await findBotMessageByCustomId(channel, channel.client.user.id, ['ticket_close', 'ticket_escalate_co', 'ticket_escalate_comp', 'ticket_escalate_wl']);
   if (topMsg) {
     await topMsg.edit({ embeds: [infoEmbed], components });
   }
 
-  const tierLabel = tier === 'community_officer' ? 'Community Officer' : 'Admin Officer';
+  const tierLabels = {
+    community_officer: 'Community Officer',
+    admin_officer: 'Admin Officer',
+    comp_team: 'Comp Team',
+    whitelist: 'Whitelist',
+  };
+  const tierColors = {
+    community_officer: 0xfee75c,
+    admin_officer: 0xed4245,
+    comp_team: 0x57f287,
+    whitelist: 0x3498db,
+  };
+  const tierLabel = tierLabels[tier] || tier;
   const notifEmbed = createEmbed('Ticket')
     .setTitle('Ticket Escalated')
-    .setDescription(`This ticket has been escalated to **${tierLabel}**.`)
-    .setColor(tier === 'admin_officer' ? 0xed4245 : 0xfee75c);
+    .setDescription(`This ticket has been escalated to **${tierLabel}**.\n\nFrom this point forward, this conversation is confidential and only visible to the **${tierLabel}** team.`)
+    .setColor(tierColors[tier] || 0xfee75c);
 
   await channel.send({ embeds: [notifEmbed] });
 
   // Ping the escalation target roles so they get a notification
-  const targetRoles = tier === 'community_officer' ? roles.communityOfficer : roles.adminOfficer;
+  const targetRoles = tierRoleMap[tier];
   const escalatePing = targetRoles.map((r) => `<@&${r}>`).join(' ');
   await channel.send({ content: escalatePing, allowedMentions: { roles: targetRoles } }).then((m) => m.delete().catch(() => null));
 
@@ -296,6 +312,14 @@ export async function forceCloseTicket(ticket, channel) {
     'UPDATE tickets SET status = ? WHERE id = ?',
     ['closed', ticket.id]
   );
+
+  // DM the user that their ticket has been permanently closed
+  const user = await channel.guild.members.fetch(ticket.user_id).then((m) => m.user).catch(() => null);
+  if (user) {
+    await user.send({
+      embeds: [infoEmbed('Your ticket has been closed and can no longer be reopened. If you need further help, please open a new ticket.')],
+    }).catch(() => null);
+  }
 
   await channel.delete().catch(() => null);
   log.info({ ticketId: ticket.id }, 'Ticket force closed');

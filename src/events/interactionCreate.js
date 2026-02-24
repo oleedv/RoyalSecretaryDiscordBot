@@ -13,6 +13,8 @@ const buttonHandlers = {
   ticket_create: ticketButtons.handleCreate,
   ticket_escalate_co: ticketButtons.handleEscalate,
   ticket_escalate_admin: ticketButtons.handleEscalate,
+  ticket_escalate_comp: ticketButtons.handleEscalate,
+  ticket_escalate_wl: ticketButtons.handleEscalate,
   ticket_close: ticketButtons.handleClose,
   ticket_reopen: ticketButtons.handleReopen,
   ticket_force_close: ticketButtons.handleForceClose,

@@ -5,12 +5,16 @@ const TIER_LABELS = {
   normal: 'Normal',
   community_officer: 'Community Officer',
   admin_officer: 'Admin Officer',
+  comp_team: 'Comp Team',
+  whitelist: 'Whitelist',
 };
 
 const TIER_COLORS = {
   normal: 0x5865f2,
   community_officer: 0xfee75c,
   admin_officer: 0xed4245,
+  comp_team: 0x57f287,
+  whitelist: 0x3498db,
 };
 
 export function buildTicketInfoEmbed(userTag, userId, uuid, tier, previousCount = 0, { steamId, reason } = {}) {
@@ -53,11 +57,13 @@ export function buildTicketComponents(tier) {
   const closeRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId('ticket_close')
-      .setLabel('Close Ticket')
+      .setLabel('Close')
+      .setEmoji('\u{1F512}')
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId('ticket_timeout')
-      .setLabel('Timeout User')
+      .setLabel('Timeout')
+      .setEmoji('\u{23F0}')
       .setStyle(ButtonStyle.Danger)
   );
 
@@ -68,12 +74,24 @@ export function buildTicketComponents(tier) {
   const escalationRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId('ticket_escalate_co')
-      .setLabel('Escalate to Community Officer')
+      .setLabel('CO')
+      .setEmoji('\u{2B06}\u{FE0F}')
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
       .setCustomId('ticket_escalate_admin')
-      .setLabel('Escalate to Admin Officer')
-      .setStyle(ButtonStyle.Danger)
+      .setLabel('Admin')
+      .setEmoji('\u{1F6E1}\u{FE0F}')
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId('ticket_escalate_comp')
+      .setLabel('Comp')
+      .setEmoji('\u{2694}\u{FE0F}')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId('ticket_escalate_wl')
+      .setLabel('Whitelist')
+      .setEmoji('\u{1F4CB}')
+      .setStyle(ButtonStyle.Secondary)
   );
 
   return [closeRow, escalationRow];

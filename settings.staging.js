@@ -19,6 +19,8 @@ export default {
       normal: ['1406672770242449458'],
       communityOfficer: ['1406672908641894400'],
       adminOfficer: ['1406683504829268139'],
+      compTeam: ['1475864404678414408'],
+      whitelist: ['1475864507619475577'],
     },
   },
   prospects: {

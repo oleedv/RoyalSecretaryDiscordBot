@@ -20,6 +20,8 @@ export default {
       normal: [''],                   // RB member role
       communityOfficer: [''],         // CO role
       adminOfficer: [''],             // Admin role
+      compTeam: [''],                 // Comp Team role
+      whitelist: [''],                // Whitelist role
     },
   },
   prospects: {

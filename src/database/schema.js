@@ -24,6 +24,7 @@ export async function initSchema() {
   // Ticket table migrations
   await query(`ALTER TABLE tickets MODIFY COLUMN status ENUM('open', 'closing', 'closed') DEFAULT 'open'`);
   await query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS reason TEXT NULL`);
+  await query(`ALTER TABLE tickets MODIFY COLUMN tier ENUM('normal','community_officer','admin_officer','comp_team','whitelist') DEFAULT 'normal'`);
 
   await query(`
     CREATE TABLE IF NOT EXISTS ticket_messages (
