@@ -10,6 +10,7 @@ import {
   escalateTicket,
   beginCloseGracePeriod,
   reopenTicket,
+  forceCloseTicket,
   timeoutUser,
   getClosedTicketsByUser,
 } from '../services/ticket/ticketService.js';
@@ -118,6 +119,15 @@ export async function handleReopen(interaction) {
 
   await interaction.deleteReply();
   log.info({ ticketId: ticket.id, reopenedBy: interaction.user.id }, 'Ticket reopened via button');
+}
+
+export async function handleForceClose(interaction) {
+  await interaction.deferReply({ flags: ['Ephemeral'] });
+  const ticket = await getTicketByChannelStatus(interaction.channel.id, 'closing');
+  if (!ticket) return interaction.editReply({ embeds: [errorEmbed('No closing ticket found for this channel.')] });
+
+  log.info({ ticketId: ticket.id, closedBy: interaction.user.id }, 'Ticket force closed via button');
+  await forceCloseTicket(ticket, interaction.channel);
 }
 
 export async function handleTimeout(interaction) {

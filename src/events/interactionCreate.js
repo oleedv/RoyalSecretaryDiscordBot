@@ -15,6 +15,7 @@ const buttonHandlers = {
   ticket_escalate_admin: ticketButtons.handleEscalate,
   ticket_close: ticketButtons.handleClose,
   ticket_reopen: ticketButtons.handleReopen,
+  ticket_force_close: ticketButtons.handleForceClose,
   ticket_timeout: ticketButtons.handleTimeout,
   prospect_apply: prospectButtons.handleApply,
   prospect_modal_2_open: (interaction) => {

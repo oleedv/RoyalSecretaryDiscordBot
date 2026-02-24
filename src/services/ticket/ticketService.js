@@ -242,17 +242,22 @@ export async function beginCloseGracePeriod(ticket, closedById, channel, client)
     await topMsg.edit({ components: disabledComponents }).catch(() => null);
   }
 
-  // Send closing embed with Reopen button
+  // Send closing embed with Reopen + Force Close buttons
+  const deleteAt = Math.floor((Date.now() + GRACE_PERIOD_MS) / 1000);
   const closedEmbed = createEmbed('Ticket')
     .setTitle('Ticket Closed')
-    .setDescription('This ticket has been closed. The channel will be deleted in 1 hour.\n\nStaff can reopen it with the button below. The user can also reply via DM to reopen.')
+    .setDescription(`This ticket has been closed. The channel will be deleted <t:${deleteAt}:R>.\n\nStaff can reopen it or force close it with the buttons below. The user can also reply via DM to reopen.`)
     .setColor(0x99aab5);
 
   const reopenRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId('ticket_reopen')
       .setLabel('Reopen Ticket')
-      .setStyle(ButtonStyle.Success)
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId('ticket_force_close')
+      .setLabel('Force Close')
+      .setStyle(ButtonStyle.Danger)
   );
 
   await channel.send({ embeds: [closedEmbed], components: [reopenRow] });
@@ -278,6 +283,22 @@ export async function beginCloseGracePeriod(ticket, closedById, channel, client)
 
   closingTimers.set(channel.id, timer);
   log.info({ ticketId: ticket.id, channelId: channel.id, closedBy: closedById }, 'Ticket closing grace period started');
+}
+
+export async function forceCloseTicket(ticket, channel) {
+  const timer = closingTimers.get(ticket.channel_id);
+  if (timer) {
+    clearTimeout(timer);
+    closingTimers.delete(ticket.channel_id);
+  }
+
+  await query(
+    'UPDATE tickets SET status = ? WHERE id = ?',
+    ['closed', ticket.id]
+  );
+
+  await channel.delete().catch(() => null);
+  log.info({ ticketId: ticket.id }, 'Ticket force closed');
 }
 
 export async function reopenTicket(ticket, reopenedById) {
