@@ -62,6 +62,7 @@ jobs:
             DB_USER=${{ secrets.DB_USER }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
             MARIADB_ROOT_PASSWORD_PROD=${{ secrets.DB_ROOT_PASSWORD }}
+            SQUADJS_SERVERS='${{ secrets.SQUADJS_SERVERS }}'
             EOF
 
             docker compose -f docker-compose.prod.yml --env-file .env.prod pull royal-secretary-bot

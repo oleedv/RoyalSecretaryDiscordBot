@@ -146,6 +146,10 @@ export async function createTicket(userId, guild, { steamId, reason } = {}) {
 
   await channel.send({ embeds: [infoEmbed], components });
 
+  // Ping staff roles so they get a notification
+  const staffPing = roles.normal.map((r) => `<@&${r}>`).join(' ');
+  await channel.send({ content: staffPing, allowedMentions: { roles: roles.normal } }).then((m) => m.delete().catch(() => null));
+
   log.info({ uuid, userId, channelId: channel.id }, 'Ticket created');
   return { ticket, channel };
 }
@@ -204,6 +208,11 @@ export async function escalateTicket(ticket, tier, channel, actorId = null) {
     .setColor(tier === 'admin_officer' ? 0xed4245 : 0xfee75c);
 
   await channel.send({ embeds: [notifEmbed] });
+
+  // Ping the escalation target roles so they get a notification
+  const targetRoles = tier === 'community_officer' ? roles.communityOfficer : roles.adminOfficer;
+  const escalatePing = targetRoles.map((r) => `<@&${r}>`).join(' ');
+  await channel.send({ content: escalatePing, allowedMentions: { roles: targetRoles } }).then((m) => m.delete().catch(() => null));
 
   log.info({ ticketId: ticket.id, tier }, 'Ticket escalated');
   return {};
