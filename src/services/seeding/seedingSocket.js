@@ -121,6 +121,13 @@ export function onStateChange(callback) {
   };
 }
 
+export function extractGameMode(layerName) {
+  if (!layerName) return null;
+  const normalized = layerName.replace(/\s+/g, '_');
+  const match = normalized.match(/_(AAS|RAAS|Invasion|Insurgency|Seed|Skirmish|TC|TA|Destruction)_/i);
+  return match ? match[1] : null;
+}
+
 export function isConnected() {
   return serverState.connected;
 }

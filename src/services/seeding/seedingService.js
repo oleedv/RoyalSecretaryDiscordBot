@@ -119,8 +119,8 @@ export async function deleteTrackedMessage(messageId) {
 
 // ── Stats ──
 
-export async function getAverageSeedTime(days = 30) {
-  const [currentRows, prevRows] = await Promise.all([
+export async function getSeedingStats(days = 30) {
+  const [currentRows, prevRows, totalRows, lastCompletedRows] = await Promise.all([
     query(
       `SELECT AVG(duration_minutes) as avg_minutes, COUNT(*) as total_sessions,
               MIN(duration_minutes) as fastest, MAX(duration_minutes) as slowest
@@ -136,27 +136,52 @@ export async function getAverageSeedTime(days = 30) {
          AND started_at <= NOW() - INTERVAL ? DAY`,
       [days * 2, days]
     ),
+    query(
+      `SELECT COUNT(*) as total_all, SUM(status = 'completed') as total_completed
+       FROM seeding_sessions
+       WHERE started_at > NOW() - INTERVAL ? DAY`,
+      [days]
+    ),
+    query(
+      `SELECT completed_at, duration_minutes, map_name
+       FROM seeding_sessions
+       WHERE status = 'completed'
+       ORDER BY completed_at DESC LIMIT 1`
+    ),
   ]);
 
   const row = currentRows[0];
-  if (!row || !row.total_sessions) {
-    return { avgMinutes: null, totalSessions: 0, fastest: null, slowest: null, trend: null };
-  }
+  const totalRow = totalRows[0];
+  const lastCompleted = lastCompletedRows[0] || null;
 
-  const currentAvg = Math.round(row.avg_minutes);
+  const currentAvg = row?.avg_minutes ? Math.round(row.avg_minutes) : null;
   const prevAvg = prevRows[0]?.avg_minutes ? Math.round(prevRows[0].avg_minutes) : null;
   let trend = null;
-  if (prevAvg != null) {
+  if (prevAvg != null && currentAvg != null) {
     if (currentAvg > prevAvg + 5) trend = 'up';
     else if (currentAvg < prevAvg - 5) trend = 'down';
     else trend = 'stable';
   }
 
+  const totalAll = totalRow?.total_all || 0;
+  const totalCompleted = totalRow?.total_completed || 0;
+  const successRate = totalAll > 0 ? Math.round((totalCompleted / totalAll) * 100) : null;
+
   return {
     avgMinutes: currentAvg,
-    totalSessions: row.total_sessions,
-    fastest: row.fastest,
-    slowest: row.slowest,
+    totalSessions: row?.total_sessions || 0,
+    fastest: row?.fastest ?? null,
+    slowest: row?.slowest ?? null,
     trend,
+    successRate,
+    totalCompleted,
+    totalAll,
+    lastCompletedAt: lastCompleted?.completed_at ?? null,
+    lastCompletedMap: lastCompleted?.map_name ?? null,
+    lastCompletedDuration: lastCompleted?.duration_minutes ?? null,
   };
+}
+
+export async function clearTrackedMessages(channelId) {
+  await query('DELETE FROM seeding_messages WHERE channel_id = ?', [channelId]);
 }

@@ -7,27 +7,66 @@ const log = logger.child({ module: 'seedingEmbeds' });
 const cropCache = new Map();
 const MAX_CROP_CACHE = 20;
 
-const trendArrows = { up: '↑', down: '↓', stable: '→' };
+const trendArrows = { up: '\u2191', down: '\u2193', stable: '\u2192' };
 
-export function buildSeedingCallEmbed({ mapName, playerCount, threshold, thumbnailUrl, imageAttachment, avgSeedTime, avgSeedTrend }) {
+function buildProgressBar(current, total, length = 10) {
+  const clamped = Math.min(Math.max(current, 0), total);
+  const filled = Math.round((clamped / total) * length);
+  const empty = length - filled;
+  const bar = '\u2588'.repeat(filled) + '\u2591'.repeat(empty);
+  const pct = Math.round((clamped / total) * 100);
+  return `${bar} ${pct}%`;
+}
+
+export function buildSeedingCallEmbed({
+  mapName, playerCount, threshold, thumbnailUrl, imageAttachment,
+  avgSeedTime, avgSeedTrend,
+  serverName, gameMode, successRate, fastestSeed, totalCompleted,
+  lastCompletedAt,
+}) {
+  const progressBar = buildProgressBar(playerCount, threshold);
+
   const embed = createEmbed('Seeding')
     .setTitle('Seeding Time!')
     .setDescription(
-      'Join the server now and help us get the population up!\n' +
-      `Stay until we reach ${threshold}+ players for the best experience.\n` +
-      'Every volunteer makes a difference!'
+      'Join the server and help us fill it up!\n' +
+      `Target: **${threshold}** players\n\n` +
+      `**${progressBar}**\n` +
+      `\`${playerCount} / ${threshold} players\``
     )
-    .setColor(0xfee75c)
-    .addFields(
-      { name: 'Current Map', value: mapName || 'Unknown', inline: true },
-      { name: 'Players', value: `${playerCount} / ${threshold}`, inline: true },
-    );
+    .setColor(0xfee75c);
 
+  // Row 1: Server info
+  const row1 = [];
+  if (serverName) row1.push({ name: 'Server', value: serverName, inline: true });
+  row1.push({ name: 'Current Map', value: mapName || 'Unknown', inline: true });
+  if (gameMode) row1.push({ name: 'Game Mode', value: gameMode, inline: true });
+  if (row1.length) embed.addFields(...row1);
+
+  // Row 2: Timing stats
+  const row2 = [];
   if (avgSeedTime) {
     const arrow = trendArrows[avgSeedTrend] || '';
-    const value = arrow ? `~${avgSeedTime} min (${arrow})` : `~${avgSeedTime} min`;
-    embed.addFields({ name: 'Avg Seed Time', value, inline: true });
+    row2.push({ name: 'Avg Seed Time', value: arrow ? `~${avgSeedTime} min ${arrow}` : `~${avgSeedTime} min`, inline: true });
   }
+  if (fastestSeed != null) {
+    row2.push({ name: 'Fastest Seed', value: `${fastestSeed} min`, inline: true });
+  }
+  if (successRate != null) {
+    row2.push({ name: 'Success Rate', value: `${successRate}%`, inline: true });
+  }
+  if (row2.length) embed.addFields(...row2);
+
+  // Row 3: Historical context
+  const row3 = [];
+  if (totalCompleted != null && totalCompleted > 0) {
+    row3.push({ name: 'Seeds (30d)', value: String(totalCompleted), inline: true });
+  }
+  if (lastCompletedAt) {
+    const ts = Math.floor(new Date(lastCompletedAt).getTime() / 1000);
+    row3.push({ name: 'Last Seeded', value: `<t:${ts}:R>`, inline: true });
+  }
+  if (row3.length) embed.addFields(...row3);
 
   if (imageAttachment) {
     embed.setImage(`attachment://${imageAttachment}`);

@@ -1,9 +1,9 @@
-import { getServerState, onStateChange } from './seedingSocket.js';
+import { getServerState, onStateChange, extractGameMode } from './seedingSocket.js';
 import {
   getSeedingConfig, getActiveSession, startSession, completeSession,
   resetSession, updateSessionPeak, updateSessionCallMessage,
-  expireOldSessions, getAverageSeedTime, trackMessage,
-  getLastCompletionMessage, deleteTrackedMessage,
+  expireOldSessions, getSeedingStats, trackMessage,
+  clearTrackedMessages,
 } from './seedingService.js';
 import { AttachmentBuilder } from 'discord.js';
 import {
@@ -155,20 +155,20 @@ async function postSeedingCall(client, cfg) {
     return;
   }
 
-  // Delete previous completion message
+  // Purge all messages from the seeding channel for a clean slate
   try {
-    const prev = await getLastCompletionMessage(cfg.channel_id);
-    if (prev) {
-      const oldMsg = await channel.messages.fetch(prev.message_id).catch(() => null);
-      if (oldMsg) await oldMsg.delete().catch(() => null);
-      await deleteTrackedMessage(prev.message_id);
-    }
+    let deleted;
+    do {
+      deleted = await channel.bulkDelete(100, true);
+    } while (deleted.size > 0);
+    await clearTrackedMessages(cfg.channel_id);
   } catch (err) {
-    log.warn({ err }, 'Failed to delete old completion message');
+    log.warn({ err }, 'Failed to purge seeding channel');
   }
 
   const state = getServerState();
-  const stats = await getAverageSeedTime();
+  const stats = await getSeedingStats();
+  const gameMode = extractGameMode(state.currentLayer);
   const thumbnailUrl = getMapThumbnailUrl(state.currentLayer);
 
   // Crop map image for a zoomed-in view
@@ -182,6 +182,12 @@ async function postSeedingCall(client, cfg) {
     imageAttachment: croppedBuf ? 'map.jpg' : undefined,
     avgSeedTime: stats.avgMinutes,
     avgSeedTrend: stats.trend,
+    serverName: state.serverName,
+    gameMode,
+    successRate: stats.successRate,
+    fastestSeed: stats.fastest,
+    totalCompleted: stats.totalCompleted,
+    lastCompletedAt: stats.lastCompletedAt,
   });
   if (croppedBuf) files.push(new AttachmentBuilder(croppedBuf, { name: 'map.jpg' }));
 
@@ -236,7 +242,8 @@ async function updateCallMessage(client, cfg, session, state) {
     const message = await channel.messages.fetch(session.call_message_id).catch(() => null);
     if (!message) return;
 
-    const stats = await getAverageSeedTime();
+    const stats = await getSeedingStats();
+    const gameMode = extractGameMode(state.currentLayer);
     const thumbnailUrl = getMapThumbnailUrl(state.currentLayer);
 
     const croppedBuf = await cropMapThumbnail(thumbnailUrl);
@@ -249,6 +256,12 @@ async function updateCallMessage(client, cfg, session, state) {
       imageAttachment: croppedBuf ? 'map.jpg' : undefined,
       avgSeedTime: stats.avgMinutes,
       avgSeedTrend: stats.trend,
+      serverName: state.serverName,
+      gameMode,
+      successRate: stats.successRate,
+      fastestSeed: stats.fastest,
+      totalCompleted: stats.totalCompleted,
+      lastCompletedAt: stats.lastCompletedAt,
     });
     if (croppedBuf) files.push(new AttachmentBuilder(croppedBuf, { name: 'map.jpg' }));
 
