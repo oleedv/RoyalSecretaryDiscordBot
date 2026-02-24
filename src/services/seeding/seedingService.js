@@ -163,13 +163,13 @@ export async function getSeedingStats(days = 30) {
     else trend = 'stable';
   }
 
-  const totalAll = totalRow?.total_all || 0;
-  const totalCompleted = totalRow?.total_completed || 0;
+  const totalAll = Number(totalRow?.total_all || 0);
+  const totalCompleted = Number(totalRow?.total_completed || 0);
   const successRate = totalAll > 0 ? Math.round((totalCompleted / totalAll) * 100) : null;
 
   return {
     avgMinutes: currentAvg,
-    totalSessions: row?.total_sessions || 0,
+    totalSessions: Number(row?.total_sessions || 0),
     fastest: row?.fastest ?? null,
     slowest: row?.slowest ?? null,
     trend,
