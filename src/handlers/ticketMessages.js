@@ -1,3 +1,4 @@
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { createEmbed, infoEmbed } from '../utils/embed.js';
 import { formatForDb, applyAttachments } from '../utils/attachments.js';
 import { parseTextCommand } from '../utils/commands.js';
@@ -31,57 +32,12 @@ export async function handleGuild(message) {
   }
 
   if (cmd?.type === 'logs') {
-    const previous = await getClosedTicketsByUser(ticket.user_id);
+    const previous = await getClosedTicketsByUser(ticket.user_id, ticket.tier);
     if (previous.length === 0) {
       await message.channel.send('This user has no previous tickets.');
     } else {
-      const TIER_SHORT = { normal: 'Normal', community_officer: 'Community', admin_officer: 'Admin' };
-      const allLines = previous.map((t, i) => {
-        const tier = TIER_SHORT[t.tier] || t.tier;
-        const preview = t.first_message
-          ? t.first_message.slice(0, 10) + (t.first_message.length > 10 ? '..' : '')
-          : '*no message*';
-        const uuidDisplay = config.webBaseUrl
-          ? `[${t.uuid}](${config.webBaseUrl}/ticket/${t.uuid})`
-          : `\`${t.uuid}\``;
-        return `${i + 1}. **${tier}** - ${preview} - ${uuidDisplay}`;
-      });
-
-      const pages = [];
-      let current = [];
-      let currentLen = 0;
-      for (const line of allLines) {
-        if (currentLen + line.length + 1 > 3900 && current.length > 0) {
-          pages.push(current);
-          current = [];
-          currentLen = 0;
-        }
-        current.push(line);
-        currentLen += line.length + 1;
-      }
-      if (current.length > 0) pages.push(current);
-
-      const pageNum = parseInt(cmd.content || '1', 10) || 1;
-      const page = pages[pageNum - 1];
-
-      if (!page) {
-        await message.channel.send(`No page ${pageNum}. There ${pages.length === 1 ? 'is' : 'are'} only ${pages.length} page${pages.length === 1 ? '' : 's'}.`);
-      } else {
-        const title = pages.length > 1
-          ? `Previous Tickets (${previous.length}) — Page ${pageNum}/${pages.length}`
-          : `Previous Tickets (${previous.length})`;
-
-        const embed = createEmbed('Ticket')
-          .setTitle(title)
-          .setDescription(page.join('\n'))
-          .setColor(0x5865f2);
-
-        if (pageNum < pages.length) {
-          embed.addFields({ name: 'More', value: `Use \`!logs${pageNum + 1}\` to see the next page.` });
-        }
-
-        await message.channel.send({ embeds: [embed] });
-      }
+      const { embed, components } = buildLogsPage(previous, 1, ticket.user_id, ticket.tier);
+      await message.channel.send({ embeds: [embed], components });
     }
     await message.delete().catch(() => null);
     return true;
@@ -153,6 +109,60 @@ export async function handleGuild(message) {
   }
 
   return true;
+}
+
+const LOGS_PAGE_SIZE = 10;
+const TIER_SHORT = { normal: 'Normal', community_officer: 'Community', admin_officer: 'Admin' };
+
+export function buildLogsPage(tickets, page, userId, tier) {
+  const totalPages = Math.ceil(tickets.length / LOGS_PAGE_SIZE);
+  const start = (page - 1) * LOGS_PAGE_SIZE;
+  const pageItems = tickets.slice(start, start + LOGS_PAGE_SIZE);
+
+  const lines = pageItems.map((t, i) => {
+    const tierLabel = TIER_SHORT[t.tier] || t.tier;
+    const preview = t.first_message
+      ? t.first_message.slice(0, 10) + (t.first_message.length > 10 ? '..' : '')
+      : '*no message*';
+    const shortUuid = t.uuid.slice(0, 6);
+    const uuidDisplay = config.webBaseUrl
+      ? `[${new URL(config.webBaseUrl).host}/ticket/${shortUuid}](${config.webBaseUrl}/ticket/${t.uuid})`
+      : `\`${shortUuid}\``;
+    return `${start + i + 1}. **${tierLabel}** - ${preview} - ${uuidDisplay}`;
+  });
+
+  const title = totalPages > 1
+    ? `Previous Tickets (${tickets.length}) — Page ${page}/${totalPages}`
+    : `Previous Tickets (${tickets.length})`;
+
+  const embed = createEmbed('Ticket')
+    .setTitle(title)
+    .setDescription(lines.join('\n'))
+    .setColor(0x5865f2);
+
+  const components = [];
+  if (totalPages > 1) {
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`logs_prev:${page - 1}:${userId}:${tier}`)
+        .setLabel('Previous')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(page <= 1),
+      new ButtonBuilder()
+        .setCustomId(`logs_indicator`)
+        .setLabel(`${page} / ${totalPages}`)
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true),
+      new ButtonBuilder()
+        .setCustomId(`logs_next:${page + 1}:${userId}:${tier}`)
+        .setLabel('Next')
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(page >= totalPages),
+    );
+    components.push(row);
+  }
+
+  return { embed, components };
 }
 
 export async function handleDM(message, ticket) {

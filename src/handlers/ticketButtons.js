@@ -4,9 +4,10 @@ import {
   TextInputStyle,
   ActionRowBuilder,
 } from 'discord.js';
-import { getTicketByChannel, escalateTicket, closeTicket } from '../services/ticket/ticketService.js';
+import { getTicketByChannel, escalateTicket, closeTicket, getClosedTicketsByUser } from '../services/ticket/ticketService.js';
 import { getStoredSteamId } from '../services/userService.js';
-import { errorEmbed, successEmbed, infoEmbed } from '../utils/embed.js';
+import { errorEmbed, infoEmbed } from '../utils/embed.js';
+import { buildLogsPage } from './ticketMessages.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'ticketButtons' });
@@ -61,8 +62,7 @@ export async function handleEscalate(interaction) {
     return interaction.editReply({ embeds: [errorEmbed(result.error)] });
   }
 
-  const tierLabel = tier === 'community_officer' ? 'Community Officer' : 'Admin Officer';
-  await interaction.editReply({ embeds: [successEmbed(`Ticket escalated to ${tierLabel}.`)] });
+  await interaction.deleteReply();
   log.info({ ticketId: ticket.id, tier }, 'Ticket escalated');
 }
 
@@ -80,4 +80,21 @@ export async function handleClose(interaction) {
 
   log.info({ ticketId: ticket.id, closedBy: interaction.user.id }, 'Ticket closed via button');
   await interaction.channel.delete().catch(() => null);
+}
+
+export async function handleLogsPagination(interaction) {
+  const parts = interaction.customId.split(':');
+  const page = parseInt(parts[1], 10);
+  const userId = parts[2];
+  const tier = parts[3];
+
+  await interaction.deferUpdate();
+
+  const previous = await getClosedTicketsByUser(userId, tier);
+  if (previous.length === 0) {
+    return interaction.message.edit({ content: 'This user has no previous tickets.', embeds: [], components: [] });
+  }
+
+  const { embed, components } = buildLogsPage(previous, page, userId, tier);
+  await interaction.message.edit({ embeds: [embed], components });
 }

@@ -67,7 +67,10 @@ export default {
     }
 
     if (interaction.isButton()) {
-      const handler = buttonHandlers[interaction.customId];
+      let handler = buttonHandlers[interaction.customId];
+      if (!handler && (interaction.customId.startsWith('logs_prev:') || interaction.customId.startsWith('logs_next:'))) {
+        handler = ticketButtons.handleLogsPagination;
+      }
       if (handler) {
         try {
           await handler(interaction);

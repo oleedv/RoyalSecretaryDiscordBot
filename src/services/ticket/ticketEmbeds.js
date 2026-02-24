@@ -24,7 +24,15 @@ export function buildTicketInfoEmbed(userTag, userId, uuid, tier, previousCount 
     .setColor(TIER_COLORS[tier] || 0x5865f2);
 
   if (steamId) {
-    embed.addFields({ name: 'Steam ID', value: steamId, inline: true });
+    embed.addFields({
+      name: 'Steam ID',
+      value: [
+        `[${steamId}](https://steamcommunity.com/profiles/${steamId})`,
+        `[steamid.io](https://steamid.io/lookup/${steamId})`,
+        `[BattleMetrics](https://www.battlemetrics.com/rcon/players?filter[search]=${steamId})`,
+        `[CBL](https://communitybanlist.com/search/${steamId})`,
+      ].join(' | '),
+    });
   }
 
   if (reason) {
