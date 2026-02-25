@@ -7,7 +7,7 @@ import {
 } from './seedingService.js';
 import {
   buildSeedingCallEmbed, buildSeedingCompletionEmbed,
-  buildSeederRoleComponents, getLayerImageUrl,
+  buildSeedingPanelMessage, getLayerImageUrl,
 } from './seedingEmbeds.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
@@ -25,7 +25,7 @@ export async function startScheduler(client) {
   log.info('Starting seeding scheduler');
 
   await expireOldSessions();
-  await ensureSeedingEmbed(client);
+  await ensureSeedingPanel(client);
 
   const checkMs = config.seeding?.schedulerCheckMs || 60000;
 
@@ -43,47 +43,7 @@ export function stopScheduler() {
   log.info('Seeding scheduler stopped');
 }
 
-async function ensureSeedingEmbed(client) {
-  try {
-    const cfg = await getSeedingConfig();
-    if (!cfg?.enabled || !cfg.channel_id) return;
-
-    const channel = await client.channels.fetch(cfg.channel_id).catch(() => null);
-    if (!channel) return;
-
-    const session = await getActiveSession();
-
-    // If session has a call_message_id, verify the message still exists in Discord
-    if (session?.call_message_id) {
-      const msg = await channel.messages.fetch(session.call_message_id).catch(() => null);
-      if (msg) return; // message exists, nothing to do
-      // Message was deleted — fall through to repost
-    }
-
-    // Scan for existing seeding embed with buttons (survives restarts)
-    const messages = await channel.messages.fetch({ limit: 50 });
-    const existing = messages.find(
-      msg => msg.author.id === client.user.id &&
-        msg.components.some(row => row.components.some(c => c.customId === 'seeding_join'))
-    );
-
-    if (existing && session) {
-      // Session exists but its message was deleted — link to this embed instead
-      await updateSessionCallMessage(session.id, existing.id);
-      log.info({ messageId: existing.id }, 'Re-linked seeding session to existing embed');
-    } else if (existing && !session) {
-      // Embed exists but no session — create one linked to it for live updates
-      const newSession = await startSession(null, null, 0);
-      await updateSessionCallMessage(newSession.id, existing.id);
-      log.info({ messageId: existing.id }, 'Recovered seeding session from existing embed');
-    } else {
-      // No embed at all — post one without role ping
-      await postSeedingCall(client, cfg, { ping: false });
-    }
-  } catch (err) {
-    log.error({ err }, 'Failed to ensure seeding embed');
-  }
-}
+// ── Time helpers ──
 
 function getCurrentTime(timezone) {
   try {
@@ -111,6 +71,94 @@ function getTodayDate(timezone) {
   }
 }
 
+function normalizeTime(time) {
+  if (/^\d{4}$/.test(time)) return `${time.slice(0, 2)}:${time.slice(2)}`;
+  return time;
+}
+
+function subtractOneHour(time) {
+  const [h, m] = time.split(':').map(Number);
+  const newH = (h - 1 + 24) % 24;
+  return `${String(newH).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+/**
+ * Check if currentTime is in the reset window (1h before daily call).
+ * Reset window: [resetTime, dailyTime)
+ */
+function isInResetWindow(currentTime, dailyTime) {
+  const resetTime = subtractOneHour(dailyTime);
+  if (resetTime < dailyTime) {
+    return currentTime >= resetTime && currentTime < dailyTime;
+  }
+  // Wraps midnight (e.g. daily=00:30, reset=23:30)
+  return currentTime >= resetTime || currentTime < dailyTime;
+}
+
+/**
+ * Convert daily_time + timezone to today's Unix timestamp for Discord <t:> formatting.
+ */
+function getDailyTimestamp(dailyTime, timezone) {
+  const [h, m] = dailyTime.split(':').map(Number);
+  const dateStr = getTodayDate(timezone);
+  // Create a UTC date at the target date+time, then adjust for timezone offset
+  const utcGuess = new Date(`${dateStr}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00.000Z`);
+  try {
+    const actualHour = parseInt(
+      new Intl.DateTimeFormat('en', { hour: 'numeric', hour12: false, timeZone: timezone }).format(utcGuess),
+      10,
+    );
+    const diff = h - actualHour;
+    utcGuess.setUTCHours(utcGuess.getUTCHours() + diff);
+  } catch { /* fall through with UTC guess */ }
+  return Math.floor(utcGuess.getTime() / 1000);
+}
+
+// ── Panel (persistent embed with buttons) ──
+
+async function ensureSeedingPanel(client) {
+  try {
+    const cfg = await getSeedingConfig();
+    if (!cfg?.enabled || !cfg.channel_id) return;
+
+    const channel = await client.channels.fetch(cfg.channel_id).catch(() => null);
+    if (!channel) return;
+
+    const messages = await channel.messages.fetch({ limit: 50 });
+    const hasPanel = messages.some(
+      msg => msg.author.id === client.user.id &&
+        msg.components.some(row => row.components.some(c => c.customId === 'seeding_join'))
+    );
+
+    if (hasPanel) {
+      log.info('Seeding panel already exists');
+      return;
+    }
+
+    // Post the panel
+    const dailyTime = normalizeTime(cfg.daily_time || '16:00');
+    const tz = cfg.timezone || 'UTC';
+    const dailyTs = getDailyTimestamp(dailyTime, tz);
+
+    let seederCount = null;
+    if (cfg.role_id && channel.guild) {
+      try {
+        await channel.guild.members.fetch();
+        const role = await channel.guild.roles.fetch(cfg.role_id);
+        seederCount = role?.members?.size ?? null;
+      } catch { /* role may not exist */ }
+    }
+
+    const panelPayload = buildSeedingPanelMessage(seederCount, dailyTs, cfg.seed_threshold);
+    await channel.send(panelPayload);
+    log.info('Seeding panel posted');
+  } catch (err) {
+    log.error({ err }, 'Failed to ensure seeding panel');
+  }
+}
+
+// ── Daily call + channel reset ──
+
 async function checkDailyCall(client) {
   try {
     const cfg = await getSeedingConfig();
@@ -118,22 +166,20 @@ async function checkDailyCall(client) {
 
     const tz = cfg.timezone || 'UTC';
     const today = getTodayDate(tz);
+    const currentTime = getCurrentTime(tz);
+    const dailyTime = normalizeTime(cfg.daily_time || '16:00');
 
-    // Check DB-persisted date to avoid duplicate posts (survives restarts)
+    // Channel reset: 1 hour before daily call, clean up everything except panel
+    if (isInResetWindow(currentTime, dailyTime)) {
+      await resetChannel(client, cfg);
+    }
+
+    // Daily call: post if at or past daily time and not yet posted today
     const lastCallDate = cfg.last_daily_call_date
       ? new Date(cfg.last_daily_call_date).toISOString().slice(0, 10)
       : null;
     if (lastCallDate === today) return;
-
-    // Support "HH:MM" or "HHMM" formats
-    let configuredTime = cfg.daily_time || '16:00';
-    if (/^\d{4}$/.test(configuredTime)) {
-      configuredTime = `${configuredTime.slice(0, 2)}:${configuredTime.slice(2)}`;
-    }
-
-    const currentTime = getCurrentTime(tz);
-    // Post if current time is at or past the configured time (catches restarts)
-    if (currentTime < configuredTime) return;
+    if (currentTime < dailyTime) return;
 
     await setLastDailyCallDate(today);
     log.info({ time: currentTime, date: today }, 'Posting daily seeding call');
@@ -144,6 +190,35 @@ async function checkDailyCall(client) {
   }
 }
 
+async function resetChannel(client, cfg) {
+  try {
+    const channel = await client.channels.fetch(cfg.channel_id).catch(() => null);
+    if (!channel) return;
+
+    const messages = await channel.messages.fetch({ limit: 50 });
+    const toDelete = messages.filter(
+      msg => !(
+        msg.author.id === client.user.id &&
+        msg.components.some(row => row.components.some(c => c.customId === 'seeding_join'))
+      )
+    );
+
+    if (toDelete.size === 0) return;
+
+    await channel.bulkDelete(toDelete, true).catch(() => {});
+    await clearTrackedMessages(cfg.channel_id);
+
+    // Expire any lingering active session
+    await expireOldSessions();
+
+    log.info({ deleted: toDelete.size }, 'Seeding channel reset (kept panel only)');
+  } catch (err) {
+    log.warn({ err }, 'Failed to reset seeding channel');
+  }
+}
+
+// ── Seeding state monitor ──
+
 async function updateSeedingState(client) {
   try {
     const cfg = await getSeedingConfig();
@@ -153,10 +228,29 @@ async function updateSeedingState(client) {
     if (!state.connected) return;
 
     const session = await getActiveSession();
-    if (!session) return;
+
+    // No active session — check if we should re-seed (server crash recovery)
+    if (!session) {
+      const tz = cfg.timezone || 'UTC';
+      const dailyTime = normalizeTime(cfg.daily_time || '16:00');
+      const currentTime = getCurrentTime(tz);
+      const today = getTodayDate(tz);
+      const lastCallDate = cfg.last_daily_call_date
+        ? new Date(cfg.last_daily_call_date).toISOString().slice(0, 10)
+        : null;
+
+      // Re-seed if today's call was already posted, we're past daily time,
+      // and we're not in the reset window
+      if (lastCallDate === today && currentTime >= dailyTime && !isInResetWindow(currentTime, dailyTime)) {
+        log.info('No active session in seeding window — re-seeding');
+        await postSeedingCall(client, cfg);
+      }
+      return;
+    }
 
     await updateSessionPeak(session.id, state.playerCount);
 
+    // Completion: threshold reached
     if (state.playerCount >= cfg.seed_threshold) {
       const duration = Math.round(
         (Date.now() - new Date(session.started_at).getTime()) / 60000
@@ -166,36 +260,28 @@ async function updateSeedingState(client) {
       return;
     }
 
+    // Reset: players dropped below reset threshold after reaching it
     if (state.playerCount < cfg.reset_threshold && session.peak_players >= cfg.reset_threshold) {
       await resetSession(session.id);
-      log.info({ sessionId: session.id }, 'Session reset — posting new seeding call');
-      await postSeedingCall(client, cfg, { ping: false });
+      log.info({ sessionId: session.id }, 'Session reset (population dropped)');
+      // Don't post a new call here — the re-seed logic above handles it on the next tick
       return;
     }
 
-    // Always update the call message (like server status does)
+    // Normal update
     await updateCallMessage(client, cfg, session, state);
   } catch (err) {
     log.error({ err }, 'Seeding state update failed');
   }
 }
 
-async function postSeedingCall(client, cfg, { ping = true } = {}) {
+// ── Message posting ──
+
+async function postSeedingCall(client, cfg) {
   const channel = await client.channels.fetch(cfg.channel_id).catch(() => null);
   if (!channel) {
     log.error({ channelId: cfg.channel_id }, 'Seeding channel not found');
     return;
-  }
-
-  // Purge all messages from the seeding channel for a clean slate
-  try {
-    let deleted;
-    do {
-      deleted = await channel.bulkDelete(100, true);
-    } while (deleted.size > 0);
-    await clearTrackedMessages(cfg.channel_id);
-  } catch (err) {
-    log.warn({ err }, 'Failed to purge seeding channel');
   }
 
   const state = getServerState();
@@ -215,22 +301,9 @@ async function postSeedingCall(client, cfg, { ping = true } = {}) {
     fastestSeed: stats.fastest,
   });
 
-  // Fetch seeder role member count for button label
-  let seederCount = null;
-  if (cfg.role_id && channel.guild) {
-    try {
-      await channel.guild.members.fetch();
-      const role = await channel.guild.roles.fetch(cfg.role_id);
-      seederCount = role?.members?.size ?? null;
-    } catch { /* role may not exist */ }
-  }
+  const content = [cfg.role_id].filter(Boolean).map(id => `<@&${id}>`).join(' ') || undefined;
 
-  const components = buildSeederRoleComponents(seederCount);
-  const content = ping
-    ? ([cfg.role_id].filter(Boolean).map(id => `<@&${id}>`).join(' ') || undefined)
-    : undefined;
-
-  const msg = await channel.send({ content, embeds: [embed], components });
+  const msg = await channel.send({ content, embeds: [embed] });
 
   // Start a seeding session
   const session = await startSession(state.currentMap, state.currentLayer, state.playerCount);
@@ -267,13 +340,6 @@ async function updateCallMessage(client, cfg, session, state) {
 
     const message = await channel.messages.fetch(session.call_message_id).catch(() => null);
     if (!message) return;
-
-    // Clean up non-embed messages (user hype messages, etc.)
-    const allMessages = await channel.messages.fetch({ limit: 50 });
-    const toDelete = allMessages.filter(m => m.id !== session.call_message_id);
-    if (toDelete.size > 0) {
-      await channel.bulkDelete(toDelete, true).catch(() => {});
-    }
 
     const stats = await getSeedingStats();
     const gameMode = extractGameMode(state.currentLayer);

@@ -19,6 +19,49 @@ export function getLayerImageUrl(layerObj, layerName) {
   return null;
 }
 
+export function buildSeederRoleComponents(seederCount = null) {
+  const joinLabel = seederCount != null ? `Join Seeders (${seederCount})` : 'Join Seeders';
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('seeding_join')
+      .setLabel(joinLabel)
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId('seeding_leave')
+      .setLabel('Leave Seeders')
+      .setStyle(ButtonStyle.Danger),
+  );
+  return [row];
+}
+
+/**
+ * Persistent panel embed — always visible in the seeding channel.
+ * @param {number|null} seederCount  Current role member count
+ * @param {number}      dailyTs     Unix timestamp of today's seeding start time
+ * @param {number}      threshold   Player target
+ */
+export function buildSeedingPanelMessage(seederCount, dailyTs, threshold) {
+  const embed = createEmbed('Seeding')
+    .setTitle('Royal Battalion Seeding')
+    .setDescription(
+      'Join our seeding team! We count on our amazing members, prospects, ' +
+      'external partners, and whitelisted community to help seed the server regularly.\n\n' +
+      `Seeding starts at <t:${dailyTs}:t> every day. (<t:${dailyTs}:R>)\n\n` +
+      '**How to Help**\n' +
+      '- Join the server when seeding begins\n' +
+      `- Stay until ${threshold}+ players\n` +
+      '- Invite friends!\n\n' +
+      '**Benefits**\n' +
+      '- Get notified when seeding begins\n' +
+      '- Work towards getting whitelisted by seeding 10x within 30 days\n' +
+      '- Help build our amazing community!'
+    )
+    .setColor(0x57f287);
+
+  const components = buildSeederRoleComponents(seederCount);
+  return { embeds: [embed], components };
+}
+
 export function buildSeedingCallEmbed({
   layerName, playerCount, threshold, thumbnailUrl,
   avgSeedTime, avgSeedTrend,
@@ -87,19 +130,4 @@ export function buildSeedingCompletionEmbed({ mapName, playerCount, duration }) 
   if (fields.length > 0) embed.addFields(...fields);
 
   return embed;
-}
-
-export function buildSeederRoleComponents(seederCount = null) {
-  const joinLabel = seederCount != null ? `Join Seeders (${seederCount})` : 'Join Seeders';
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('seeding_join')
-      .setLabel(joinLabel)
-      .setStyle(ButtonStyle.Success),
-    new ButtonBuilder()
-      .setCustomId('seeding_leave')
-      .setLabel('Leave Seeders')
-      .setStyle(ButtonStyle.Danger),
-  );
-  return [row];
 }
