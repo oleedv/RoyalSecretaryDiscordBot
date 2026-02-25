@@ -68,6 +68,10 @@ export function buildSeedingCallEmbed({
   }
   if (row3.length) embed.addFields(...row3);
 
+  // Last updated timestamp (matches server status pattern)
+  const now = Math.floor(Date.now() / 1000);
+  embed.addFields({ name: '\u200b', value: `Last updated <t:${now}:R>`, inline: false });
+
   if (imageAttachment) {
     embed.setImage(`attachment://${imageAttachment}`);
   } else if (thumbnailUrl) {

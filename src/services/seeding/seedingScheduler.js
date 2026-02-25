@@ -1,4 +1,4 @@
-import { getServerState, onStateChange, extractGameMode } from './seedingSocket.js';
+import { getServerState, extractGameMode } from './seedingSocket.js';
 import {
   getSeedingConfig, getActiveSession, startSession, completeSession,
   resetSession, updateSessionPeak, updateSessionCallMessage,
@@ -17,10 +17,7 @@ const log = logger.child({ module: 'seedingScheduler' });
 
 let dailyCheckInterval = null;
 let monitorInterval = null;
-let unsubscribeSocket = null;
 let lastDailyCallDate = null;
-let checking = false;
-let lastKnownPlayerCount = null;
 
 export function isSchedulerActive() {
   return !!dailyCheckInterval;
@@ -32,21 +29,18 @@ export async function startScheduler(client) {
   await expireOldSessions();
 
   const checkMs = config.seeding?.schedulerCheckMs || 60000;
-  const monitorMs = config.seeding?.monitorIntervalMs || 120000;
 
   dailyCheckInterval = setInterval(() => checkDailyCall(client), checkMs);
-  monitorInterval = setInterval(() => checkPopulation(client), monitorMs);
-  unsubscribeSocket = onStateChange(() => checkPopulation(client));
+  monitorInterval = setInterval(() => updateSeedingState(client), checkMs);
 
   // Run initial checks
   checkDailyCall(client);
-  checkPopulation(client);
+  updateSeedingState(client);
 }
 
 export function stopScheduler() {
   if (dailyCheckInterval) { clearInterval(dailyCheckInterval); dailyCheckInterval = null; }
   if (monitorInterval) { clearInterval(monitorInterval); monitorInterval = null; }
-  if (unsubscribeSocket) { unsubscribeSocket(); unsubscribeSocket = null; }
   log.info('Seeding scheduler stopped');
 }
 
@@ -103,10 +97,7 @@ async function checkDailyCall(client) {
   }
 }
 
-async function checkPopulation(client) {
-  if (checking) return;
-  checking = true;
-
+async function updateSeedingState(client) {
   try {
     const cfg = await getSeedingConfig();
     if (!cfg?.enabled) return;
@@ -115,36 +106,28 @@ async function checkPopulation(client) {
     if (!state.connected) return;
 
     const session = await getActiveSession();
+    if (!session) return;
 
-    if (session) {
-      await updateSessionPeak(session.id, state.playerCount);
+    await updateSessionPeak(session.id, state.playerCount);
 
-      if (state.playerCount >= cfg.seed_threshold) {
-        const duration = Math.round(
-          (Date.now() - new Date(session.started_at).getTime()) / 60000
-        );
-        await completeSession(session.id, state.playerCount);
-        await postCompletionMessage(client, cfg, session, state, duration);
-        lastKnownPlayerCount = null;
-        return;
-      }
-
-      if (state.playerCount < cfg.reset_threshold && session.peak_players >= cfg.reset_threshold) {
-        await resetSession(session.id);
-        lastKnownPlayerCount = null;
-        return;
-      }
-
-      // Live-update the call message player count
-      if (lastKnownPlayerCount !== state.playerCount) {
-        lastKnownPlayerCount = state.playerCount;
-        await updateCallMessage(client, cfg, session, state);
-      }
+    if (state.playerCount >= cfg.seed_threshold) {
+      const duration = Math.round(
+        (Date.now() - new Date(session.started_at).getTime()) / 60000
+      );
+      await completeSession(session.id, state.playerCount);
+      await postCompletionMessage(client, cfg, session, state, duration);
+      return;
     }
+
+    if (state.playerCount < cfg.reset_threshold && session.peak_players >= cfg.reset_threshold) {
+      await resetSession(session.id);
+      return;
+    }
+
+    // Always update the call message (like server status does)
+    await updateCallMessage(client, cfg, session, state);
   } catch (err) {
-    log.error({ err }, 'Population check failed');
-  } finally {
-    checking = false;
+    log.error({ err }, 'Seeding state update failed');
   }
 }
 
@@ -209,7 +192,6 @@ async function postSeedingCall(client, cfg) {
   const session = await startSession(state.currentMap, state.currentLayer, state.playerCount);
   await updateSessionCallMessage(session.id, msg.id);
   await trackMessage(msg.id, cfg.channel_id, 'call', session.id);
-  lastKnownPlayerCount = state.playerCount;
 
   log.info({ messageId: msg.id, sessionId: session.id }, 'Seeding call posted');
 }
