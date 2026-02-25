@@ -48,11 +48,17 @@ async function ensureSeedingEmbed(client) {
     const cfg = await getSeedingConfig();
     if (!cfg?.enabled || !cfg.channel_id) return;
 
-    const session = await getActiveSession();
-    if (session?.call_message_id) return;
-
     const channel = await client.channels.fetch(cfg.channel_id).catch(() => null);
     if (!channel) return;
+
+    const session = await getActiveSession();
+
+    // If session has a call_message_id, verify the message still exists in Discord
+    if (session?.call_message_id) {
+      const msg = await channel.messages.fetch(session.call_message_id).catch(() => null);
+      if (msg) return; // message exists, nothing to do
+      // Message was deleted — fall through to repost
+    }
 
     // Scan for existing seeding embed with buttons (survives restarts)
     const messages = await channel.messages.fetch({ limit: 50 });
@@ -61,15 +67,16 @@ async function ensureSeedingEmbed(client) {
         msg.components.some(row => row.components.some(c => c.customId === 'seeding_join'))
     );
 
-    if (existing && !session) {
+    if (existing && session) {
+      // Session exists but its message was deleted — link to this embed instead
+      await updateSessionCallMessage(session.id, existing.id);
+      log.info({ messageId: existing.id }, 'Re-linked seeding session to existing embed');
+    } else if (existing && !session) {
       // Embed exists but no session — create one linked to it for live updates
       const newSession = await startSession(null, null, 0);
       await updateSessionCallMessage(newSession.id, existing.id);
       log.info({ messageId: existing.id }, 'Recovered seeding session from existing embed');
-      return;
-    }
-
-    if (!existing) {
+    } else {
       // No embed at all — post one without role ping
       await postSeedingCall(client, cfg, { ping: false });
     }
