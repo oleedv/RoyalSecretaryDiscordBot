@@ -269,6 +269,13 @@ async function updateCallMessage(client, cfg, session, state) {
     const message = await channel.messages.fetch(session.call_message_id).catch(() => null);
     if (!message) return;
 
+    // Clean up non-embed messages (user hype messages, etc.)
+    const allMessages = await channel.messages.fetch({ limit: 50 });
+    const toDelete = allMessages.filter(m => m.id !== session.call_message_id);
+    if (toDelete.size > 0) {
+      await channel.bulkDelete(toDelete, true).catch(() => {});
+    }
+
     const stats = await getSeedingStats();
     const gameMode = extractGameMode(state.currentLayer);
     const thumbnailUrl = getMapThumbnailUrl(state.currentLayer);
