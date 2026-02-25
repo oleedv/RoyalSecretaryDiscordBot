@@ -5,7 +5,6 @@ import logger from '../../logger.js';
 const log = logger.child({ module: 'seedingSocket' });
 
 const connections = new Map(); // name -> { socket, state }
-const stateListeners = [];
 
 const KNOWN_EVENTS = [
   'UPDATED_A2S_INFORMATION', 'UPDATED_PLAYER_INFORMATION',
@@ -36,14 +35,6 @@ function extractMapName(layerName) {
   const normalized = layerName.replace(/\s+/g, '_');
   const match = normalized.match(/^(.+?)_(?:AAS|RAAS|Invasion|Insurgency|Seed|Skirmish|TC|TA|Destruction)_/i);
   return match ? match[1].replace(/_/g, ' ') : layerName.split('_')[0];
-}
-
-function notifyListeners() {
-  for (const cb of stateListeners) {
-    try { cb(); } catch (err) {
-      log.error({ err }, 'State change listener error');
-    }
-  }
 }
 
 function fetchPlayers(conn) {
@@ -109,7 +100,6 @@ function connectServer(serverCfg) {
     log.debug({ name: serverCfg.name, playerCount: s.playerCount, layer: s.currentLayer }, 'A2S update');
     fetchPlayers(conn);
     fetchLayerObj(conn);
-    notifyListeners();
   });
 
   conn.socket.on('UPDATED_PLAYER_INFORMATION', () => fetchPlayers(conn));
@@ -120,17 +110,14 @@ function connectServer(serverCfg) {
     conn.state.currentMap = extractMapName(conn.state.currentLayer);
     conn.state.playerCount = 0;
     log.info({ name: serverCfg.name, map: conn.state.currentMap, layer: conn.state.currentLayer }, 'New game started');
-    notifyListeners();
   });
 
   conn.socket.on('PLAYER_CONNECTED', () => {
     conn.state.playerCount++;
-    notifyListeners();
   });
 
   conn.socket.on('PLAYER_DISCONNECTED', () => {
     conn.state.playerCount = Math.max(0, conn.state.playerCount - 1);
-    notifyListeners();
   });
 
   conn.socket.onAny((event, data) => {
@@ -180,14 +167,6 @@ export function getAllServerStates() {
   }
   result.sort((a, b) => a.name.localeCompare(b.name));
   return result;
-}
-
-export function onStateChange(callback) {
-  stateListeners.push(callback);
-  return () => {
-    const idx = stateListeners.indexOf(callback);
-    if (idx !== -1) stateListeners.splice(idx, 1);
-  };
 }
 
 export function extractGameMode(layerName) {

@@ -31,6 +31,13 @@ export async function isSeedingEnabled() {
   return !!cfg?.enabled;
 }
 
+export async function setLastDailyCallDate(date) {
+  await query(
+    'UPDATE seeding_config SET last_daily_call_date = ? WHERE id = 1',
+    [date]
+  );
+}
+
 // ── Sessions ──
 
 export async function getActiveSession() {
@@ -101,20 +108,6 @@ export async function trackMessage(messageId, channelId, messageType, sessionId 
     'INSERT INTO seeding_messages (message_id, channel_id, message_type, session_id) VALUES (?, ?, ?, ?)',
     [messageId, channelId, messageType, sessionId]
   );
-}
-
-export async function getLastCompletionMessage(channelId) {
-  const rows = await query(
-    `SELECT message_id, channel_id FROM seeding_messages
-     WHERE channel_id = ? AND message_type = 'completion'
-     ORDER BY created_at DESC LIMIT 1`,
-    [channelId]
-  );
-  return rows[0] || null;
-}
-
-export async function deleteTrackedMessage(messageId) {
-  await query('DELETE FROM seeding_messages WHERE message_id = ?', [messageId]);
 }
 
 // ── Stats ──

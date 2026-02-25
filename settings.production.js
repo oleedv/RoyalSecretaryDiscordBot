@@ -55,7 +55,6 @@ export default {
     defaultResetThreshold: 20,
     defaultTime: '16:00',
     defaultTimezone: 'UTC',
-    monitorIntervalMs: 120000,
     schedulerCheckMs: 60000,
   },
   serverStatus: {

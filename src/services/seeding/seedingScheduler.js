@@ -3,7 +3,7 @@ import {
   getSeedingConfig, getActiveSession, startSession, completeSession,
   resetSession, updateSessionPeak, updateSessionCallMessage,
   expireOldSessions, getSeedingStats, trackMessage,
-  clearTrackedMessages,
+  clearTrackedMessages, setLastDailyCallDate,
 } from './seedingService.js';
 import { AttachmentBuilder } from 'discord.js';
 import {
@@ -17,7 +17,6 @@ const log = logger.child({ module: 'seedingScheduler' });
 
 let dailyCheckInterval = null;
 let monitorInterval = null;
-let lastDailyCallDate = null;
 
 export function isSchedulerActive() {
   return !!dailyCheckInterval;
@@ -76,19 +75,25 @@ async function checkDailyCall(client) {
     if (!cfg?.enabled || !cfg.channel_id) return;
 
     const tz = cfg.timezone || 'UTC';
-    const currentTime = getCurrentTime(tz);
     const today = getTodayDate(tz);
+
+    // Check DB-persisted date to avoid duplicate posts (survives restarts)
+    const lastCallDate = cfg.last_daily_call_date
+      ? new Date(cfg.last_daily_call_date).toISOString().slice(0, 10)
+      : null;
+    if (lastCallDate === today) return;
 
     // Support "HH:MM" or "HHMM" formats
     let configuredTime = cfg.daily_time || '16:00';
-    // Normalize HHMM to HH:MM
     if (/^\d{4}$/.test(configuredTime)) {
       configuredTime = `${configuredTime.slice(0, 2)}:${configuredTime.slice(2)}`;
     }
 
-    if (currentTime !== configuredTime || lastDailyCallDate === today) return;
+    const currentTime = getCurrentTime(tz);
+    // Post if current time is at or past the configured time (catches restarts)
+    if (currentTime < configuredTime) return;
 
-    lastDailyCallDate = today;
+    await setLastDailyCallDate(today);
     log.info({ time: currentTime, date: today }, 'Posting daily seeding call');
 
     await postSeedingCall(client, cfg);
@@ -121,6 +126,8 @@ async function updateSeedingState(client) {
 
     if (state.playerCount < cfg.reset_threshold && session.peak_players >= cfg.reset_threshold) {
       await resetSession(session.id);
+      log.info({ sessionId: session.id }, 'Session reset — posting new seeding call');
+      await postSeedingCall(client, cfg);
       return;
     }
 

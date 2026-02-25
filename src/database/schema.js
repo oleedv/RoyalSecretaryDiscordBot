@@ -200,6 +200,7 @@ export async function initSchema() {
     await query(`UPDATE seeding_config SET daily_time = CONCAT(LPAD(daily_hour, 2, '0'), ':00') WHERE daily_hour IS NOT NULL AND (daily_time IS NULL OR daily_time = '16:00')`);
     await query(`ALTER TABLE seeding_config DROP COLUMN IF EXISTS daily_hour`);
   } catch { /* daily_hour column may not exist on fresh installs */ }
+  await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS last_daily_call_date DATE NULL`);
 
   // ── Admin / console tables ──
 
