@@ -13,7 +13,8 @@ function getStatusColor(playerCount, totalSlots) {
   return parseInt(gradient.rgbAt(ratio).toHex(), 16);
 }
 
-function getStatusIndicator(playerCount, seedThreshold) {
+function getStatusIndicator(playerCount, seedThreshold, connected) {
+  if (!connected) return { text: 'Disconnected from server', icon: ':black_circle:' };
   if (playerCount >= seedThreshold) return { text: 'LIVE', icon: ':green_circle:' };
   if (playerCount > 0) return { text: 'We are seeding - join us!', icon: ':yellow_circle:' };
   return { text: 'Server is empty', icon: ':red_circle:' };
@@ -62,7 +63,7 @@ function getLayerImageUrl(layerObj) {
 export function buildServerStatusEmbed(state, seedThreshold = 40) {
   const totalSlots = state.publicSlots + state.reserveSlots;
   const color = getStatusColor(state.playerCount, totalSlots);
-  const status = getStatusIndicator(state.playerCount, seedThreshold);
+  const status = getStatusIndicator(state.playerCount, seedThreshold, state.connected);
 
   const embed = createEmbed('Server Status')
     .setColor(color);
@@ -110,14 +111,14 @@ export function buildServerStatusEmbed(state, seedThreshold = 40) {
 
   embed.addFields(
     {
-      name: `\u200b\nTeam 1 \u2022 ${team1Players.length} players \u2022 ${faction1}`,
+      name: `Team 1 \u2022 ${team1Players.length} players \u2022 ${faction1}`,
       value: formatPlayerList(team1Players),
-      inline: false,
+      inline: true,
     },
     {
-      name: `\u200b\nTeam 2 \u2022 ${team2Players.length} players \u2022 ${faction2}`,
+      name: `Team 2 \u2022 ${team2Players.length} players \u2022 ${faction2}`,
       value: formatPlayerList(team2Players),
-      inline: false,
+      inline: true,
     },
   );
 

@@ -34,11 +34,6 @@ async function findOrCreateMessage(channel, client) {
 async function updateMessage(channel, client) {
   try {
     const state = getServerState();
-    if (!state.connected) {
-      log.debug('SquadJS not connected, skipping status update');
-      return;
-    }
-
     const seedCfg = await getSeedingConfig();
     const threshold = seedCfg?.seed_threshold ?? config.seeding?.defaultThreshold ?? 40;
     const embed = buildServerStatusEmbed(state, threshold);
