@@ -45,6 +45,11 @@ export default {
   dm: {
     infoChannelId: '',                  // Server info/rules channel
   },
+  battlemetrics: {
+    organisationId: '13904',
+    prospectFlagId: '56d6c2a0-0549-11ed-bda3-ab665fd70dc4',
+    memberFlagId: '60539480-0d14-11ec-a83f-b32d5968dd59',
+  },
   seeding: {
     defaultThreshold: 40,
     defaultResetThreshold: 20,
@@ -52,5 +57,9 @@ export default {
     defaultTimezone: 'UTC',
     monitorIntervalMs: 120000,
     schedulerCheckMs: 60000,
+  },
+  serverStatus: {
+    channelId: '',                    // Server status channel
+    updateIntervalMs: 60000,
   },
 };

@@ -13,6 +13,13 @@ const serverState = {
   currentLayer: null,
   serverName: null,
   connected: false,
+  players: [],
+  publicSlots: 0,
+  reserveSlots: 0,
+  publicQueue: 0,
+  reserveQueue: 0,
+  gameVersion: null,
+  currentLayerObj: null,
 };
 
 // Extract map name from layer string, e.g. "Mutaha_Seed_v1" -> "Mutaha"
@@ -30,6 +37,31 @@ function notifyListeners() {
       log.error({ err }, 'State change listener error');
     }
   }
+}
+
+function fetchPlayers() {
+  if (!socket?.connected) return;
+  socket.emit('players', (data) => {
+    if (Array.isArray(data)) {
+      serverState.players = data;
+      log.debug({ count: data.length }, 'Fetched player list');
+    }
+  });
+}
+
+function fetchLayerObj() {
+  if (!socket?.connected) return;
+  socket.emit('currentLayer', (data) => {
+    if (data) {
+      serverState.currentLayerObj = data;
+      log.debug({ layer: data.name }, 'Fetched layer object');
+    }
+  });
+}
+
+function fetchExtendedState() {
+  fetchPlayers();
+  fetchLayerObj();
 }
 
 export function connect() {
@@ -68,8 +100,25 @@ export function connect() {
     serverState.currentLayer = data.currentLayer ?? serverState.currentLayer;
     serverState.currentMap = extractMapName(serverState.currentLayer);
     serverState.serverName = data.serverName ?? serverState.serverName;
+    serverState.publicSlots = data.maxPlayers != null && data.reserveSlots != null
+      ? data.maxPlayers - data.reserveSlots
+      : serverState.publicSlots;
+    serverState.reserveSlots = data.reserveSlots ?? serverState.reserveSlots;
+    serverState.publicQueue = data.publicQueue ?? serverState.publicQueue;
+    serverState.reserveQueue = data.reserveQueue ?? serverState.reserveQueue;
+    serverState.gameVersion = data.gameVersion ?? serverState.gameVersion;
     log.debug({ playerCount: serverState.playerCount, map: serverState.currentMap, layer: serverState.currentLayer }, 'A2S update');
+    fetchExtendedState();
     notifyListeners();
+  });
+
+  // Fetch player list and layer object from SquadJS socket-io-api
+  socket.on('UPDATED_PLAYER_INFORMATION', () => {
+    fetchPlayers();
+  });
+
+  socket.on('UPDATED_LAYER_INFORMATION', () => {
+    fetchLayerObj();
   });
 
   // Map change event
@@ -94,7 +143,7 @@ export function connect() {
 
   // Log unknown events at debug level for discovery
   socket.onAny((event, data) => {
-    if (!['UPDATED_A2S_INFORMATION', 'NEW_GAME', 'PLAYER_CONNECTED', 'PLAYER_DISCONNECTED'].includes(event)) {
+    if (!['UPDATED_A2S_INFORMATION', 'UPDATED_PLAYER_INFORMATION', 'UPDATED_LAYER_INFORMATION', 'NEW_GAME', 'PLAYER_CONNECTED', 'PLAYER_DISCONNECTED'].includes(event)) {
       log.debug({ event, dataKeys: data ? Object.keys(data) : null }, 'SquadJS event');
     }
   });
@@ -110,7 +159,7 @@ export function disconnect() {
 }
 
 export function getServerState() {
-  return { ...serverState };
+  return { ...serverState, players: [...serverState.players] };
 }
 
 export function onStateChange(callback) {

@@ -1,0 +1,141 @@
+import tinygradient from 'tinygradient';
+import { createEmbed } from '../../utils/embed.js';
+import config from '../../config.js';
+
+const gradient = tinygradient([
+  { color: '#ff0000', pos: 0 },
+  { color: '#ffff00', pos: 0.5 },
+  { color: '#00ff00', pos: 1 },
+]);
+
+function getStatusColor(playerCount, totalSlots) {
+  const ratio = Math.min(1, Math.max(0, playerCount / (totalSlots || 1)));
+  return parseInt(gradient.rgbAt(ratio).toHex(), 16);
+}
+
+function getStatusIndicator(playerCount, seedThreshold) {
+  if (playerCount >= seedThreshold) return { text: 'LIVE', icon: ':green_circle:' };
+  if (playerCount > 0) return { text: 'We are seeding - join us!', icon: ':yellow_circle:' };
+  return { text: 'Server is empty', icon: ':red_circle:' };
+}
+
+function formatPlayerList(players) {
+  if (!players.length) return '*No players*';
+  const names = players.map((p) => p.name || 'Unknown');
+  const joined = names.join('\n');
+  // Discord field value limit is 1024 chars
+  if (joined.length > 1000) {
+    const truncated = [];
+    let len = 0;
+    for (const name of names) {
+      if (len + name.length + 1 > 950) {
+        truncated.push(`*... and ${names.length - truncated.length} more*`);
+        break;
+      }
+      truncated.push(name);
+      len += name.length + 1;
+    }
+    return truncated.join('\n');
+  }
+  return joined;
+}
+
+function getTeamFaction(layerObj, teamIndex) {
+  if (!layerObj?.teams?.[teamIndex]) return null;
+  return layerObj.teams[teamIndex].faction;
+}
+
+function getMatchupString(layerObj) {
+  if (!layerObj?.teams || layerObj.teams.length < 2) return null;
+  const t1 = layerObj.teams[0];
+  const t2 = layerObj.teams[1];
+  const name1 = t1.name || t1.faction || 'Team 1';
+  const name2 = t2.name || t2.faction || 'Team 2';
+  return `${name1} vs\n${name2}`;
+}
+
+function getLayerImageUrl(layerObj) {
+  if (!layerObj?.layerid) return null;
+  return `https://raw.githubusercontent.com/Squad-Wiki/squad-wiki-pipeline-map-data/master/completed_output/_Current%20Version/images/${layerObj.layerid}.jpg`;
+}
+
+export function buildServerStatusEmbed(state, seedThreshold = 40) {
+  const totalSlots = state.publicSlots + state.reserveSlots;
+  const color = getStatusColor(state.playerCount, totalSlots);
+  const status = getStatusIndicator(state.playerCount, seedThreshold);
+
+  const embed = createEmbed('Server Status')
+    .setColor(color);
+
+  // Title with server name
+  if (state.serverName) {
+    embed.setTitle(`${status.icon} \u00AD \u00AD${state.serverName}`);
+  } else {
+    embed.setTitle(`${status.icon} \u00AD \u00ADServer Status`);
+  }
+
+  // Player count
+  let playerStr = `${state.playerCount}`;
+  playerStr += ` / ${state.publicSlots || '?'}`;
+
+  embed.addFields(
+    { name: 'Players', value: playerStr, inline: true },
+    { name: 'Queue', value: String(state.publicQueue + state.reserveQueue), inline: true },
+    { name: '\u200b', value: status.text, inline: false },
+  );
+
+  // Layer
+  embed.addFields({
+    name: 'Layer',
+    value: state.currentLayer || 'Unknown',
+    inline: false,
+  });
+
+  // Matchup
+  const matchup = getMatchupString(state.currentLayerObj);
+  if (matchup) {
+    embed.addFields({ name: 'Matchup', value: matchup, inline: false });
+  }
+
+  // Server version
+  if (state.gameVersion) {
+    embed.addFields({ name: 'Server version', value: `v${state.gameVersion}`, inline: false });
+  }
+
+  // Team player lists
+  const team1Players = state.players.filter((p) => p.teamID === 1);
+  const team2Players = state.players.filter((p) => p.teamID === 2);
+  const faction1 = getTeamFaction(state.currentLayerObj, 0) || 'Team 1';
+  const faction2 = getTeamFaction(state.currentLayerObj, 1) || 'Team 2';
+
+  embed.addFields(
+    {
+      name: `\u200b\nTeam 1 \u2022 ${team1Players.length} players \u2022 ${faction1}`,
+      value: formatPlayerList(team1Players),
+      inline: false,
+    },
+    {
+      name: `\u200b\nTeam 2 \u2022 ${team2Players.length} players \u2022 ${faction2}`,
+      value: formatPlayerList(team2Players),
+      inline: false,
+    },
+  );
+
+  // BattleMetrics link
+  const bmServerId = config.battlemetrics?.serverId;
+  if (bmServerId) {
+    embed.addFields({
+      name: 'BattleMetrics',
+      value: `[View Server Statistics](https://www.battlemetrics.com/servers/squad/${bmServerId})`,
+      inline: false,
+    });
+  }
+
+  // Layer map image
+  const imageUrl = getLayerImageUrl(state.currentLayerObj);
+  if (imageUrl) {
+    embed.setImage(imageUrl);
+  }
+
+  return embed;
+}

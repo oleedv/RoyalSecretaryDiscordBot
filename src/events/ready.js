@@ -6,6 +6,7 @@ import { connect as connectSquadJS } from '../services/seeding/seedingSocket.js'
 import { startScheduler as startSeedingScheduler } from '../services/seeding/seedingScheduler.js';
 import { startHeartbeat } from '../services/admin/statusHeartbeat.js';
 import { resumeClosingTimers } from '../services/ticket/ticketService.js';
+import { startStatusUpdater } from '../services/serverStatus/serverStatusService.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'bot' });
@@ -25,5 +26,6 @@ export default {
     connectSquadJS();
     startSeedingScheduler(client);
     startHeartbeat(client);
+    startStatusUpdater(client);
   },
 };
