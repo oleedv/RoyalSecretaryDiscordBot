@@ -136,6 +136,10 @@ export function buildServerStatusEmbed(state, seedThreshold = 40) {
     });
   }
 
+  // Last updated
+  const now = Math.floor(Date.now() / 1000);
+  embed.addFields({ name: '\u200b', value: `Last updated <t:${now}:R>`, inline: false });
+
   // Layer map image
   const imageUrl = getLayerImageUrl(state.currentLayerObj, state.currentLayer);
   if (imageUrl) {
