@@ -16,6 +16,7 @@ const log = logger.child({ module: 'seedingScheduler' });
 
 let dailyCheckInterval = null;
 let monitorInterval = null;
+let lastResetDate = null;
 
 export function isSchedulerActive() {
   return !!dailyCheckInterval;
@@ -97,21 +98,32 @@ function isInResetWindow(currentTime, dailyTime) {
 
 /**
  * Convert daily_time + timezone to today's Unix timestamp for Discord <t:> formatting.
+ * Uses Intl to get the UTC offset for the target timezone, then applies it.
  */
 function getDailyTimestamp(dailyTime, timezone) {
   const [h, m] = dailyTime.split(':').map(Number);
   const dateStr = getTodayDate(timezone);
-  // Create a UTC date at the target date+time, then adjust for timezone offset
-  const utcGuess = new Date(`${dateStr}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00.000Z`);
+  const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   try {
-    const actualHour = parseInt(
-      new Intl.DateTimeFormat('en', { hour: 'numeric', hour12: false, timeZone: timezone }).format(utcGuess),
-      10,
-    );
-    const diff = h - actualHour;
-    utcGuess.setUTCHours(utcGuess.getUTCHours() + diff);
-  } catch { /* fall through with UTC guess */ }
-  return Math.floor(utcGuess.getTime() / 1000);
+    // Get the UTC offset by formatting a reference date with timeZoneName
+    const ref = new Date(`${dateStr}T12:00:00.000Z`);
+    const parts = new Intl.DateTimeFormat('en', { timeZone: timezone, timeZoneName: 'longOffset' }).formatToParts(ref);
+    const tzPart = parts.find(p => p.type === 'timeZoneName')?.value || '';
+    // Parse offset like "GMT+02:00" or "GMT-05:00" or "GMT"
+    const offsetMatch = tzPart.match(/GMT([+-])(\d{1,2}):?(\d{2})?/);
+    let offsetMinutes = 0;
+    if (offsetMatch) {
+      const sign = offsetMatch[1] === '+' ? 1 : -1;
+      offsetMinutes = sign * (parseInt(offsetMatch[2], 10) * 60 + parseInt(offsetMatch[3] || '0', 10));
+    }
+    // Build the UTC time: local time minus offset = UTC
+    const utc = new Date(`${dateStr}T${timeStr}:00.000Z`);
+    utc.setUTCMinutes(utc.getUTCMinutes() - offsetMinutes);
+    return Math.floor(utc.getTime() / 1000);
+  } catch {
+    // Fallback: treat as UTC
+    return Math.floor(new Date(`${dateStr}T${timeStr}:00.000Z`).getTime() / 1000);
+  }
 }
 
 // ── Panel (persistent embed with buttons) ──
@@ -169,9 +181,10 @@ async function checkDailyCall(client) {
     const currentTime = getCurrentTime(tz);
     const dailyTime = normalizeTime(cfg.daily_time || '16:00');
 
-    // Channel reset: 1 hour before daily call, clean up everything except panel
-    if (isInResetWindow(currentTime, dailyTime)) {
+    // Channel reset: 1 hour before daily call, clean up everything except panel (once per day)
+    if (isInResetWindow(currentTime, dailyTime) && lastResetDate !== today) {
       await resetChannel(client, cfg);
+      lastResetDate = today;
     }
 
     // Daily call: post if at or past daily time and not yet posted today
@@ -240,8 +253,8 @@ async function updateSeedingState(client) {
         : null;
 
       // Re-seed if today's call was already posted, we're past daily time,
-      // and we're not in the reset window
-      if (lastCallDate === today && currentTime >= dailyTime && !isInResetWindow(currentTime, dailyTime)) {
+      // we're not in the reset window, and server has players (avoid loop when server is down)
+      if (lastCallDate === today && currentTime >= dailyTime && !isInResetWindow(currentTime, dailyTime) && state.playerCount > 0) {
         log.info('No active session in seeding window — re-seeding');
         await postSeedingCall(client, cfg);
       }
