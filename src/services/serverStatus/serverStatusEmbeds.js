@@ -100,7 +100,8 @@ export function buildServerStatusEmbed(state, seedThreshold = 40) {
 
   // Server version
   if (state.gameVersion) {
-    embed.addFields({ name: 'Server version', value: `v${state.gameVersion}`, inline: false });
+    const version = state.gameVersion.replace(/^v/, '').split('.').slice(0, 3).join('.');
+    embed.addFields({ name: 'Server version', value: `v${version}`, inline: false });
   }
 
   // Team player lists
