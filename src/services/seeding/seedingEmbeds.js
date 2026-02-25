@@ -1,15 +1,9 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
-import sharp from 'sharp';
 import { createEmbed } from '../../utils/embed.js';
-import logger from '../../logger.js';
-
-const log = logger.child({ module: 'seedingEmbeds' });
-const cropCache = new Map();
-const MAX_CROP_CACHE = 20;
 
 const trendArrows = { up: '\u2191', down: '\u2193', stable: '\u2192' };
 
-function buildProgressBar(current, total, length = 10) {
+function buildProgressBar(current, total, length = 20) {
   const clamped = Math.min(Math.max(current, 0), total);
   const filled = Math.round((clamped / total) * length);
   const empty = length - filled;
@@ -18,28 +12,34 @@ function buildProgressBar(current, total, length = 10) {
   return `${bar} ${pct}%`;
 }
 
+export function getLayerImageUrl(layerObj, layerName) {
+  const BASE = 'https://raw.githubusercontent.com/Squad-Wiki/squad-wiki-pipeline-map-data/master/completed_output/_Current%20Version/images';
+  if (layerObj?.layerid) return `${BASE}/${layerObj.layerid}.jpg`;
+  if (layerName) return `${BASE}/${layerName.replace(/\s+/g, '_')}.jpg`;
+  return null;
+}
+
 export function buildSeedingCallEmbed({
-  mapName, playerCount, threshold, thumbnailUrl, imageAttachment,
+  layerName, playerCount, threshold, thumbnailUrl,
   avgSeedTime, avgSeedTrend,
-  serverName, gameMode, successRate, fastestSeed, totalCompleted,
-  lastCompletedAt,
+  serverName, gameMode, fastestSeed,
 }) {
   const progressBar = buildProgressBar(playerCount, threshold);
 
   const embed = createEmbed('Seeding')
     .setTitle('Seeding Time!')
     .setDescription(
-      'Join the server and help us fill it up!\n' +
+      'Join the server and help us get live!\n' +
       `Target: **${threshold}** players\n\n` +
       `**${progressBar}**\n` +
       `\`${playerCount} / ${threshold} players\``
     )
-    .setColor(0xfee75c);
+    .setColor(0x57f287);
 
   // Row 1: Server info
   const row1 = [];
   if (serverName) row1.push({ name: 'Server', value: serverName, inline: true });
-  row1.push({ name: 'Current Map', value: mapName || 'Unknown', inline: true });
+  row1.push({ name: 'Current Map', value: layerName || 'Unknown', inline: true });
   if (gameMode) row1.push({ name: 'Game Mode', value: gameMode, inline: true });
   if (row1.length) embed.addFields(...row1);
 
@@ -52,29 +52,13 @@ export function buildSeedingCallEmbed({
   if (fastestSeed != null) {
     row2.push({ name: 'Fastest Seed', value: `${fastestSeed} min`, inline: true });
   }
-  if (successRate != null) {
-    row2.push({ name: 'Success Rate', value: `${successRate}%`, inline: true });
-  }
   if (row2.length) embed.addFields(...row2);
 
-  // Row 3: Historical context
-  const row3 = [];
-  if (totalCompleted != null && totalCompleted > 0) {
-    row3.push({ name: 'Seeds (30d)', value: String(totalCompleted), inline: true });
-  }
-  if (lastCompletedAt) {
-    const ts = Math.floor(new Date(lastCompletedAt).getTime() / 1000);
-    row3.push({ name: 'Last Seeded', value: `<t:${ts}:R>`, inline: true });
-  }
-  if (row3.length) embed.addFields(...row3);
-
-  // Last updated timestamp (matches server status pattern)
+  // Last updated timestamp
   const now = Math.floor(Date.now() / 1000);
   embed.addFields({ name: '\u200b', value: `Last updated <t:${now}:R>`, inline: false });
 
-  if (imageAttachment) {
-    embed.setImage(`attachment://${imageAttachment}`);
-  } else if (thumbnailUrl) {
+  if (thumbnailUrl) {
     embed.setImage(thumbnailUrl);
   }
 
@@ -118,46 +102,4 @@ export function buildSeederRoleComponents(seederCount = null) {
       .setStyle(ButtonStyle.Danger),
   );
   return [row];
-}
-
-export function getMapThumbnailUrl(layerName) {
-  if (!layerName) return null;
-  // SquadJS layer format: "Al Basrah AAS v1"
-  // GitHub filename format: "AlBasrah_AAS_v1.jpg"
-  const normalized = layerName
-    .replace(/\s+/g, '_')
-    .replace(/__+/g, '_');
-  return `https://raw.githubusercontent.com/mahtoid/SquadMaps/master/img/maps/thumbnails/${normalized}.jpg`;
-}
-
-export async function cropMapThumbnail(url) {
-  if (!url) return null;
-  if (cropCache.has(url)) return cropCache.get(url);
-
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-
-    const buf = Buffer.from(await res.arrayBuffer());
-    const meta = await sharp(buf).metadata();
-    const cropW = Math.round(meta.width * 0.5);
-    const cropH = Math.round(meta.height * 0.5);
-    const left = Math.round(meta.width * 0.25);
-    const top = Math.round(meta.height * 0.25);
-
-    const cropped = await sharp(buf)
-      .extract({ left, top, width: cropW, height: cropH })
-      .jpeg({ quality: 85 })
-      .toBuffer();
-
-    if (cropCache.size >= MAX_CROP_CACHE) {
-      const oldest = cropCache.keys().next().value;
-      cropCache.delete(oldest);
-    }
-    cropCache.set(url, cropped);
-    return cropped;
-  } catch (err) {
-    log.warn({ err, url }, 'Failed to crop map thumbnail');
-    return null;
-  }
 }

@@ -5,10 +5,9 @@ import {
   expireOldSessions, getSeedingStats, trackMessage,
   clearTrackedMessages, setLastDailyCallDate,
 } from './seedingService.js';
-import { AttachmentBuilder } from 'discord.js';
 import {
   buildSeedingCallEmbed, buildSeedingCompletionEmbed,
-  buildSeederRoleComponents, getMapThumbnailUrl, cropMapThumbnail,
+  buildSeederRoleComponents, getLayerImageUrl,
 } from './seedingEmbeds.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
@@ -195,32 +194,25 @@ async function postSeedingCall(client, cfg, { ping = true } = {}) {
   const state = getServerState();
   const stats = await getSeedingStats();
   const gameMode = extractGameMode(state.currentLayer);
-  const thumbnailUrl = getMapThumbnailUrl(state.currentLayer);
+  const thumbnailUrl = getLayerImageUrl(state.currentLayerObj, state.currentLayer);
 
-  // Crop map image for a zoomed-in view
-  const croppedBuf = await cropMapThumbnail(thumbnailUrl);
-  const files = [];
   const embed = buildSeedingCallEmbed({
-    mapName: state.currentMap,
+    layerName: state.currentLayer,
     playerCount: state.playerCount,
     threshold: cfg.seed_threshold,
-    thumbnailUrl: croppedBuf ? undefined : thumbnailUrl,
-    imageAttachment: croppedBuf ? 'map.jpg' : undefined,
+    thumbnailUrl,
     avgSeedTime: stats.avgMinutes,
     avgSeedTrend: stats.trend,
     serverName: state.serverName,
     gameMode,
-    successRate: stats.successRate,
     fastestSeed: stats.fastest,
-    totalCompleted: stats.totalCompleted,
-    lastCompletedAt: stats.lastCompletedAt,
   });
-  if (croppedBuf) files.push(new AttachmentBuilder(croppedBuf, { name: 'map.jpg' }));
 
   // Fetch seeder role member count for button label
   let seederCount = null;
   if (cfg.role_id && channel.guild) {
     try {
+      await channel.guild.members.fetch();
       const role = await channel.guild.roles.fetch(cfg.role_id);
       seederCount = role?.members?.size ?? null;
     } catch { /* role may not exist */ }
@@ -231,7 +223,7 @@ async function postSeedingCall(client, cfg, { ping = true } = {}) {
     ? ([cfg.role_id].filter(Boolean).map(id => `<@&${id}>`).join(' ') || undefined)
     : undefined;
 
-  const msg = await channel.send({ content, embeds: [embed], components, files });
+  const msg = await channel.send({ content, embeds: [embed], components });
 
   // Start a seeding session
   const session = await startSession(state.currentMap, state.currentLayer, state.playerCount);
@@ -278,28 +270,21 @@ async function updateCallMessage(client, cfg, session, state) {
 
     const stats = await getSeedingStats();
     const gameMode = extractGameMode(state.currentLayer);
-    const thumbnailUrl = getMapThumbnailUrl(state.currentLayer);
+    const thumbnailUrl = getLayerImageUrl(state.currentLayerObj, state.currentLayer);
 
-    const croppedBuf = await cropMapThumbnail(thumbnailUrl);
-    const files = [];
     const embed = buildSeedingCallEmbed({
-      mapName: state.currentMap,
+      layerName: state.currentLayer,
       playerCount: state.playerCount,
       threshold: cfg.seed_threshold,
-      thumbnailUrl: croppedBuf ? undefined : thumbnailUrl,
-      imageAttachment: croppedBuf ? 'map.jpg' : undefined,
+      thumbnailUrl,
       avgSeedTime: stats.avgMinutes,
       avgSeedTrend: stats.trend,
       serverName: state.serverName,
       gameMode,
-      successRate: stats.successRate,
       fastestSeed: stats.fastest,
-      totalCompleted: stats.totalCompleted,
-      lastCompletedAt: stats.lastCompletedAt,
     });
-    if (croppedBuf) files.push(new AttachmentBuilder(croppedBuf, { name: 'map.jpg' }));
 
-    await message.edit({ embeds: [embed], files });
+    await message.edit({ embeds: [embed] });
   } catch (err) {
     log.warn({ err, messageId: session.call_message_id }, 'Failed to update call message');
   }
