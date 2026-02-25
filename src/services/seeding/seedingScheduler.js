@@ -26,6 +26,7 @@ export async function startScheduler(client) {
   log.info('Starting seeding scheduler');
 
   await expireOldSessions();
+  await ensureSeedingEmbed(client);
 
   const checkMs = config.seeding?.schedulerCheckMs || 60000;
 
@@ -41,6 +42,41 @@ export function stopScheduler() {
   if (dailyCheckInterval) { clearInterval(dailyCheckInterval); dailyCheckInterval = null; }
   if (monitorInterval) { clearInterval(monitorInterval); monitorInterval = null; }
   log.info('Seeding scheduler stopped');
+}
+
+async function ensureSeedingEmbed(client) {
+  try {
+    const cfg = await getSeedingConfig();
+    if (!cfg?.enabled || !cfg.channel_id) return;
+
+    const session = await getActiveSession();
+    if (session?.call_message_id) return;
+
+    const channel = await client.channels.fetch(cfg.channel_id).catch(() => null);
+    if (!channel) return;
+
+    // Scan for existing seeding embed with buttons (survives restarts)
+    const messages = await channel.messages.fetch({ limit: 50 });
+    const existing = messages.find(
+      msg => msg.author.id === client.user.id &&
+        msg.components.some(row => row.components.some(c => c.customId === 'seeding_join'))
+    );
+
+    if (existing && !session) {
+      // Embed exists but no session — create one linked to it for live updates
+      const newSession = await startSession(null, null, 0);
+      await updateSessionCallMessage(newSession.id, existing.id);
+      log.info({ messageId: existing.id }, 'Recovered seeding session from existing embed');
+      return;
+    }
+
+    if (!existing) {
+      // No embed at all — post one without role ping
+      await postSeedingCall(client, cfg, { ping: false });
+    }
+  } catch (err) {
+    log.error({ err }, 'Failed to ensure seeding embed');
+  }
 }
 
 function getCurrentTime(timezone) {
@@ -127,7 +163,7 @@ async function updateSeedingState(client) {
     if (state.playerCount < cfg.reset_threshold && session.peak_players >= cfg.reset_threshold) {
       await resetSession(session.id);
       log.info({ sessionId: session.id }, 'Session reset — posting new seeding call');
-      await postSeedingCall(client, cfg);
+      await postSeedingCall(client, cfg, { ping: false });
       return;
     }
 
@@ -138,7 +174,7 @@ async function updateSeedingState(client) {
   }
 }
 
-async function postSeedingCall(client, cfg) {
+async function postSeedingCall(client, cfg, { ping = true } = {}) {
   const channel = await client.channels.fetch(cfg.channel_id).catch(() => null);
   if (!channel) {
     log.error({ channelId: cfg.channel_id }, 'Seeding channel not found');
@@ -191,7 +227,9 @@ async function postSeedingCall(client, cfg) {
   }
 
   const components = buildSeederRoleComponents(seederCount);
-  const content = [cfg.role_id].filter(Boolean).map(id => `<@&${id}>`).join(' ') || undefined;
+  const content = ping
+    ? ([cfg.role_id].filter(Boolean).map(id => `<@&${id}>`).join(' ') || undefined)
+    : undefined;
 
   const msg = await channel.send({ content, embeds: [embed], components, files });
 
