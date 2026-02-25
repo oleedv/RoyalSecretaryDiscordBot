@@ -55,9 +55,12 @@ function getMatchupString(layerObj) {
   return `${name1} vs\n${name2}`;
 }
 
-function getLayerImageUrl(layerObj) {
-  if (!layerObj?.layerid) return null;
-  return `https://raw.githubusercontent.com/Squad-Wiki/squad-wiki-pipeline-map-data/master/completed_output/_Current%20Version/images/${layerObj.layerid}.jpg`;
+function getLayerImageUrl(layerObj, layerName) {
+  const BASE = 'https://raw.githubusercontent.com/Squad-Wiki/squad-wiki-pipeline-map-data/master/completed_output/_Current%20Version/images';
+  if (layerObj?.layerid) return `${BASE}/${layerObj.layerid}.jpg`;
+  // Fallback: construct from layer name string (e.g. "BlackCoast Seed v1" -> "BlackCoast_Seed_v1")
+  if (layerName) return `${BASE}/${layerName.replace(/\s+/g, '_')}.jpg`;
+  return null;
 }
 
 export function buildServerStatusEmbed(state, seedThreshold = 40) {
@@ -134,7 +137,7 @@ export function buildServerStatusEmbed(state, seedThreshold = 40) {
   }
 
   // Layer map image
-  const imageUrl = getLayerImageUrl(state.currentLayerObj);
+  const imageUrl = getLayerImageUrl(state.currentLayerObj, state.currentLayer);
   if (imageUrl) {
     embed.setImage(imageUrl);
   }
