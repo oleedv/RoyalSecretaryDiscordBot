@@ -35,6 +35,12 @@ const config = Object.freeze({
   },
   squadjs: parseSquadJsServers(process.env.SQUADJS_SERVERS),
   ...settings,
+  // Merge env vars with settings.battlemetrics (explicit key overrides spread above)
+  battlemetrics: {
+    token: process.env.BM_TOKEN,
+    serverId: process.env.BM_SERVER_ID,
+    ...settings.battlemetrics,
+  },
 });
 
 export default config;

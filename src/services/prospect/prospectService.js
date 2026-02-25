@@ -3,7 +3,9 @@ import { ChannelType, EmbedBuilder } from 'discord.js';
 import { createEmbed } from '../../utils/embed.js';
 import { buildPrivateChannelPermissions } from '../../utils/permissions.js';
 import { findBotMessageByCustomId } from '../../utils/messageSearch.js';
-import { buildProspectInfoEmbed, buildForumIntroEmbed, buildProspectComponents, buildProspectAcceptedComponents, buildAcceptedAnnouncementEmbed } from './prospectEmbeds.js';
+import { buildProspectInfoEmbed, buildForumIntroEmbed, buildProspectComponents, buildProspectAcceptedComponents, buildAcceptedAnnouncementEmbed, buildInvestigationEmbed } from './prospectEmbeds.js';
+import * as bm from '../battlemetricsService.js';
+import * as whitelistService from '../whitelistService.js';
 import { query } from '../../database/connection.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
@@ -110,6 +112,23 @@ function appendCblToMessage(message, steamId) {
   });
 }
 
+// ── BattleMetrics Investigation ──
+
+function appendBmInvestigation(channel, steamId) {
+  if (!steamId || steamId.toUpperCase() === 'Q') return;
+  if (!bm.isConfigured()) return;
+
+  log.info({ steamId }, 'BM: starting background investigation');
+  bm.playerSearch(steamId).then((bmData) => {
+    const embed = buildInvestigationEmbed(steamId, bmData);
+    channel.send({ embeds: [embed] }).catch((err) =>
+      log.warn({ err }, 'BM: failed to send investigation embed')
+    );
+  }).catch((err) => {
+    log.warn({ err, steamId }, 'BM: appendBmInvestigation failed');
+  });
+}
+
 // ── DB Accessors ──
 
 export async function getOpenProspectByUser(userId) {
@@ -187,6 +206,7 @@ export async function createProspect(userId, guild, formData) {
 
   const topMsg = await channel.send({ embeds: [infoEmbed], components });
   appendCblToMessage(topMsg, prospect.steam_id);
+  appendBmInvestigation(channel, prospect.steam_id);
 
   if (mentorRoleId) {
     await channel.send(`<@&${mentorRoleId}> New prospect application!`);
@@ -246,6 +266,11 @@ export async function claimProspect(prospect, mentorId, guild) {
       .setDescription('A mentor has been assigned to you! You can now communicate with them by sending messages here in DMs.')
       .setColor(0x5865f2);
     await user.send({ embeds: [dmEmbed] }).catch(() => null);
+  }
+
+  if (prospect.steam_id && prospect.steam_id.toUpperCase() !== 'Q') {
+    bm.addFlag(prospect.steam_id, config.battlemetrics.prospectFlagId)
+      .catch((err) => log.warn({ err }, 'Failed to add BM prospect flag'));
   }
 
   log.info({ prospectId: prospect.id, mentorId }, 'Mentor claimed prospect');
@@ -402,6 +427,22 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
           log.warn({ err, userId: prospect.user_id }, 'Failed to strip P | nickname')
         );
       }
+    }
+  }
+
+  if (prospect.steam_id && prospect.steam_id.toUpperCase() !== 'Q') {
+    bm.removeFlag(prospect.steam_id, config.battlemetrics.prospectFlagId)
+      .catch((err) => log.warn({ err }, 'Failed to remove BM prospect flag'));
+    if (outcome === 'accepted') {
+      bm.addFlag(prospect.steam_id, config.battlemetrics.memberFlagId)
+        .catch((err) => log.warn({ err }, 'Failed to add BM member flag'));
+    }
+
+    whitelistService.expireByRole(prospect.steam_id, 'Prospect')
+      .catch((err) => log.warn({ err }, 'Failed to expire prospect whitelist entry'));
+    if (outcome === 'accepted') {
+      whitelistService.createEntry(prospect.steam_id, prospect.alias, 'RBMembers', closedById)
+        .catch((err) => log.warn({ err }, 'Failed to create member whitelist entry'));
     }
   }
 

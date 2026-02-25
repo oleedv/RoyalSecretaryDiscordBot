@@ -158,6 +158,26 @@ export function buildProspectAcceptedComponents(prospect) {
   return [actionRow];
 }
 
+export function buildInvestigationEmbed(steamId, bmData) {
+  const title = bmData?.playerName
+    ? `${bmData.playerName} — Investigation`
+    : 'BattleMetrics Investigation';
+
+  const bmLink = bmData?.playerId
+    ? `[BattleMetrics](https://www.battlemetrics.com/rcon/players/${bmData.playerId})`
+    : `[BattleMetrics](https://www.battlemetrics.com/rcon/players?filter[search]=${steamId})`;
+
+  return createEmbed('Prospect')
+    .setTitle(title)
+    .addFields(
+      { name: 'Steam', value: `[Steam Profile](https://steamcommunity.com/profiles/${steamId})`, inline: true },
+      { name: 'BattleMetrics', value: bmLink, inline: true },
+      { name: 'CBL', value: `[Community Ban List](https://communitybanlist.com/search/${steamId})`, inline: true },
+      { name: 'SteamID', value: `[steamid.io](https://steamid.io/lookup/${steamId})`, inline: true },
+    )
+    .setColor(0xebc65d);
+}
+
 export function buildVoteAnnouncementEmbed(member, prospect, forumUrl) {
   return createEmbed('Prospect')
     .setTitle('Prospect Up for Voting')
@@ -180,7 +200,7 @@ export function buildAcceptedAnnouncementEmbed(member, prospect) {
     .setThumbnail(member?.user.displayAvatarURL() || null);
 }
 
-export function buildVoteEmbed(prospect) {
+export function buildVoteEmbed(prospect, bmStats = null) {
   const { periodDays } = config.prospects;
   const extra = prospect.extra_days || 0;
   const totalPeriod = periodDays + extra;
@@ -199,6 +219,26 @@ export function buildVoteEmbed(prospect) {
       { name: 'Period Ends', value: endDateStr, inline: true },
     )
     .setColor(0xfee75c);
+
+  if (bmStats) {
+    embed.addFields({
+      name: 'Gameplay Hours',
+      value: bmStats.hours != null ? `${bmStats.hours}h` : 'N/A',
+      inline: true,
+    });
+
+    const seedingKey = Object.keys(bmStats.counters || {}).find(
+      (k) => k.toLowerCase().includes('seed')
+    );
+    const seedingValue = seedingKey != null ? bmStats.counters[seedingKey] : null;
+    embed.addFields({
+      name: 'Seeding Hours',
+      value: seedingValue != null
+        ? `${Math.round((seedingValue / 3600) * 10) / 10}h`
+        : 'N/A',
+      inline: true,
+    });
+  }
 
   if (prospect.mentor_id) {
     embed.addFields({ name: 'Mentor', value: `<@${prospect.mentor_id}>`, inline: true });

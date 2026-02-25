@@ -1,6 +1,8 @@
 import { createEmbed } from '../../utils/embed.js';
 import { buildVoteEmbed, buildVoteComponents, buildVoteAnnouncementEmbed, buildEndVoteComponents } from './prospectEmbeds.js';
 import { query } from '../../database/connection.js';
+import { resolveAndGetStats } from '../battlemetricsService.js';
+import * as whitelistService from '../whitelistService.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
 
@@ -47,7 +49,14 @@ export async function postVote(prospect, client) {
   const thread = await forumChannel.threads.fetch(prospect.forum_thread_id).catch(() => null);
   if (!thread) return;
 
-  const voteEmbed = buildVoteEmbed(prospect);
+  let bmStats = null;
+  if (prospect.steam_id && prospect.steam_id.toUpperCase() !== 'Q') {
+    const startDate = new Date(prospect.created_at).toISOString().slice(0, 10);
+    const endDate = new Date().toISOString().slice(0, 10);
+    bmStats = await resolveAndGetStats(prospect.steam_id, startDate, endDate).catch(() => null);
+  }
+
+  const voteEmbed = buildVoteEmbed(prospect, bmStats);
   const counts = { yes: 0, no: 0, unsure: 0 };
   const components = buildVoteComponents(counts);
   const voteMsg = await thread.send({ embeds: [voteEmbed], components });
@@ -59,6 +68,11 @@ export async function postVote(prospect, client) {
         log.error({ err, userId: prospect.user_id }, 'Failed to add whitelist role')
       );
     }
+  }
+
+  if (prospect.steam_id && prospect.steam_id.toUpperCase() !== 'Q') {
+    whitelistService.createEntry(prospect.steam_id, prospect.alias, 'Prospect', client.user.id)
+      .catch((err) => log.warn({ err }, 'Failed to create prospect whitelist entry'));
   }
 
   await query(
