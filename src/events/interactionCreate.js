@@ -81,12 +81,14 @@ export default {
           await handler(interaction);
         } catch (err) {
           log.error({ err, customId: interaction.customId }, 'Button interaction failed');
-          const reply = { embeds: [errorEmbed('Something went wrong.')], flags: ['Ephemeral'] };
-          if (interaction.replied || interaction.deferred) {
-            await interaction.followUp(reply);
-          } else {
-            await interaction.reply(reply);
-          }
+          try {
+            const reply = { embeds: [errorEmbed('Something went wrong.')], flags: ['Ephemeral'] };
+            if (interaction.replied || interaction.deferred) {
+              await interaction.followUp(reply);
+            } else {
+              await interaction.reply(reply);
+            }
+          } catch { /* interaction expired or channel gone — nothing we can do */ }
         }
       }
       return;
@@ -102,12 +104,14 @@ export default {
           await handler(interaction);
         } catch (err) {
           log.error({ err, customId: interaction.customId }, 'Modal interaction failed');
-          const reply = { embeds: [errorEmbed('Something went wrong.')], flags: ['Ephemeral'] };
-          if (interaction.replied || interaction.deferred) {
-            await interaction.followUp(reply);
-          } else {
-            await interaction.reply(reply);
-          }
+          try {
+            const reply = { embeds: [errorEmbed('Something went wrong.')], flags: ['Ephemeral'] };
+            if (interaction.replied || interaction.deferred) {
+              await interaction.followUp(reply);
+            } else {
+              await interaction.reply(reply);
+            }
+          } catch { /* interaction expired or channel gone — nothing we can do */ }
         }
       }
     }
@@ -130,11 +134,13 @@ async function handleCommand(interaction) {
   } catch (err) {
     log.error({ err, command: interaction.commandName }, 'Command execution failed');
 
-    const reply = { embeds: [errorEmbed('There was an error executing this command.')], flags: ['Ephemeral'] };
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(reply);
-    } else {
-      await interaction.reply(reply);
-    }
+    try {
+      const reply = { embeds: [errorEmbed('There was an error executing this command.')], flags: ['Ephemeral'] };
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(reply);
+      } else {
+        await interaction.reply(reply);
+      }
+    } catch { /* interaction expired or channel gone — nothing we can do */ }
   }
 }
