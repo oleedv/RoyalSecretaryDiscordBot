@@ -17,6 +17,7 @@ const log = logger.child({ module: 'seedingScheduler' });
 let dailyCheckInterval = null;
 let monitorInterval = null;
 let lastResetDate = null;
+let lastPanelConfig = null;
 
 export function isSchedulerActive() {
   return !!dailyCheckInterval;
@@ -142,7 +143,10 @@ async function ensureSeedingPanel(client) {
         msg.components.some(row => row.components.some(c => c.customId === 'seeding_join'))
     );
 
+    const configKey = `${cfg.daily_time}|${cfg.timezone}|${cfg.seed_threshold}|${cfg.role_id}`;
+
     if (hasPanel) {
+      lastPanelConfig = configKey;
       log.info('Seeding panel already exists');
       return;
     }
@@ -163,9 +167,47 @@ async function ensureSeedingPanel(client) {
 
     const panelPayload = buildSeedingPanelMessage(seederCount, dailyTs, cfg.seed_threshold);
     await channel.send(panelPayload);
+    lastPanelConfig = configKey;
     log.info('Seeding panel posted');
   } catch (err) {
     log.error({ err }, 'Failed to ensure seeding panel');
+  }
+}
+
+async function refreshSeedingPanel(client, cfg) {
+  const configKey = `${cfg.daily_time}|${cfg.timezone}|${cfg.seed_threshold}|${cfg.role_id}`;
+  if (lastPanelConfig === configKey) return;
+
+  try {
+    const channel = await client.channels.fetch(cfg.channel_id).catch(() => null);
+    if (!channel) return;
+
+    const messages = await channel.messages.fetch({ limit: 50 });
+    const panelMsg = messages.find(
+      msg => msg.author.id === client.user.id &&
+        msg.components.some(row => row.components.some(c => c.customId === 'seeding_join'))
+    );
+    if (!panelMsg) return;
+
+    const dailyTime = normalizeTime(cfg.daily_time || '16:00');
+    const tz = cfg.timezone || 'UTC';
+    const dailyTs = getDailyTimestamp(dailyTime, tz);
+
+    let seederCount = null;
+    if (cfg.role_id && channel.guild) {
+      try {
+        await channel.guild.members.fetch();
+        const role = await channel.guild.roles.fetch(cfg.role_id);
+        seederCount = role?.members?.size ?? null;
+      } catch { /* role may not exist */ }
+    }
+
+    const panelPayload = buildSeedingPanelMessage(seederCount, dailyTs, cfg.seed_threshold);
+    await panelMsg.edit(panelPayload);
+    lastPanelConfig = configKey;
+    log.info('Seeding panel refreshed (config changed)');
+  } catch (err) {
+    log.warn({ err }, 'Failed to refresh seeding panel');
   }
 }
 
@@ -175,6 +217,8 @@ async function checkDailyCall(client) {
   try {
     const cfg = await getSeedingConfig();
     if (!cfg?.enabled || !cfg.channel_id) return;
+
+    await refreshSeedingPanel(client, cfg);
 
     const tz = cfg.timezone || 'UTC';
     const today = getTodayDate(tz);
