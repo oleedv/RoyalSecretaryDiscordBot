@@ -178,6 +178,7 @@ export function getAllServerStates() {
   for (const [name, conn] of connections) {
     result.push({ name, state: { ...conn.state, players: [...conn.state.players] } });
   }
+  result.sort((a, b) => a.name.localeCompare(b.name));
   return result;
 }
 
