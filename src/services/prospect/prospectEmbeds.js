@@ -212,9 +212,13 @@ export function buildVoteEmbed(prospect, bmStats = null) {
       `Click a button below to vote.`
     )
     .addFields(
-      { name: 'Period Ends', value: endDateStr, inline: true },
+      { name: 'Voting ends', value: endDateStr, inline: true },
     )
     .setColor(0xfee75c);
+
+  if (extra > 0) {
+    embed.addFields({ name: 'Voting extended', value: `${extra} d`, inline: true });
+  }
 
   if (bmStats) {
     embed.addFields({
