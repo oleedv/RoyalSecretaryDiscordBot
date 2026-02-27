@@ -3,7 +3,7 @@ import { ChannelType, EmbedBuilder } from 'discord.js';
 import { createEmbed } from '../../utils/embed.js';
 import { buildPrivateChannelPermissions } from '../../utils/permissions.js';
 import { findBotMessageByCustomId } from '../../utils/messageSearch.js';
-import { buildProspectInfoEmbed, buildForumIntroEmbed, buildProspectComponents, buildProspectAcceptedComponents, buildAcceptedAnnouncementEmbed, buildInvestigationEmbed } from './prospectEmbeds.js';
+import { buildProspectInfoEmbed, buildForumIntroEmbed, buildProspectComponents, buildProspectAcceptedComponents, buildAcceptedAnnouncementEmbed } from './prospectEmbeds.js';
 import * as bm from '../battlemetricsService.js';
 import * as whitelistService from '../whitelistService.js';
 import { query, transaction } from '../../database/connection.js';
@@ -77,13 +77,12 @@ function formatCblEmbed(cblData) {
     text += `\n**Active Bans (${bans.length}):**`;
     for (const ban of bans) {
       const org = ban.banList?.organisation?.name || 'Unknown';
-      const list = ban.banList?.name || 'Unknown';
       const reason = ban.reason || 'No reason';
       const created = ban.created ? `<t:${Math.floor(new Date(ban.created).getTime() / 1000)}:d>` : '?';
       const expiry = ban.expires
         ? `expires <t:${Math.floor(new Date(ban.expires).getTime() / 1000)}:d>`
         : 'permanent';
-      text += `\n> **${org}** — ${list}\n> ${reason} (${created}, ${expiry})`;
+      text += `\n> **${org}**\n> ${reason} (${created}, ${expiry})`;
     }
   }
 
@@ -110,23 +109,6 @@ function appendCblToMessage(message, steamId) {
     );
   }).catch((err) => {
     log.warn({ err, steamId }, 'CBL: appendCblToMessage failed');
-  });
-}
-
-// ── BattleMetrics Investigation ──
-
-function appendBmInvestigation(channel, steamId) {
-  if (!steamId || steamId.toUpperCase() === 'Q') return;
-  if (!bm.isConfigured()) return;
-
-  log.info({ steamId }, 'BM: starting background investigation');
-  bm.playerSearch(steamId).then((bmData) => {
-    const embed = buildInvestigationEmbed(steamId, bmData);
-    channel.send({ embeds: [embed] }).catch((err) =>
-      log.warn({ err }, 'BM: failed to send investigation embed')
-    );
-  }).catch((err) => {
-    log.warn({ err, steamId }, 'BM: appendBmInvestigation failed');
   });
 }
 
@@ -207,7 +189,6 @@ export async function createProspect(userId, guild, formData) {
 
   const topMsg = await channel.send({ embeds: [infoEmbed], components });
   appendCblToMessage(topMsg, prospect.steam_id);
-  appendBmInvestigation(channel, prospect.steam_id);
 
   if (mentorRoleId) {
     await channel.send(`<@&${mentorRoleId}> New prospect application!`);

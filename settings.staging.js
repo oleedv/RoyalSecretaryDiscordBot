@@ -30,7 +30,7 @@ export default {
     loungeChannelId: '1143282482150654125',
     periodDays: 21,
     voteDaysBefore: 7,
-    roles: ['195412349153312768'],
+    roles: ['1406672908641894400', '1406672908641894400'],
     prospectRoleId: '1410750309940072568',
     whitelistRoleId: '1406672770242449458',
     mentorRoleId: '1406672908641894400',

@@ -158,26 +158,6 @@ export function buildProspectAcceptedComponents(prospect) {
   return [actionRow];
 }
 
-export function buildInvestigationEmbed(steamId, bmData) {
-  const title = bmData?.playerName
-    ? `${bmData.playerName} — Investigation`
-    : 'BattleMetrics Investigation';
-
-  const bmLink = bmData?.playerId
-    ? `[BattleMetrics](https://www.battlemetrics.com/rcon/players/${bmData.playerId})`
-    : `[BattleMetrics](https://www.battlemetrics.com/rcon/players?filter[search]=${steamId})`;
-
-  return createEmbed('Prospect')
-    .setTitle(title)
-    .addFields(
-      { name: 'Steam', value: `[Steam Profile](https://steamcommunity.com/profiles/${steamId})`, inline: true },
-      { name: 'BattleMetrics', value: bmLink, inline: true },
-      { name: 'CBL', value: `[Community Ban List](https://communitybanlist.com/search/${steamId})`, inline: true },
-      { name: 'SteamID', value: `[steamid.io](https://steamid.io/lookup/${steamId})`, inline: true },
-    )
-    .setColor(0xebc65d);
-}
-
 export function buildVoteAnnouncementEmbed(member, prospect, forumUrl) {
   return createEmbed('Prospect')
     .setTitle('Prospect Up for Voting')
