@@ -96,6 +96,7 @@ export default {
         handler = ticketButtons.handleLogsPagination;
       }
       if (handler) {
+        log.info({ userId: interaction.user.id, userTag: interaction.user.tag, customId: interaction.customId, channelId: interaction.channel?.id }, 'Button pressed');
         try {
           await handler(interaction);
         } catch (err) {
@@ -119,6 +120,7 @@ export default {
         handler = prospectModals.handleVoteNoModal;
       }
       if (handler) {
+        log.info({ userId: interaction.user.id, userTag: interaction.user.tag, customId: interaction.customId, channelId: interaction.channel?.id }, 'Modal submitted');
         try {
           await handler(interaction);
         } catch (err) {
