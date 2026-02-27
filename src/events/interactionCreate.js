@@ -62,6 +62,7 @@ const buttonHandlers = {
   vote_no: prospectButtons.handleVoteNo,
   vote_unsure: prospectButtons.handleVoteUnsure,
   vote_end: prospectButtons.handleEndVote,
+  prospect_close_ticket: prospectButtons.handleCloseTicket,
   seeding_join: seedingButtons.handleJoin,
   seeding_leave: seedingButtons.handleLeave,
 };

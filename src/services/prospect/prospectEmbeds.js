@@ -274,3 +274,13 @@ export function buildEndVoteComponents() {
   );
   return [row];
 }
+
+export function buildCloseTicketComponents() {
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('prospect_close_ticket')
+      .setLabel('Close Ticket')
+      .setStyle(ButtonStyle.Danger),
+  );
+  return [row];
+}

@@ -134,6 +134,14 @@ export async function getProspectByChannel(channelId) {
   return rows[0] || null;
 }
 
+export async function getProspectByChannelAnyStatus(channelId) {
+  const rows = await query(
+    'SELECT * FROM prospects WHERE channel_id = ? ORDER BY created_at DESC LIMIT 1',
+    [channelId]
+  );
+  return rows[0] || null;
+}
+
 export async function getProspectsNeedingVote() {
   const { periodDays, voteDaysBefore } = config.prospects;
   const daysUntilVote = periodDays - voteDaysBefore;

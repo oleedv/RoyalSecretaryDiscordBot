@@ -6,9 +6,10 @@ import {
   ButtonBuilder,
   ButtonStyle,
 } from 'discord.js';
-import { getOpenProspectByUser, getProspectByChannel, claimProspect, unclaimProspect, acceptProspect, togglePause, extendProspect, closeProspect } from '../services/prospect/prospectService.js';
+import { getOpenProspectByUser, getProspectByChannel, getProspectByChannelAnyStatus, claimProspect, unclaimProspect, acceptProspect, togglePause, extendProspect, closeProspect } from '../services/prospect/prospectService.js';
 import { postVote, getProspectByVoteMessage, upsertVote, getVoteCounts } from '../services/prospect/prospectVoting.js';
-import { buildVoteComponents } from '../services/prospect/prospectEmbeds.js';
+import { buildVoteComponents, buildCloseTicketComponents } from '../services/prospect/prospectEmbeds.js';
+import { query } from '../database/connection.js';
 import { errorEmbed, successEmbed, infoEmbed } from '../utils/embed.js';
 import { requireRole } from '../utils/permissions.js';
 import config from '../config.js';
@@ -299,6 +300,12 @@ export async function handleEndVote(interaction) {
   );
   await interaction.message.edit({ components: [disabledRow] }).catch(() => null);
 
+  const closeComponents = buildCloseTicketComponents();
+  await interaction.channel.send({
+    embeds: [successEmbed(`Vote ended for **${prospect.alias}** -- outcome: **${outcome}**.`)],
+    components: closeComponents,
+  }).catch(() => null);
+
   await interaction.editReply({ embeds: [successEmbed(`Vote ended for **${prospect.alias}** -- outcome: **${outcome}**.`)] });
   log.info({ prospectId: prospect.id, outcome, counts, actorId: interaction.user.id }, 'Vote ended');
 }
@@ -326,4 +333,20 @@ export async function handleVoteNo(interaction) {
   );
 
   await interaction.showModal(modal);
+}
+
+export async function handleCloseTicket(interaction) {
+  if (await requireRole(interaction, staffRoles())) return;
+  await interaction.deferReply({ flags: ['Ephemeral'] });
+
+  const prospect = await getProspectByChannelAnyStatus(interaction.channel.id);
+  if (!prospect) return interaction.editReply({ embeds: [errorEmbed('No prospect found for this channel.')] });
+
+  await query(
+    'INSERT INTO prospect_events (prospect_id, event_type, actor_id, detail) VALUES (?, ?, ?, ?)',
+    [prospect.id, 'closed', interaction.user.id, 'Ticket closed by staff']
+  );
+
+  log.info({ prospectId: prospect.id, closedBy: interaction.user.id }, 'Prospect ticket closed');
+  await interaction.channel.delete().catch(() => null);
 }
