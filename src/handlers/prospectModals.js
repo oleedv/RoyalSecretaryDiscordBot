@@ -7,22 +7,43 @@ import { createProspect, getProspectByChannel, closeProspect, extendProspect } f
 import { linkSteamId } from '../services/userService.js';
 import { upsertVote, getVoteCounts } from '../services/prospect/prospectVoting.js';
 import { buildVoteComponents } from '../services/prospect/prospectEmbeds.js';
+import { requireRole } from '../utils/permissions.js';
 import config from '../config.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'prospectModals' });
 
+const staffRoles = () => config.prospects.roles || [];
+
 // In-memory store for Part 1 data between the two modals (keyed by userId)
 const pendingApplications = new Map();
+const pendingTimers = new Map();
 const pendingCleanups = new Map();
 const PENDING_TTL = 15 * 60 * 1000; // 15 minutes
+const MAX_PENDING = 100;
 
 /**
  * Store Part 1 data for a user (called from the button handler before showing modal 2).
  */
 export function storePart1(userId, data) {
+  // Clear previous timer if user re-submits Part 1
+  const prevTimer = pendingTimers.get(userId);
+  if (prevTimer) clearTimeout(prevTimer);
+
+  // Evict oldest entry if at capacity
+  if (pendingApplications.size >= MAX_PENDING && !pendingApplications.has(userId)) {
+    const firstKey = pendingApplications.keys().next().value;
+    pendingApplications.delete(firstKey);
+    const oldTimer = pendingTimers.get(firstKey);
+    if (oldTimer) { clearTimeout(oldTimer); pendingTimers.delete(firstKey); }
+  }
+
   pendingApplications.set(userId, data);
-  setTimeout(() => pendingApplications.delete(userId), PENDING_TTL);
+  const timer = setTimeout(() => {
+    pendingApplications.delete(userId);
+    pendingTimers.delete(userId);
+  }, PENDING_TTL);
+  pendingTimers.set(userId, timer);
 }
 
 export async function handleModal1(interaction) {
@@ -157,6 +178,7 @@ export async function handleModal2(interaction) {
 }
 
 export async function handleDenyModal(interaction) {
+  if (await requireRole(interaction, staffRoles())) return;
   await interaction.deferReply({ flags: ['Ephemeral'] });
   const prospect = await getProspectByChannel(interaction.channel.id);
   if (!prospect) return interaction.editReply({ embeds: [errorEmbed('No open prospect found for this channel.')] });
@@ -168,6 +190,7 @@ export async function handleDenyModal(interaction) {
 }
 
 export async function handleExtendModal(interaction) {
+  if (await requireRole(interaction, staffRoles())) return;
   await interaction.deferReply({ flags: ['Ephemeral'] });
   const prospect = await getProspectByChannel(interaction.channel.id);
   if (!prospect) return interaction.editReply({ embeds: [errorEmbed('No open prospect found for this channel.')] });

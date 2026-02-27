@@ -22,7 +22,7 @@ export async function playerSearch(steamId) {
     log.info({ steamId }, 'BM: searching player');
     const orgId = config.battlemetrics.organisationId;
     const url = `${BASE_URL}/players?filter[search]=${steamId}&filter[organization]=${orgId}`;
-    const res = await fetch(url, { headers: headers() });
+    const res = await fetch(url, { headers: headers(), signal: AbortSignal.timeout(15000) });
     if (!res.ok) {
       log.warn({ steamId, status: res.status }, 'BM: player search returned non-OK status');
       return null;
@@ -46,7 +46,7 @@ export async function getTimePlayed(playerId, startDate, endDate) {
     const serverId = config.battlemetrics.serverId;
     log.info({ playerId, serverId, startDate, endDate }, 'BM: fetching time played');
     const url = `${BASE_URL}/players/${playerId}/time-played-history/${serverId}?start=${startDate}T00:00:00Z&stop=${endDate}T00:00:00Z`;
-    const res = await fetch(url, { headers: headers() });
+    const res = await fetch(url, { headers: headers(), signal: AbortSignal.timeout(15000) });
     if (!res.ok) {
       log.warn({ playerId, status: res.status }, 'BM: time played returned non-OK status');
       return null;
@@ -65,7 +65,7 @@ export async function getPlayerCounters(playerId) {
   try {
     log.info({ playerId }, 'BM: fetching player counters');
     const url = `${BASE_URL}/players/${playerId}?include=playerCounter`;
-    const res = await fetch(url, { headers: headers() });
+    const res = await fetch(url, { headers: headers(), signal: AbortSignal.timeout(15000) });
     if (!res.ok) {
       log.warn({ playerId, status: res.status }, 'BM: player counters returned non-OK status');
       return {};
@@ -95,6 +95,7 @@ export async function addFlag(steamId, flagId) {
       method: 'POST',
       headers: headers(),
       body: JSON.stringify({ data: [{ type: 'playerFlag', id: flagId }] }),
+      signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) {
       log.warn({ steamId, flagId, status: res.status }, 'BM: add flag returned non-OK status');
@@ -118,6 +119,7 @@ export async function removeFlag(steamId, flagId) {
       method: 'DELETE',
       headers: headers(),
       body: JSON.stringify({ data: [{ type: 'playerFlag', id: flagId }] }),
+      signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) {
       log.warn({ steamId, flagId, status: res.status }, 'BM: remove flag returned non-OK status');

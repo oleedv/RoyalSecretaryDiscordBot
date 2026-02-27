@@ -3,15 +3,6 @@ import { createEmbed } from '../../utils/embed.js';
 
 const trendArrows = { up: '\u2191', down: '\u2193', stable: '\u2192' };
 
-function buildProgressBar(current, total, length = 20) {
-  const clamped = Math.min(Math.max(current, 0), total);
-  const filled = Math.round((clamped / total) * length);
-  const empty = length - filled;
-  const bar = '\u2588'.repeat(filled) + '\u2591'.repeat(empty);
-  const pct = Math.round((clamped / total) * 100);
-  return `${bar} ${pct}%`;
-}
-
 export function getLayerImageUrl(layerObj, layerName) {
   const BASE = 'https://raw.githubusercontent.com/Squad-Wiki/squad-wiki-pipeline-map-data/master/completed_output/_Current%20Version/images';
   if (layerObj?.layerid) return `${BASE}/${layerObj.layerid}.jpg`;
@@ -67,14 +58,11 @@ export function buildSeedingCallEmbed({
   avgSeedTime, avgSeedTrend,
   serverName, gameMode, fastestSeed,
 }) {
-  const progressBar = buildProgressBar(playerCount, threshold);
-
   const embed = createEmbed('Seeding')
     .setTitle('Seeding Time!')
     .setDescription(
       'Join the server and help us get live!\n' +
       `Target: **${threshold}** players\n\n` +
-      `**${progressBar}**\n` +
       `\`${playerCount} / ${threshold} players\``
     )
     .setColor(0x57f287);

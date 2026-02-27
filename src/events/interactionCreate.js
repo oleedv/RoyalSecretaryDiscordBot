@@ -9,6 +9,18 @@ import logger from '../logger.js';
 
 const log = logger.child({ module: 'interactions' });
 
+// Rate limiting: per-user cooldown for button/modal interactions
+const cooldowns = new Map();
+const COOLDOWN_MS = 2000;
+
+// Clean up stale cooldown entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, ts] of cooldowns) {
+    if (now - ts > COOLDOWN_MS) cooldowns.delete(id);
+  }
+}, 5 * 60 * 1000).unref();
+
 const buttonHandlers = {
   ticket_create: ticketButtons.handleCreate,
   ticket_escalate_co: ticketButtons.handleEscalate,
@@ -72,6 +84,13 @@ export default {
     }
 
     if (interaction.isButton()) {
+      const now = Date.now();
+      const last = cooldowns.get(interaction.user.id) || 0;
+      if (now - last < COOLDOWN_MS) {
+        return interaction.reply({ content: 'Please wait before clicking again.', flags: ['Ephemeral'] }).catch(() => {});
+      }
+      cooldowns.set(interaction.user.id, now);
+
       let handler = buttonHandlers[interaction.customId];
       if (!handler && (interaction.customId.startsWith('logs_prev:') || interaction.customId.startsWith('logs_next:'))) {
         handler = ticketButtons.handleLogsPagination;
@@ -124,6 +143,12 @@ async function handleCommand(interaction) {
   if (!command) {
     log.warn(`Unknown command: ${interaction.commandName}`);
     return;
+  }
+
+  // Runtime enforcement of command-level permissions
+  const requiredPerms = command.data.default_member_permissions;
+  if (requiredPerms && !interaction.memberPermissions?.has(BigInt(requiredPerms))) {
+    return interaction.reply({ embeds: [errorEmbed('You do not have permission to use this command.')], flags: ['Ephemeral'] });
   }
 
   try {

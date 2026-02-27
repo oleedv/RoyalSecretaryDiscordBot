@@ -97,7 +97,19 @@ export async function timeoutUser(userId, timedOutById) {
 
 // ── Operations ──
 
+const activeCreations = new Set();
+
 export async function createTicket(userId, guild, { steamId, reason } = {}) {
+  if (activeCreations.has(userId)) return { error: 'Ticket creation already in progress.' };
+  activeCreations.add(userId);
+  try {
+    return await _createTicket(userId, guild, { steamId, reason });
+  } finally {
+    activeCreations.delete(userId);
+  }
+}
+
+async function _createTicket(userId, guild, { steamId, reason } = {}) {
   const existing = await getOpenTicketByUser(userId);
   if (existing) return { error: 'You already have an open ticket.' };
 

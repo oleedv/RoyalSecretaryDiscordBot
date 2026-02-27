@@ -142,6 +142,7 @@ export function connect() {
 export function disconnect() {
   for (const [name, conn] of connections) {
     if (conn.socket) {
+      conn.socket.removeAllListeners();
       conn.socket.disconnect();
       conn.state.connected = false;
       log.info({ name }, 'Disconnected from SquadJS');

@@ -17,11 +17,18 @@ import {
 import { buildTicketInfoEmbed, buildTicketComponents } from '../services/ticket/ticketEmbeds.js';
 import { getStoredSteamId } from '../services/userService.js';
 import { errorEmbed, infoEmbed } from '../utils/embed.js';
+import { requireRole } from '../utils/permissions.js';
 import { findBotMessageByCustomId } from '../utils/messageSearch.js';
 import { buildLogsPage } from './ticketMessages.js';
+import config from '../config.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'ticketButtons' });
+
+const allTicketStaffRoles = () => {
+  const r = config.tickets.roles || {};
+  return [...(r.normal || []), ...(r.communityOfficer || []), ...(r.adminOfficer || []), ...(r.compTeam || []), ...(r.whitelist || [])];
+};
 
 export async function handleCreate(interaction) {
   const storedSteamId = await getStoredSteamId(interaction.user.id);
@@ -37,7 +44,7 @@ export async function handleCreate(interaction) {
       new ActionRowBuilder().addComponents(
         new TextInputBuilder()
           .setCustomId('ticket_steam_id')
-          .setLabel('Steam ID (Steam64, profile URL, or Q to skip)')
+          .setLabel('Steam ID (Steam64 or profile URL, optional)')
           .setStyle(TextInputStyle.Short)
           .setPlaceholder('e.g. 76561198012345678')
           .setRequired(true)
@@ -63,6 +70,7 @@ export async function handleCreate(interaction) {
 }
 
 export async function handleEscalate(interaction) {
+  if (await requireRole(interaction, allTicketStaffRoles())) return;
   await interaction.deferReply({ flags: ['Ephemeral'] });
   const ticket = await getTicketByChannel(interaction.channel.id);
   if (!ticket) return interaction.editReply({ embeds: [errorEmbed('No open ticket found for this channel.')] });
@@ -84,6 +92,7 @@ export async function handleEscalate(interaction) {
 }
 
 export async function handleClose(interaction) {
+  if (await requireRole(interaction, allTicketStaffRoles())) return;
   await interaction.deferReply({ flags: ['Ephemeral'] });
   const ticket = await getTicketByChannel(interaction.channel.id);
   if (!ticket) return interaction.editReply({ embeds: [errorEmbed('No open ticket found for this channel.')] });
@@ -94,6 +103,7 @@ export async function handleClose(interaction) {
 }
 
 export async function handleReopen(interaction) {
+  if (await requireRole(interaction, allTicketStaffRoles())) return;
   await interaction.deferReply({ flags: ['Ephemeral'] });
   const ticket = await getTicketByChannelStatus(interaction.channel.id, 'closing');
   if (!ticket) return interaction.editReply({ embeds: [errorEmbed('No closing ticket found for this channel.')] });
@@ -128,6 +138,7 @@ export async function handleReopen(interaction) {
 }
 
 export async function handleForceClose(interaction) {
+  if (await requireRole(interaction, allTicketStaffRoles())) return;
   await interaction.deferReply({ flags: ['Ephemeral'] });
   const ticket = await getTicketByChannelStatus(interaction.channel.id, 'closing');
   if (!ticket) return interaction.editReply({ embeds: [errorEmbed('No closing ticket found for this channel.')] });
@@ -137,6 +148,7 @@ export async function handleForceClose(interaction) {
 }
 
 export async function handleTimeout(interaction) {
+  if (await requireRole(interaction, allTicketStaffRoles())) return;
   await interaction.deferReply({ flags: ['Ephemeral'] });
   const ticket = await getTicketByChannel(interaction.channel.id);
   if (!ticket) return interaction.editReply({ embeds: [errorEmbed('No open ticket found for this channel.')] });

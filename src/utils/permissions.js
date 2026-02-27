@@ -1,4 +1,28 @@
 import { PermissionFlagsBits } from 'discord.js';
+import { errorEmbed } from './embed.js';
+
+/**
+ * Check if the interaction member has at least one of the required role IDs.
+ */
+export function hasAnyRole(member, roleIds) {
+  if (!member || !roleIds?.length) return false;
+  return roleIds.some((id) => member.roles.cache.has(id));
+}
+
+/**
+ * Guard: if the user lacks all required roles, send an ephemeral error and return true (blocked).
+ * Returns false if authorized (caller should proceed).
+ */
+export async function requireRole(interaction, roleIds) {
+  if (hasAnyRole(interaction.member, roleIds)) return false;
+  const reply = { embeds: [errorEmbed('You do not have permission to do this.')], flags: ['Ephemeral'] };
+  if (interaction.replied || interaction.deferred) {
+    await interaction.followUp(reply);
+  } else {
+    await interaction.reply(reply);
+  }
+  return true;
+}
 
 /**
  * Build a standard private-channel permission overwrite array.

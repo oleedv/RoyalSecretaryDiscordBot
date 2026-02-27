@@ -10,10 +10,13 @@ import { getOpenProspectByUser, getProspectByChannel, claimProspect, unclaimPros
 import { postVote, getProspectByVoteMessage, upsertVote, getVoteCounts } from '../services/prospect/prospectVoting.js';
 import { buildVoteComponents } from '../services/prospect/prospectEmbeds.js';
 import { errorEmbed, successEmbed, infoEmbed } from '../utils/embed.js';
+import { requireRole } from '../utils/permissions.js';
 import config from '../config.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'prospectButtons' });
+
+const staffRoles = () => config.prospects.roles || [];
 
 export async function handleApply(interaction) {
   const existing = await getOpenProspectByUser(interaction.user.id);
@@ -118,6 +121,7 @@ export async function handleModal2Open(interaction) {
 }
 
 export async function handleClaim(interaction) {
+  if (await requireRole(interaction, staffRoles())) return;
   await interaction.deferReply({ flags: ['Ephemeral'] });
   const prospect = await getProspectByChannel(interaction.channel.id);
   if (!prospect) return interaction.editReply({ embeds: [errorEmbed('No open prospect found for this channel.')] });
@@ -130,6 +134,7 @@ export async function handleClaim(interaction) {
 }
 
 export async function handleUnclaim(interaction) {
+  if (await requireRole(interaction, staffRoles())) return;
   await interaction.deferReply({ flags: ['Ephemeral'] });
   const prospect = await getProspectByChannel(interaction.channel.id);
   if (!prospect) return interaction.editReply({ embeds: [errorEmbed('No open prospect found for this channel.')] });
@@ -142,6 +147,7 @@ export async function handleUnclaim(interaction) {
 }
 
 export async function handleAccept(interaction) {
+  if (await requireRole(interaction, staffRoles())) return;
   await interaction.deferReply({ flags: ['Ephemeral'] });
   const prospect = await getProspectByChannel(interaction.channel.id);
   if (!prospect) return interaction.editReply({ embeds: [errorEmbed('No open prospect found for this channel.')] });
@@ -153,6 +159,7 @@ export async function handleAccept(interaction) {
 }
 
 export async function handleDeny(interaction) {
+  if (await requireRole(interaction, staffRoles())) return;
   const prospect = await getProspectByChannel(interaction.channel.id);
   if (!prospect) return interaction.reply({ embeds: [errorEmbed('No open prospect found for this channel.')], flags: ['Ephemeral'] });
 
@@ -176,6 +183,7 @@ export async function handleDeny(interaction) {
 }
 
 export async function handleVoiceInvite(interaction) {
+  if (await requireRole(interaction, staffRoles())) return;
   const prospect = await getProspectByChannel(interaction.channel.id);
   if (!prospect) return interaction.reply({ embeds: [errorEmbed('No open prospect found for this channel.')], flags: ['Ephemeral'] });
 
@@ -193,6 +201,7 @@ export async function handleVoiceInvite(interaction) {
 }
 
 export async function handlePause(interaction) {
+  if (await requireRole(interaction, staffRoles())) return;
   await interaction.deferReply({ flags: ['Ephemeral'] });
   const prospect = await getProspectByChannel(interaction.channel.id);
   if (!prospect) return interaction.editReply({ embeds: [errorEmbed('No open prospect found for this channel.')] });
@@ -204,6 +213,7 @@ export async function handlePause(interaction) {
 }
 
 export async function handleExtend(interaction) {
+  if (await requireRole(interaction, staffRoles())) return;
   const prospect = await getProspectByChannel(interaction.channel.id);
   if (!prospect) return interaction.reply({ embeds: [errorEmbed('No open prospect found for this channel.')], flags: ['Ephemeral'] });
 
@@ -228,6 +238,7 @@ export async function handleExtend(interaction) {
 }
 
 export async function handleTestVote(interaction) {
+  if (await requireRole(interaction, staffRoles())) return;
   await interaction.deferReply({ flags: ['Ephemeral'] });
   const prospect = await getProspectByChannel(interaction.channel.id);
   if (!prospect) return interaction.editReply({ embeds: [errorEmbed('No open prospect found for this channel.')] });
@@ -240,6 +251,7 @@ export async function handleTestVote(interaction) {
 }
 
 export async function handleVoteYes(interaction) {
+  if (await requireRole(interaction, staffRoles())) return;
   await interaction.deferUpdate();
   const prospect = await getProspectByVoteMessage(interaction.message.id);
   if (!prospect) return;
@@ -252,6 +264,7 @@ export async function handleVoteYes(interaction) {
 }
 
 export async function handleVoteUnsure(interaction) {
+  if (await requireRole(interaction, staffRoles())) return;
   await interaction.deferUpdate();
   const prospect = await getProspectByVoteMessage(interaction.message.id);
   if (!prospect) return;
@@ -264,6 +277,7 @@ export async function handleVoteUnsure(interaction) {
 }
 
 export async function handleEndVote(interaction) {
+  if (await requireRole(interaction, staffRoles())) return;
   await interaction.deferReply({ flags: ['Ephemeral'] });
   const prospect = await getProspectByChannel(interaction.channel.id);
   if (!prospect) return interaction.editReply({ embeds: [errorEmbed('No open prospect found for this channel.')] });
@@ -290,6 +304,7 @@ export async function handleEndVote(interaction) {
 }
 
 export async function handleVoteNo(interaction) {
+  if (await requireRole(interaction, staffRoles())) return;
   const prospect = await getProspectByVoteMessage(interaction.message.id);
   if (!prospect) {
     return interaction.reply({ embeds: [errorEmbed('Could not find the associated prospect.')], flags: ['Ephemeral'] });

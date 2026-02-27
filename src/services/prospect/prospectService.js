@@ -6,7 +6,7 @@ import { findBotMessageByCustomId } from '../../utils/messageSearch.js';
 import { buildProspectInfoEmbed, buildForumIntroEmbed, buildProspectComponents, buildProspectAcceptedComponents, buildAcceptedAnnouncementEmbed, buildInvestigationEmbed } from './prospectEmbeds.js';
 import * as bm from '../battlemetricsService.js';
 import * as whitelistService from '../whitelistService.js';
-import { query } from '../../database/connection.js';
+import { query, transaction } from '../../database/connection.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
 
@@ -20,6 +20,7 @@ async function fetchCblData(steamId) {
     const res = await fetch('https://communitybanlist.com/graphql', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(15000),
       body: JSON.stringify({
         query: `query($id: String!) {
           steamUser(id: $id) {
@@ -40,7 +41,7 @@ async function fetchCblData(steamId) {
                 }
               }
             }
-            expiredBans: bans(expired: true, first: 0) {
+            expiredBans: bans(expired: true, first: 100) {
               edges { node { id } }
             }
           }
@@ -386,15 +387,16 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
   const statusMap = { accepted: 'accepted', denied: 'denied', closed: 'closed' };
   const status = statusMap[outcome] || 'closed';
 
-  await query(
-    'UPDATE prospects SET status = ?, closed_at = NOW(), closed_by = ? WHERE id = ?',
-    [status, closedById, prospect.id]
-  );
-
-  await query(
-    'INSERT INTO prospect_events (prospect_id, event_type, actor_id, detail) VALUES (?, ?, ?, ?)',
-    [prospect.id, status === 'closed' ? 'closed' : status, closedById, reason || null]
-  );
+  await transaction(async (conn) => {
+    await conn.query(
+      'UPDATE prospects SET status = ?, closed_at = NOW(), closed_by = ? WHERE id = ?',
+      [status, closedById, prospect.id]
+    );
+    await conn.query(
+      'INSERT INTO prospect_events (prospect_id, event_type, actor_id, detail) VALUES (?, ?, ?, ?)',
+      [prospect.id, status === 'closed' ? 'closed' : status, closedById, reason || null]
+    );
+  });
 
   if (prospect.forum_thread_id) {
     const { forumChannelId } = config.prospects;

@@ -3,4 +3,5 @@ services:
     build: .
     restart: unless-stopped
     env_file: .env
-    network_mode: host
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

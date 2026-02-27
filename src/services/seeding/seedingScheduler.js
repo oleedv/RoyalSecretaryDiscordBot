@@ -143,7 +143,9 @@ async function ensureSeedingPanel(client) {
         msg.components.some(row => row.components.some(c => c.customId === 'seeding_join'))
     );
 
-    const configKey = `${cfg.daily_time}|${cfg.timezone}|${cfg.seed_threshold}|${cfg.role_id}`;
+    const tz = cfg.timezone || 'UTC';
+    const today = getTodayDate(tz);
+    const configKey = `${today}|${cfg.daily_time}|${tz}|${cfg.seed_threshold}|${cfg.role_id}`;
 
     if (hasPanel) {
       lastPanelConfig = configKey;
@@ -153,7 +155,6 @@ async function ensureSeedingPanel(client) {
 
     // Post the panel
     const dailyTime = normalizeTime(cfg.daily_time || '16:00');
-    const tz = cfg.timezone || 'UTC';
     const dailyTs = getDailyTimestamp(dailyTime, tz);
 
     let seederCount = null;
@@ -175,7 +176,9 @@ async function ensureSeedingPanel(client) {
 }
 
 async function refreshSeedingPanel(client, cfg) {
-  const configKey = `${cfg.daily_time}|${cfg.timezone}|${cfg.seed_threshold}|${cfg.role_id}`;
+  const tz = cfg.timezone || 'UTC';
+  const today = getTodayDate(tz);
+  const configKey = `${today}|${cfg.daily_time}|${tz}|${cfg.seed_threshold}|${cfg.role_id}`;
   if (lastPanelConfig === configKey) return;
 
   try {
@@ -276,7 +279,11 @@ async function resetChannel(client, cfg) {
 
 // ── Seeding state monitor ──
 
+let stateUpdateInProgress = false;
+
 async function updateSeedingState(client) {
+  if (stateUpdateInProgress) return;
+  stateUpdateInProgress = true;
   try {
     const cfg = await getSeedingConfig();
     if (!cfg?.enabled) return;
@@ -329,6 +336,8 @@ async function updateSeedingState(client) {
     await updateCallMessage(client, cfg, session, state);
   } catch (err) {
     log.error({ err }, 'Seeding state update failed');
+  } finally {
+    stateUpdateInProgress = false;
   }
 }
 

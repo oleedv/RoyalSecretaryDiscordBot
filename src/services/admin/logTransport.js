@@ -51,7 +51,7 @@ export const dbLogStream = new Writable({
 
       const { level, msg, module, err, time, pid, hostname, ...rest } = obj;
       const data = { ...rest };
-      if (err) data.err = typeof err === 'object' ? { message: err.message, stack: err.stack, ...err } : err;
+      if (err) data.err = typeof err === 'object' ? { message: err.message, code: err.code } : String(err);
 
       if (buffer.length >= MAX_BUFFER) buffer.shift();
 

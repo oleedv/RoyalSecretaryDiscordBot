@@ -16,6 +16,8 @@ function createPoolForDb(name, database) {
     database,
     connectionLimit: 10,
     idleTimeout: 60000,
+    acquireTimeout: 10000,
+    connectTimeout: 10000,
   });
 
   pools[name] = pool;
@@ -42,6 +44,21 @@ export async function query(sql, params, poolName = 'secretary') {
   const conn = await getPool(poolName).getConnection();
   try {
     return await conn.query(sql, params);
+  } finally {
+    conn.release();
+  }
+}
+
+export async function transaction(fn, poolName = 'secretary') {
+  const conn = await getPool(poolName).getConnection();
+  try {
+    await conn.beginTransaction();
+    const result = await fn(conn);
+    await conn.commit();
+    return result;
+  } catch (err) {
+    await conn.rollback();
+    throw err;
   } finally {
     conn.release();
   }
