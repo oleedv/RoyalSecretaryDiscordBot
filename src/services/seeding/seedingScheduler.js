@@ -167,8 +167,7 @@ async function ensureSeedingPanel(client) {
 
     const existingPanel = await findPanelMessage(client, channel, cfg);
     if (existingPanel) {
-      lastPanelConfig = configKey;
-      log.info('Seeding panel already exists');
+      log.info('Seeding panel already exists, will refresh on next tick');
       return;
     }
 
