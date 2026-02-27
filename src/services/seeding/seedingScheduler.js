@@ -3,7 +3,7 @@ import {
   getSeedingConfig, getActiveSession, startSession, completeSession,
   resetSession, updateSessionPeak, updateSessionCallMessage,
   expireOldSessions, getSeedingStats, trackMessage,
-  clearTrackedMessages, setLastDailyCallDate,
+  clearTrackedMessages, setLastDailyCallDate, setPanelMessageId,
 } from './seedingService.js';
 import {
   buildSeedingCallEmbed, buildSeedingCompletionEmbed,
@@ -129,6 +129,30 @@ function getDailyTimestamp(dailyTime, timezone) {
 
 // ── Panel (persistent embed with buttons) ──
 
+async function findPanelMessage(client, channel, cfg) {
+  // Try stored ID first
+  if (cfg.panel_message_id) {
+    try {
+      const msg = await channel.messages.fetch(cfg.panel_message_id);
+      if (msg) return msg;
+    } catch { /* message may have been deleted */ }
+  }
+
+  // Fallback: scan last 50 messages
+  const messages = await channel.messages.fetch({ limit: 50 });
+  const panelMsg = messages.find(
+    msg => msg.author.id === client.user.id &&
+      msg.components.some(row => row.components.some(c => c.customId === 'seeding_join'))
+  );
+
+  // Update stored ID if found by scan
+  if (panelMsg && panelMsg.id !== cfg.panel_message_id) {
+    await setPanelMessageId(panelMsg.id);
+  }
+
+  return panelMsg || null;
+}
+
 async function ensureSeedingPanel(client) {
   try {
     const cfg = await getSeedingConfig();
@@ -137,17 +161,12 @@ async function ensureSeedingPanel(client) {
     const channel = await client.channels.fetch(cfg.channel_id).catch(() => null);
     if (!channel) return;
 
-    const messages = await channel.messages.fetch({ limit: 50 });
-    const hasPanel = messages.some(
-      msg => msg.author.id === client.user.id &&
-        msg.components.some(row => row.components.some(c => c.customId === 'seeding_join'))
-    );
-
     const tz = cfg.timezone || 'UTC';
     const today = getTodayDate(tz);
     const configKey = `${today}|${cfg.daily_time}|${tz}|${cfg.seed_threshold}|${cfg.role_id}`;
 
-    if (hasPanel) {
+    const existingPanel = await findPanelMessage(client, channel, cfg);
+    if (existingPanel) {
       lastPanelConfig = configKey;
       log.info('Seeding panel already exists');
       return;
@@ -167,7 +186,8 @@ async function ensureSeedingPanel(client) {
     }
 
     const panelPayload = buildSeedingPanelMessage(seederCount, dailyTs, cfg.seed_threshold);
-    await channel.send(panelPayload);
+    const msg = await channel.send(panelPayload);
+    await setPanelMessageId(msg.id);
     lastPanelConfig = configKey;
     log.info('Seeding panel posted');
   } catch (err) {
@@ -185,15 +205,7 @@ async function refreshSeedingPanel(client, cfg) {
     const channel = await client.channels.fetch(cfg.channel_id).catch(() => null);
     if (!channel) return;
 
-    const messages = await channel.messages.fetch({ limit: 50 });
-    const panelMsg = messages.find(
-      msg => msg.author.id === client.user.id &&
-        msg.components.some(row => row.components.some(c => c.customId === 'seeding_join'))
-    );
-    if (!panelMsg) return;
-
     const dailyTime = normalizeTime(cfg.daily_time || '16:00');
-    const tz = cfg.timezone || 'UTC';
     const dailyTs = getDailyTimestamp(dailyTime, tz);
 
     let seederCount = null;
@@ -206,9 +218,18 @@ async function refreshSeedingPanel(client, cfg) {
     }
 
     const panelPayload = buildSeedingPanelMessage(seederCount, dailyTs, cfg.seed_threshold);
-    await panelMsg.edit(panelPayload);
+
+    const panelMsg = await findPanelMessage(client, channel, cfg);
+    if (panelMsg) {
+      await panelMsg.edit(panelPayload);
+      log.info('Seeding panel refreshed (config changed)');
+    } else {
+      const msg = await channel.send(panelPayload);
+      await setPanelMessageId(msg.id);
+      log.warn('Seeding panel not found — re-posted');
+    }
+
     lastPanelConfig = configKey;
-    log.info('Seeding panel refreshed (config changed)');
   } catch (err) {
     log.warn({ err }, 'Failed to refresh seeding panel');
   }

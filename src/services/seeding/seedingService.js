@@ -38,6 +38,13 @@ export async function setLastDailyCallDate(date) {
   );
 }
 
+export async function setPanelMessageId(messageId) {
+  await query(
+    'UPDATE seeding_config SET panel_message_id = ? WHERE id = 1',
+    [messageId]
+  );
+}
+
 // ── Sessions ──
 
 export async function getActiveSession() {
