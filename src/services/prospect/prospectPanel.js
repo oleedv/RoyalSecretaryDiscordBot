@@ -37,7 +37,7 @@ export function buildPanelMessage() {
         name: 'Requirements',
         value:
           '- Minimum **100 hours** in Squad\n' +
-          '- Basic English and a **working microphone**\n' +
+          '- Intermediate English and a **working microphone**\n' +
           '- Follow and uphold our community, Discord and server rules\n' +
           '- Stay active and involved when you can\n' +
           '- Minimum age of **18** (non-negotiable)',

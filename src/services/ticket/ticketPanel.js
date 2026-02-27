@@ -7,14 +7,14 @@ export function buildPanelMessage() {
   const embed = createEmbed('Ticket')
     .setTitle('Royal Battalion — Support Tickets')
     .setDescription(
-      'Need to speak with the admin team? Click the button below to create a ticket.'
+      'Need to speak with staff? Click the button below to create a ticket.'
     )
     .setColor(0x5865f2)
     .addFields(
       {
         name: 'How It Works',
         value:
-          'The bot works through your **DMs**, so your conversation with the admin team is completely private. ' +
+          'The bot works through your **DMs**, so your conversation with staff is completely private. ' +
           'If needed, we can restrict ticket access to specific teams.',
       },
       {
@@ -22,14 +22,14 @@ export function buildPanelMessage() {
         value:
           'We work on an **evidence-based approach** to admin actions. ' +
           'We strongly recommend backing up reports with evidence — ideally a video ' +
-          '(e.g. GeForce Experience, Medal).\n\n' +
+          '(e.g. Nvidia Shadowplay, Medal).\n\n' +
           "If you don't have evidence, don't worry — your report will still be reviewed like any other case.",
       },
       {
         name: 'What to Expect',
         value:
-          'Once your ticket is created, a member of the admin team will respond as soon as possible. ' +
-          'Please describe your issue clearly so we can help you efficiently.',
+          'Once your ticket is created, a member of staff will respond as soon as possible. ' +
+          'Please breifly let us know what you need help with and we will redirect you to the correct team.',
       },
     );
 
