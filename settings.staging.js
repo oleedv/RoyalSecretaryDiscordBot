@@ -35,6 +35,10 @@ export default {
     whitelistRoleId: '1406672770242449458',
     mentorRoleId: '1406672908641894400',
     voiceChannelId: '1143282482150654126',
+    memberHubChannelId: '',
+    meetTheMembersChannelId: '',
+    goingAwayChannelId: '',
+    feedbackChannelId: '',
     voteEmojis: {
       yes: '1472142752538955807',
       no: '1472142752538955807',

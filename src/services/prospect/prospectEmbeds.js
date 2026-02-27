@@ -190,12 +190,28 @@ export function buildVoteAnnouncementEmbed(member, prospect, forumUrl) {
 }
 
 export function buildAcceptedAnnouncementEmbed(member, prospect) {
+  const { memberHubChannelId, meetTheMembersChannelId, goingAwayChannelId, feedbackChannelId } = config.prospects;
+
+  const lines = [
+    `Please join us in welcoming our newest member <@${prospect.user_id}>!\n`,
+    'You can now view and vote on prospect tickets and you have been added to the whitelist.',
+    feedbackChannelId
+      ? `Also don\'t forget to give us feedback about your process in <#${feedbackChannelId}>.\n`
+      : '',
+    memberHubChannelId
+      ? `📋 Check out <#${memberHubChannelId}> to know what we expect of you`
+      : '',
+    meetTheMembersChannelId
+      ? `📝 Fill out <#${meetTheMembersChannelId}> so we can get to know a little about you`
+      : '',
+    goingAwayChannelId
+      ? `✈️ Going away? Let us know in <#${goingAwayChannelId}> if you'll be away`
+      : '',
+  ].filter(Boolean).join('\n');
+
   return createEmbed('Prospect')
-    .setTitle('New Member')
-    .setDescription(
-      `**${prospect.alias}** has been accepted into **Royal Battalion**!\n\n` +
-      `Welcome to the team, <@${prospect.user_id}>!`
-    )
+    .setTitle(`Welcome to Royal Battalion, ${prospect.alias}!`)
+    .setDescription(lines)
     .setColor(0x57f287)
     .setThumbnail(member?.user.displayAvatarURL() || null);
 }
