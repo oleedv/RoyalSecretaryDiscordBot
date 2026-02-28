@@ -32,6 +32,7 @@ function createState() {
 // Extract map name from layer string, e.g. "Mutaha_Seed_v1" -> "Mutaha"
 function extractMapName(layerName) {
   if (!layerName) return null;
+  if (typeof layerName !== 'string') layerName = layerName.name ?? String(layerName);
   const normalized = layerName.replace(/\s+/g, '_');
   const match = normalized.match(/^(.+?)_(?:AAS|RAAS|Invasion|Insurgency|Seed|Skirmish|TC|TA|Destruction)_/i);
   return match ? match[1].replace(/_/g, ' ') : layerName.split('_')[0];
@@ -87,7 +88,8 @@ function connectServer(serverCfg) {
   conn.socket.on('UPDATED_A2S_INFORMATION', (data) => {
     const s = conn.state;
     s.playerCount = data.a2sPlayerCount ?? data.playerCount ?? s.playerCount;
-    s.currentLayer = data.currentLayer ?? s.currentLayer;
+    const a2sLayer = data.currentLayer ?? s.currentLayer;
+    s.currentLayer = typeof a2sLayer === 'string' ? a2sLayer : a2sLayer?.name ?? s.currentLayer;
     s.currentMap = extractMapName(s.currentLayer);
     s.serverName = data.serverName ?? s.serverName;
     s.publicSlots = data.maxPlayers != null && data.reserveSlots != null
@@ -106,7 +108,8 @@ function connectServer(serverCfg) {
   conn.socket.on('UPDATED_LAYER_INFORMATION', () => fetchLayerObj(conn));
 
   conn.socket.on('NEW_GAME', (data) => {
-    conn.state.currentLayer = data.currentLayer ?? data.layer ?? conn.state.currentLayer;
+    const newLayer = data.currentLayer ?? data.layer ?? conn.state.currentLayer;
+    conn.state.currentLayer = typeof newLayer === 'string' ? newLayer : newLayer?.name ?? conn.state.currentLayer;
     conn.state.currentMap = extractMapName(conn.state.currentLayer);
     conn.state.playerCount = 0;
     log.info({ name: serverCfg.name, map: conn.state.currentMap, layer: conn.state.currentLayer }, 'New game started');
@@ -172,6 +175,7 @@ export function getAllServerStates() {
 
 export function extractGameMode(layerName) {
   if (!layerName) return null;
+  if (typeof layerName !== 'string') layerName = layerName.name ?? String(layerName);
   const normalized = layerName.replace(/\s+/g, '_');
   const match = normalized.match(/_(AAS|RAAS|Invasion|Insurgency|Seed|Skirmish|TC|TA|Destruction)_/i);
   return match ? match[1] : null;

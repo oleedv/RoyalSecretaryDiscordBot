@@ -73,6 +73,16 @@ export function buildProspectInfoEmbed(member, prospect, forumUrl) {
 
 export function buildForumIntroEmbed(member, prospect) {
   const userTag = member?.user.tag || 'Unknown';
+  const { periodDays, voteDaysBefore } = config.prospects;
+  const extra = prospect.extra_days || 0;
+  const totalPeriod = periodDays + extra;
+  const daysUntilVote = (periodDays - voteDaysBefore) + extra;
+
+  const now = new Date();
+  const endDate = new Date(now);
+  endDate.setDate(endDate.getDate() + totalPeriod);
+  const voteDate = new Date(now);
+  voteDate.setDate(voteDate.getDate() + daysUntilVote);
 
   return createEmbed('Prospect')
     .setTitle(`${prospect.alias} — Prospect Application`)
@@ -87,6 +97,8 @@ export function buildForumIntroEmbed(member, prospect) {
       { name: 'Active Hours (UTC)', value: prospect.active_hours, inline: true },
       { name: 'Competitive Interest', value: prospect.competitive, inline: true },
       { name: 'Steam ID', value: prospect.steam_id, inline: true },
+      { name: 'Period Ends', value: `<t:${Math.floor(endDate.getTime() / 1000)}:D>`, inline: true },
+      { name: 'Vote Date', value: `<t:${Math.floor(voteDate.getTime() / 1000)}:D>`, inline: true },
     )
     .setColor(0x57f287)
     .setThumbnail(member?.user.displayAvatarURL() || null);
