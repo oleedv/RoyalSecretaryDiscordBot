@@ -26,7 +26,7 @@ export default {
   },
   prospects: {
     categoryId: '1476956405977059490',                   // Prospect category
-    panelChannelId: '1476956038975455423',               // "Join RB" panel channel
+    panelChannelId: '1476956067882864671',               // "Join RB" panel channel
     forumChannelId: '1476956459211423814',               // Forum channel for public prospect posts
     loungeChannelId: '1476955931794473141',              // Public announcements (voting, accepted)
     periodDays: 21,
