@@ -19,13 +19,22 @@ export default {
     log.info(`Logged in as ${client.user.tag}`);
     log.info(`Serving ${client.guilds.cache.size} guild(s)`);
 
-    await ensureTicketPanel(client);
-    await ensureProspectPanel(client);
-    await resumeClosingTimers(client);
-    startScheduler(client);
-    connectSquadJS();
-    startSeedingScheduler(client);
-    startHeartbeat(client);
-    startStatusUpdater(client);
+    try {
+      await ensureTicketPanel(client);
+      await ensureProspectPanel(client);
+      await resumeClosingTimers(client);
+    } catch (err) {
+      log.error({ err }, 'Failed to initialize panels or timers');
+    }
+
+    try {
+      startScheduler(client);
+      connectSquadJS();
+      startSeedingScheduler(client);
+      startHeartbeat(client);
+      startStatusUpdater(client);
+    } catch (err) {
+      log.error({ err }, 'Failed to start background services');
+    }
   },
 };

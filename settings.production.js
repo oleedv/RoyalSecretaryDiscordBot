@@ -32,18 +32,18 @@ export default {
     periodDays: 21,
     voteDaysBefore: 7,
     roles: ['1204763136830218260', '654022866261770270', '1213958671843860552', '1295470787934814259', '989894740642263082', '733974178797191189'],                      // Staff roles, trainee mentor, mentor, seniro mentor, recruitment officer, comm officer, rb managers
-    prospectRoleId: '',               // Prospect role
-    whitelistRoleId: '',              // Whitelist role
-    mentorRoleId: '',                 // Mentor role
+    prospectRoleId: '706053335106715650',               // Prospect role
+    whitelistRoleId: '528574587747958794',              // Whitelist role aka rb member
+    mentorRoleId: '654022866261770270',                 // Mentor role
     voiceChannelId: '1476956237110186195',               // Voice channel for invites
     memberHubChannelId: '1051879922643255306',            // Member hub channel
     meetTheMembersChannelId: '458279712213565440',       // Meet the members channel
     goingAwayChannelId: '1237155781531402270',            // Going away channel
     feedbackChannelId: '1237151891214041149',             // Prospect feedback channel
     voteEmojis: {
-      yes: '',                        // YES emoji ID
-      no: '',                         // NO emoji ID
-      unsure: '',                     // UNSURE emoji ID
+      yes: '1477315341469089926',                        // YES emoji ID
+      no: '1477315341469089926',                         // NO emoji ID
+      unsure: '1477315341469089926',                     // UNSURE emoji ID
     },
   },
   dm: {
