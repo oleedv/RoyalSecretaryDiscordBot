@@ -13,7 +13,7 @@ env:
 jobs:
   build:
     name: Build & Push Image
-    if: github.event.pull_request.merged == true
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -103,7 +103,7 @@ jobs:
   notify:
     name: Notify Discord
     needs: [build, deploy, health-check]
-    if: always() && github.event.pull_request.merged == true
+    if: always() && (github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     environment: production
     steps:
