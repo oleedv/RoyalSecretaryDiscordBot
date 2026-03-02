@@ -8,7 +8,7 @@ let intervalId = null;
 
 export function startScheduler(client) {
   if (intervalId) {
-    log.warn('Scheduler already running — skipping double start');
+    log.warn('Scheduler already running - skipping double start');
     return;
   }
 

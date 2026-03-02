@@ -39,7 +39,7 @@ async function handleDM(message) {
     return ticketMessages.handleDM(message, ticket);
   }
 
-  // Check for a ticket in the closing grace period — auto-reopen on user reply
+  // Check for a ticket in the closing grace period - auto-reopen on user reply
   const closingTicket = await getClosingTicketByUser(message.author.id);
   if (closingTicket) {
     await reopenTicket(closingTicket, message.author.id);
@@ -76,7 +76,7 @@ async function handleDM(message) {
   const prospect = await getOpenProspectByUser(message.author.id);
   if (prospect) {
     if (!prospect.mentor_id) {
-      return message.reply({ embeds: [infoEmbed('Your application has been received. A mentor will contact you shortly — please wait for them to reach out.')] });
+      return message.reply({ embeds: [infoEmbed('Your application has been received. A mentor will contact you shortly - please wait for them to reach out.')] });
     }
     return prospectMessages.handleDM(message, prospect);
   }

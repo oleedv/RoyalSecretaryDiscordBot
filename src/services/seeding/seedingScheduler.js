@@ -225,7 +225,7 @@ async function refreshSeedingPanel(client, cfg) {
     } else {
       const msg = await channel.send(panelPayload);
       await setPanelMessageId(msg.id);
-      log.warn('Seeding panel not found — re-posted');
+      log.warn('Seeding panel not found - re-posted');
     }
 
     lastPanelConfig = configKey;
@@ -313,7 +313,7 @@ async function updateSeedingState(client) {
 
     const session = await getActiveSession();
 
-    // No active session — check if we should re-seed (server crash recovery)
+    // No active session - check if we should re-seed (server crash recovery)
     if (!session) {
       const tz = cfg.timezone || 'UTC';
       const dailyTime = normalizeTime(cfg.daily_time || '16:00');
@@ -326,7 +326,7 @@ async function updateSeedingState(client) {
       // Re-seed if today's call was already posted, we're past daily time,
       // we're not in the reset window, and server has players (avoid loop when server is down)
       if (lastCallDate === today && currentTime >= dailyTime && !isInResetWindow(currentTime, dailyTime) && state.playerCount > 0) {
-        log.info('No active session in seeding window — re-seeding');
+        log.info('No active session in seeding window - re-seeding');
         await postSeedingCall(client, cfg);
       }
       return;
@@ -348,7 +348,7 @@ async function updateSeedingState(client) {
     if (state.playerCount < cfg.reset_threshold && session.peak_players >= cfg.reset_threshold) {
       await resetSession(session.id);
       log.info({ sessionId: session.id }, 'Session reset (population dropped)');
-      // Don't post a new call here — the re-seed logic above handles it on the next tick
+      // Don't post a new call here - the re-seed logic above handles it on the next tick
       return;
     }
 

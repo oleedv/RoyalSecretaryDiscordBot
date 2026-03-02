@@ -58,6 +58,6 @@ async function tick(client) {
       ]
     );
   } catch {
-    // Silently fail — if DB is down, heartbeat can't write anyway
+    // Silently fail - if DB is down, heartbeat can't write anyway
   }
 }

@@ -3,7 +3,7 @@ import logger from '../logger.js';
 const log = logger.child({ module: 'panelManager' });
 
 /**
- * Generic panel manager — ensures exactly one panel message exists in a channel.
+ * Generic panel manager - ensures exactly one panel message exists in a channel.
  *
  * @param {Client}   client       Discord client
  * @param {string}   channelId    Channel to check/post in
@@ -13,13 +13,13 @@ const log = logger.child({ module: 'panelManager' });
  */
 export async function ensurePanel(client, channelId, customId, buildMessage, label) {
   if (!channelId) {
-    log.warn(`No ${label} panelChannelId configured — skipping panel check`);
+    log.warn(`No ${label} panelChannelId configured - skipping panel check`);
     return;
   }
 
   const channel = await client.channels.fetch(channelId).catch(() => null);
   if (!channel) {
-    log.warn(`${label} panel channel ${channelId} not found — skipping panel check`);
+    log.warn(`${label} panel channel ${channelId} not found - skipping panel check`);
     return;
   }
 

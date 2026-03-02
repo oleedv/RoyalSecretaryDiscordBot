@@ -5,7 +5,7 @@ import config from '../../config.js';
 
 export function buildPanelMessage() {
   const embed = createEmbed('Prospect')
-    .setTitle('Royal Battalion — Join RB')
+    .setTitle('Royal Battalion - Join RB')
     .setDescription(
       'Do you want to be a part of our community and become an RB Member? ' +
       'Read below to make sure we are right for you!'
@@ -15,7 +15,7 @@ export function buildPanelMessage() {
       {
         name: 'Our Ethos',
         value:
-          'Royal Battalion is a community first and foremost. Our core value is **respect** — ' +
+          'Royal Battalion is a community first and foremost. Our core value is **respect** - ' +
           'for your fellow members and the people you meet in-game and on Discord.\n\n' +
           'Harassment, bigotry or hate speech are never acceptable. ' +
           'We do not allow controversial topics within the server or Discord.\n\n' +
@@ -26,7 +26,7 @@ export function buildPanelMessage() {
         name: 'Member Benefits',
         value:
           '- Friendly international community (mainly Europe)\n' +
-          '- RB-only squads — fewer dealings with unorganised blueberries\n' +
+          '- RB-only squads - fewer dealings with unorganised blueberries\n' +
           '- Server whitelist (priority queue)\n' +
           '- Member-only Discord channels, tips & tricks, tech support\n' +
           '- Dedicated community team always there for a chat\n' +

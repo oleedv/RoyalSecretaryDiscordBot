@@ -85,7 +85,7 @@ export function buildForumIntroEmbed(member, prospect) {
   voteDate.setDate(voteDate.getDate() + daysUntilVote);
 
   return createEmbed('Prospect')
-    .setTitle(`${prospect.alias} — Prospect Application`)
+    .setTitle(`${prospect.alias} - Prospect Application`)
     .setDescription(`Applicant: **${userTag}** (<@${prospect.user_id}>)`)
     .addFields(
       { name: 'Alias', value: prospect.alias, inline: true },
@@ -218,7 +218,7 @@ export function buildVoteEmbed(prospect, bmStats = null) {
   const endDateStr = `<t:${Math.floor(endDate.getTime() / 1000)}:D>`;
 
   const embed = createEmbed('Prospect')
-    .setTitle(`Vote — ${prospect.alias}`)
+    .setTitle(`Vote - ${prospect.alias}`)
     .setDescription(
       `The prospect period for **${prospect.alias}** is coming to an end. Cast your vote!\n\n` +
       `Click a button below to vote.`

@@ -109,7 +109,7 @@ export default {
             } else {
               await interaction.reply(reply);
             }
-          } catch { /* interaction expired or channel gone — nothing we can do */ }
+          } catch { /* interaction expired or channel gone - nothing we can do */ }
         }
       }
       return;
@@ -133,7 +133,7 @@ export default {
             } else {
               await interaction.reply(reply);
             }
-          } catch { /* interaction expired or channel gone — nothing we can do */ }
+          } catch { /* interaction expired or channel gone - nothing we can do */ }
         }
       }
     }
@@ -169,6 +169,6 @@ async function handleCommand(interaction) {
       } else {
         await interaction.reply(reply);
       }
-    } catch { /* interaction expired or channel gone — nothing we can do */ }
+    } catch { /* interaction expired or channel gone - nothing we can do */ }
   }
 }

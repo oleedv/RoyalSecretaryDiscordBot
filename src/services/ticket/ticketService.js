@@ -371,7 +371,7 @@ export async function resumeClosingTimers(client) {
   for (const ticket of rows) {
     const channel = await guild.channels.fetch(ticket.channel_id).catch(() => null);
     if (!channel) {
-      // Channel already gone — finalize as closed
+      // Channel already gone - finalize as closed
       await query('UPDATE tickets SET status = ? WHERE id = ?', ['closed', ticket.id]);
       log.info({ ticketId: ticket.id }, 'Orphaned closing ticket finalized as closed');
       continue;

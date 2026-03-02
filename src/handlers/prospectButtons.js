@@ -319,7 +319,7 @@ export async function handleVoteNo(interaction) {
 
   const modal = new ModalBuilder()
     .setCustomId(`vote_no_reason_modal:${prospect.id}`)
-    .setTitle('Vote No — Reason');
+    .setTitle('Vote No - Reason');
 
   modal.addComponents(
     new ActionRowBuilder().addComponents(

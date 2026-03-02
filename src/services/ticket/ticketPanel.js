@@ -5,7 +5,7 @@ import config from '../../config.js';
 
 export function buildPanelMessage() {
   const embed = createEmbed('Ticket')
-    .setTitle('Royal Battalion — Support Tickets')
+    .setTitle('Royal Battalion - Support Tickets')
     .setDescription(
       'Need to speak with staff? Click the button below to create a ticket.'
     )
@@ -21,9 +21,9 @@ export function buildPanelMessage() {
         name: 'Reporting Players',
         value:
           'We work on an **evidence-based approach** to admin actions. ' +
-          'We strongly recommend backing up reports with evidence — ideally a video ' +
+          'We strongly recommend backing up reports with evidence - ideally a video ' +
           '(e.g. Nvidia Shadowplay, Medal).\n\n' +
-          "If you don't have evidence, don't worry — your report will still be reviewed like any other case.",
+          "If you don't have evidence, don't worry - your report will still be reviewed like any other case.",
       },
       {
         name: 'What to Expect',

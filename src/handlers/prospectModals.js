@@ -79,7 +79,7 @@ export async function handleModal1(interaction) {
   }
 
   const summaryEmbed = createEmbed('Prospect')
-    .setTitle('Application Part 1 — Received')
+    .setTitle('Application Part 1 - Received')
     .setDescription('Click **Continue Application** to complete part 2.')
     .addFields(
       { name: 'Alias', value: alias, inline: true },

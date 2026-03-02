@@ -30,7 +30,7 @@ async function flush() {
       values
     );
   } catch {
-    // Drop logs silently if DB is unavailable — avoid infinite recursion
+    // Drop logs silently if DB is unavailable - avoid infinite recursion
   }
 }
 

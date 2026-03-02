@@ -126,7 +126,7 @@ export function buildLogsPage(tickets, page, userId, tier) {
   });
 
   const title = totalPages > 1
-    ? `Previous Tickets (${tickets.length}) — Page ${page}/${totalPages}`
+    ? `Previous Tickets (${tickets.length}) - Page ${page}/${totalPages}`
     : `Previous Tickets (${tickets.length})`;
 
   const embed = createEmbed('Ticket')

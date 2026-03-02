@@ -21,7 +21,7 @@ async function main() {
   createPools();
   const dbReady = await testConnections();
   if (!dbReady) {
-    log.fatal('Cannot connect to database — exiting');
+    log.fatal('Cannot connect to database - exiting');
     process.exit(1);
   }
 

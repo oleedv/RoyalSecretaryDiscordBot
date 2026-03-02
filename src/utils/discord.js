@@ -1,5 +1,5 @@
 /**
- * Shared Discord helpers — getUserTag, sendDM, ensurePartialFetched, trySendWithFiles.
+ * Shared Discord helpers - getUserTag, sendDM, ensurePartialFetched, trySendWithFiles.
  */
 
 /**

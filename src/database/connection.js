@@ -73,7 +73,7 @@ export async function testConnections() {
       log.info(`Connection verified: ${name}`);
     } catch (err) {
       if (OPTIONAL_POOLS.has(name)) {
-        log.warn({ err, pool: name }, 'Optional connection failed — features using this pool will be disabled');
+        log.warn({ err, pool: name }, 'Optional connection failed - features using this pool will be disabled');
         delete pools[name];
         continue;
       }

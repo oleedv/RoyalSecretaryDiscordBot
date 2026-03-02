@@ -26,7 +26,7 @@ export function buildSeederRoleComponents(seederCount = null) {
 }
 
 /**
- * Persistent panel embed — always visible in the seeding channel.
+ * Persistent panel embed - always visible in the seeding channel.
  * @param {number|null} seederCount  Current role member count
  * @param {number}      dailyTs     Unix timestamp of today's seeding start time
  * @param {number}      threshold   Player target

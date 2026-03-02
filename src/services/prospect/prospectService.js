@@ -314,7 +314,7 @@ export async function acceptProspect(prospect, acceptedById, guild) {
     const introEmbed = buildForumIntroEmbed(member, prospect);
 
     const thread = await forumChannel.threads.create({
-      name: `${prospect.alias} — Prospect Application`,
+      name: `${prospect.alias} - Prospect Application`,
       message: { embeds: [introEmbed] },
     });
     forumThreadId = thread.id;
@@ -327,7 +327,7 @@ export async function acceptProspect(prospect, acceptedById, guild) {
 
   await query(
     'INSERT INTO prospect_events (prospect_id, event_type, actor_id, detail) VALUES (?, ?, ?, ?)',
-    [prospect.id, 'accepted', acceptedById, 'Interview passed — prospect period started']
+    [prospect.id, 'accepted', acceptedById, 'Interview passed - prospect period started']
   );
 
   const staffChannel = await guild.channels.fetch(prospect.channel_id).catch(() => null);
