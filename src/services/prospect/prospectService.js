@@ -355,9 +355,17 @@ export async function acceptProspect(prospect, acceptedById, guild) {
   }
 
   if (member) {
-    await member.setNickname(`P | ${member.displayName}`).catch((err) =>
-      log.warn({ err, userId: prospect.user_id }, 'Failed to set P | nickname')
-    );
+    try {
+      await member.setNickname(`P | ${member.displayName}`);
+    } catch (err) {
+      log.error({ err, userId: prospect.user_id }, 'Failed to set P | nickname');
+      if (staffChannel) {
+        staffChannel.send({ embeds: [createEmbed('Prospect')
+          .setTitle('Nickname Change Failed')
+          .setDescription(`Could not set nickname to **P | ${member.displayName}** for <@${prospect.user_id}>.\nError: ${err.message}`)
+          .setColor(0xed4245)] }).catch(() => null);
+      }
+    }
   }
 
   const user = await guild.client.users.fetch(prospect.user_id).catch(() => null);
@@ -408,14 +416,23 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
 
     if (outcome === 'accepted') {
       const strippedName = member.displayName.replace(/^P \| /, '');
-      await member.setNickname(`RB | ${strippedName}`).catch((err) =>
-        log.warn({ err, userId: prospect.user_id }, 'Failed to set RB | nickname')
-      );
+      try {
+        await member.setNickname(`RB | ${strippedName}`);
+      } catch (err) {
+        log.error({ err, userId: prospect.user_id }, 'Failed to set RB | nickname');
+        const ch = await guild.channels.fetch(prospect.channel_id).catch(() => null);
+        if (ch) {
+          ch.send({ embeds: [createEmbed('Prospect')
+            .setTitle('Nickname Change Failed')
+            .setDescription(`Could not set nickname to **RB | ${strippedName}** for <@${prospect.user_id}>.\nError: ${err.message}`)
+            .setColor(0xed4245)] }).catch(() => null);
+        }
+      }
     } else {
       const currentName = member.displayName;
       if (currentName.startsWith('P | ')) {
         await member.setNickname(currentName.replace(/^P \| /, '')).catch((err) =>
-          log.warn({ err, userId: prospect.user_id }, 'Failed to strip P | nickname')
+          log.error({ err, userId: prospect.user_id }, 'Failed to strip P | nickname')
         );
       }
     }
