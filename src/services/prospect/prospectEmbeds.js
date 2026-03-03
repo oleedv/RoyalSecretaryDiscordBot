@@ -36,10 +36,6 @@ export function buildProspectInfoEmbed(member, prospect, forumUrl) {
     embed.addFields({ name: 'Mentor', value: `<@${prospect.mentor_id}>`, inline: true });
   }
 
-  if (prospect.paused_at) {
-    embed.addFields({ name: 'Status', value: 'PAUSED', inline: true });
-  }
-
   if (prospect.forum_thread_id) {
     const extra = prospect.extra_days || 0;
     const totalPeriod = periodDays + extra;
@@ -71,17 +67,17 @@ export function buildProspectInfoEmbed(member, prospect, forumUrl) {
   return embed;
 }
 
-export function buildForumIntroEmbed(member, prospect) {
+export function buildForumIntroEmbed(member, prospect, baseDate = new Date()) {
   const userTag = member?.user.tag || 'Unknown';
   const { periodDays, voteDaysBefore } = config.prospects;
   const extra = prospect.extra_days || 0;
   const totalPeriod = periodDays + extra;
   const daysUntilVote = (periodDays - voteDaysBefore) + extra;
 
-  const now = new Date();
-  const endDate = new Date(now);
+  const start = new Date(baseDate);
+  const endDate = new Date(start);
   endDate.setDate(endDate.getDate() + totalPeriod);
-  const voteDate = new Date(now);
+  const voteDate = new Date(start);
   voteDate.setDate(voteDate.getDate() + daysUntilVote);
 
   return createEmbed('Prospect')
@@ -146,14 +142,8 @@ export function buildProspectComponents(prospect) {
   return [decisionRow, actionRow];
 }
 
-export function buildProspectAcceptedComponents(prospect) {
-  const isPaused = !!prospect?.paused_at;
-
+export function buildProspectAcceptedComponents() {
   const actionRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('prospect_pause')
-      .setLabel(isPaused ? 'Resume' : 'Pause')
-      .setStyle(isPaused ? ButtonStyle.Success : ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId('prospect_extend')
       .setLabel('Extend')

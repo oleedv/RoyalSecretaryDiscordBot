@@ -146,7 +146,7 @@ export async function getProspectsNeedingVote() {
   const { periodDays, voteDaysBefore } = config.prospects;
   const daysUntilVote = periodDays - voteDaysBefore;
   return await query(
-    'SELECT * FROM prospects WHERE status = ? AND forum_thread_id IS NOT NULL AND vote_posted_at IS NULL AND paused_at IS NULL AND TIMESTAMPDIFF(DAY, created_at, NOW()) >= (? + COALESCE(extra_days, 0))',
+    'SELECT * FROM prospects WHERE status = ? AND forum_thread_id IS NOT NULL AND vote_posted_at IS NULL AND TIMESTAMPDIFF(DAY, created_at, NOW()) >= (? + COALESCE(extra_days, 0))',
     ['open', daysUntilVote]
   );
 }
@@ -429,11 +429,12 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
         .catch((err) => log.warn({ err }, 'Failed to add BM member flag'));
     }
 
-    whitelistService.expireByRole(prospect.steam_id, 'Prospect')
-      .catch((err) => log.warn({ err }, 'Failed to expire prospect whitelist entry'));
     if (outcome === 'accepted') {
-      whitelistService.createEntry(prospect.steam_id, prospect.alias, 'RBMembers', closedById)
-        .catch((err) => log.warn({ err }, 'Failed to create member whitelist entry'));
+      whitelistService.updateRole(prospect.steam_id, 'Prospect', 'RBMembers')
+        .catch((err) => log.warn({ err }, 'Failed to update whitelist role to member'));
+    } else {
+      whitelistService.expireByRole(prospect.steam_id, 'Prospect')
+        .catch((err) => log.warn({ err }, 'Failed to expire prospect whitelist entry'));
     }
   }
 
@@ -517,6 +518,7 @@ export async function extendProspect(prospect, days, actorId, guild) {
   log.info({ prospectId: prospect.id, days }, 'Prospect extended');
 
   await refreshStaffEmbed(prospect, guild);
+  await refreshForumEmbed(prospect, guild);
 }
 
 async function refreshStaffEmbed(prospect, guild) {
@@ -533,9 +535,32 @@ async function refreshStaffEmbed(prospect, guild) {
     ? buildProspectAcceptedComponents(updated)
     : buildProspectComponents(updated);
 
-  const topMsg = await findBotMessageByCustomId(staffChannel, guild.client.user.id, ['prospect_claim', 'prospect_accept', 'prospect_deny', 'prospect_pause']);
+  const topMsg = await findBotMessageByCustomId(staffChannel, guild.client.user.id, ['prospect_claim', 'prospect_accept', 'prospect_deny']);
   if (topMsg) {
     await topMsg.edit({ embeds: [infoEmbed], components });
     appendCblToMessage(topMsg, updated.steam_id);
   }
+}
+
+async function refreshForumEmbed(prospect, guild) {
+  const { forumChannelId } = config.prospects;
+  if (!forumChannelId) return;
+
+  const updated = (await query('SELECT * FROM prospects WHERE id = ?', [prospect.id]))[0];
+  if (!updated?.forum_thread_id) return;
+
+  const forumChannel = await guild.channels.fetch(forumChannelId).catch(() => null);
+  if (!forumChannel) return;
+
+  const thread = await forumChannel.threads.fetch(updated.forum_thread_id).catch(() => null);
+  if (!thread) return;
+
+  const starterMessage = await thread.fetchStarterMessage().catch(() => null);
+  if (!starterMessage) return;
+
+  const member = await guild.members.fetch(updated.user_id).catch(() => null);
+  const introEmbed = buildForumIntroEmbed(member, updated, updated.created_at);
+  await starterMessage.edit({ embeds: [introEmbed] }).catch((err) =>
+    log.warn({ err, threadId: updated.forum_thread_id }, 'Failed to update forum intro embed')
+  );
 }

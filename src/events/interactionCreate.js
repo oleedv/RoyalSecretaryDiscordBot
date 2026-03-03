@@ -56,7 +56,6 @@ const buttonHandlers = {
   prospect_accept: prospectButtons.handleAccept,
   prospect_deny: prospectButtons.handleDeny,
   prospect_voice_invite: prospectButtons.handleVoiceInvite,
-  prospect_pause: prospectButtons.handlePause,
   prospect_extend: prospectButtons.handleExtend,
   prospect_test_vote: prospectButtons.handleTestVote,
   vote_yes: prospectButtons.handleVoteYes,

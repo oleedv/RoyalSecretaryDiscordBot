@@ -6,7 +6,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
 } from 'discord.js';
-import { getOpenProspectByUser, getProspectByChannel, getProspectByChannelAnyStatus, claimProspect, unclaimProspect, acceptProspect, togglePause, extendProspect, closeProspect } from '../services/prospect/prospectService.js';
+import { getOpenProspectByUser, getProspectByChannel, getProspectByChannelAnyStatus, claimProspect, unclaimProspect, acceptProspect, extendProspect, closeProspect } from '../services/prospect/prospectService.js';
 import { postVote, getProspectByVoteMessage, upsertVote, getVoteCounts } from '../services/prospect/prospectVoting.js';
 import { buildVoteComponents, buildCloseTicketComponents } from '../services/prospect/prospectEmbeds.js';
 import { query } from '../database/connection.js';
@@ -201,18 +201,6 @@ export async function handleVoiceInvite(interaction) {
   log.info({ prospectId: prospect.id, invitedBy: interaction.user.id }, 'Voice invite sent to prospect');
 }
 
-export async function handlePause(interaction) {
-  if (await requireRole(interaction, staffRoles())) return;
-  await interaction.deferReply({ flags: ['Ephemeral'] });
-  const prospect = await getProspectByChannel(interaction.channel.id);
-  if (!prospect) return interaction.editReply({ embeds: [errorEmbed('No open prospect found for this channel.')] });
-
-  const result = await togglePause(prospect, interaction.user.id, interaction.guild);
-  const state = result.paused ? 'paused' : 'resumed';
-  await interaction.editReply({ embeds: [successEmbed(`Prospect **${prospect.alias}** has been **${state}**.`)] });
-  log.info({ prospectId: prospect.id, state, actorId: interaction.user.id }, 'Prospect pause toggled');
-}
-
 export async function handleExtend(interaction) {
   if (await requireRole(interaction, staffRoles())) return;
   const prospect = await getProspectByChannel(interaction.channel.id);
@@ -285,7 +273,21 @@ export async function handleEndVote(interaction) {
 
   const counts = await getVoteCounts(prospect.id);
 
-  const outcome = counts.yes > counts.no ? 'accepted' : 'denied';
+  const totalVotes = counts.yes + counts.no;
+  const yesRate = totalVotes > 0 ? counts.yes / totalVotes : 0;
+  const meetsMinimum = counts.yes >= 10;
+  const meetsRate = yesRate >= 0.80;
+  const outcome = (meetsMinimum && meetsRate) ? 'accepted' : 'denied';
+
+  if (outcome === 'denied' && (!meetsMinimum || !meetsRate)) {
+    const warnings = [];
+    if (!meetsMinimum) warnings.push(`${counts.yes}/10 minimum yes votes`);
+    if (!meetsRate) warnings.push(`${Math.round(yesRate * 100)}% of 80% required yes rate`);
+    await interaction.channel.send({
+      embeds: [infoEmbed(`Thresholds not met: ${warnings.join(', ')}. Prospect will be **denied**.`)],
+    }).catch(() => null);
+  }
+
   const reason = outcome === 'denied' ? `Vote result: ${counts.yes} yes, ${counts.no} no, ${counts.unsure} unsure` : undefined;
 
   await closeProspect(prospect, interaction.user.id, outcome, interaction.guild, reason);
@@ -302,11 +304,11 @@ export async function handleEndVote(interaction) {
 
   const closeComponents = buildCloseTicketComponents();
   await interaction.channel.send({
-    embeds: [successEmbed(`Vote ended for **${prospect.alias}** -- outcome: **${outcome}**.`)],
+    embeds: [successEmbed(`Vote ended for **${prospect.alias}** - result: ${counts.yes} yes, ${counts.no} no, ${counts.unsure} unsure - outcome: **${outcome}**.`)],
     components: closeComponents,
   }).catch(() => null);
 
-  await interaction.editReply({ embeds: [successEmbed(`Vote ended for **${prospect.alias}** -- outcome: **${outcome}**.`)] });
+  await interaction.editReply({ embeds: [successEmbed(`Vote ended for **${prospect.alias}** - outcome: **${outcome}**.`)] });
   log.info({ prospectId: prospect.id, outcome, counts, actorId: interaction.user.id }, 'Vote ended');
 }
 

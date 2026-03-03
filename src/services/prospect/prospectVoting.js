@@ -71,7 +71,7 @@ export async function postVote(prospect, client) {
   }
 
   if (prospect.steam_id && prospect.steam_id.toUpperCase() !== 'Q') {
-    whitelistService.createEntry(prospect.steam_id, prospect.alias, 'Prospect', client.user.id)
+    whitelistService.createEntry(prospect.steam_id, prospect.alias, 'RB', 'Prospect', client.user.id)
       .catch((err) => log.warn({ err }, 'Failed to create prospect whitelist entry'));
   }
 
@@ -84,6 +84,18 @@ export async function postVote(prospect, client) {
     'INSERT INTO prospect_events (prospect_id, event_type, actor_id, detail) VALUES (?, ?, ?, ?)',
     [prospect.id, 'vote_started', client.user.id, `Vote message: ${voteMsg.id}`]
   );
+
+  const user = await client.users.fetch(prospect.user_id).catch(() => null);
+  if (user) {
+    const dmEmbed = createEmbed('Prospect')
+      .setTitle('Voting Started')
+      .setDescription(
+        'Your prospect period is coming to an end and you have been put up for voting.\n' +
+        'Members are now casting their votes on your membership in **Royal Battalion**.'
+      )
+      .setColor(0xfee75c);
+    await user.send({ embeds: [dmEmbed] }).catch(() => null);
+  }
 
   const staffChannel = await guild.channels.fetch(prospect.channel_id).catch(() => null);
   if (staffChannel) {
