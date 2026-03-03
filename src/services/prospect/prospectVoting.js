@@ -31,7 +31,7 @@ export async function getVoteCounts(prospectId) {
   );
   const counts = { yes: 0, no: 0, unsure: 0 };
   for (const row of rows) {
-    counts[row.vote] = row.count;
+    counts[row.vote] = Number(row.count);
   }
   return counts;
 }
