@@ -4,6 +4,7 @@ import * as ticketModals from '../handlers/ticketModals.js';
 import * as prospectButtons from '../handlers/prospectButtons.js';
 import * as prospectModals from '../handlers/prospectModals.js';
 import * as seedingButtons from '../handlers/seedingButtons.js';
+import * as verifyButtons from '../handlers/verifyButtons.js';
 import { errorEmbed } from '../utils/embed.js';
 import logger from '../logger.js';
 
@@ -65,6 +66,7 @@ const buttonHandlers = {
   prospect_close_ticket: prospectButtons.handleCloseTicket,
   seeding_join: seedingButtons.handleJoin,
   seeding_leave: seedingButtons.handleLeave,
+  verify_start: verifyButtons.handleStart,
 };
 
 const modalHandlers = {
@@ -95,6 +97,9 @@ export default {
       let handler = buttonHandlers[interaction.customId];
       if (!handler && (interaction.customId.startsWith('logs_prev:') || interaction.customId.startsWith('logs_next:'))) {
         handler = ticketButtons.handleLogsPagination;
+      }
+      if (!handler && interaction.customId.startsWith('verify_answer_')) {
+        handler = verifyButtons.handleAnswer;
       }
       if (handler) {
         log.info({ userId: interaction.user.id, userTag: interaction.user.tag, customId: interaction.customId, channelId: interaction.channel?.id }, 'Button pressed');

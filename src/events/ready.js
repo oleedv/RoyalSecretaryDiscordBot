@@ -1,6 +1,7 @@
 import { Events } from 'discord.js';
 import { ensureTicketPanel } from '../services/ticket/ticketPanel.js';
 import { ensureProspectPanel } from '../services/prospect/prospectPanel.js';
+import { ensureVerifyPanel } from '../services/verify/verifyPanel.js';
 import { startScheduler } from '../services/prospect/prospectScheduler.js';
 import { connect as connectSquadJS } from '../services/seeding/seedingSocket.js';
 import { startScheduler as startSeedingScheduler } from '../services/seeding/seedingScheduler.js';
@@ -22,6 +23,7 @@ export default {
     try {
       await ensureTicketPanel(client);
       await ensureProspectPanel(client);
+      await ensureVerifyPanel(client);
       await resumeClosingTimers(client);
     } catch (err) {
       log.error({ err }, 'Failed to initialize panels or timers');

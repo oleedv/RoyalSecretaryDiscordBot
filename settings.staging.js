@@ -64,4 +64,9 @@ export default {
     channelId: '1476163752863862875',
     updateIntervalMs: 60000,
   },
+  verification: {
+    panelChannelId: '1478305781999730804',                                  // Channel where the verify panel is posted
+    logChannelId: '1478305794813460490',                                    // Staff channel for verification logs
+    roleId: '1478305879307845725',                                          // Role assigned on successful verification
+  },
 };

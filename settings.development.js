@@ -40,4 +40,9 @@ export default {
       unsure: '1472142752538955807',
     },
   },
+  verification: {
+    panelChannelId: '',                                  // Channel where the verify panel is posted
+    logChannelId: '',                                    // Staff channel for verification logs
+    roleId: '',                                          // Role assigned on successful verification
+  },
 };
