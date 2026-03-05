@@ -92,6 +92,10 @@ function connectServer(serverCfg) {
   conn.socket.on('disconnect', (reason) => {
     conn.state.connected = false;
     log.warn({ name: serverCfg.name, reason }, 'Disconnected from SquadJS');
+    if (reason === 'io server disconnect') {
+      log.info({ name: serverCfg.name }, 'Server-initiated disconnect, reconnecting in 5s...');
+      setTimeout(() => conn.socket.connect(), 5000);
+    }
   });
 
   conn.socket.on('connect_error', (err) => {
