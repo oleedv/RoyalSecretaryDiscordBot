@@ -258,6 +258,27 @@ export async function initSchema() {
     )
   `);
 
+  // ── Action queue (web → bot) ──
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS pending_actions (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      action_type VARCHAR(50) NOT NULL,
+      target_type VARCHAR(20) NOT NULL,
+      target_id INT NOT NULL,
+      payload JSON,
+      actor_id VARCHAR(20) NOT NULL,
+      status ENUM('pending','processing','completed','failed') DEFAULT 'pending',
+      error_detail VARCHAR(500),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      processed_at TIMESTAMP NULL,
+      INDEX idx_pending (status, created_at)
+    )
+  `);
+
+  // Prospect event migration — add mentor_reassigned
+  await query(`ALTER TABLE prospect_events MODIFY COLUMN event_type ENUM('created','vote_started','accepted','denied','closed','paused','unpaused','extended','unclaimed','mentor_reassigned') NOT NULL`);
+
   // ── Performance indexes ──
 
   await query(`CREATE INDEX IF NOT EXISTS idx_tickets_user_status ON tickets (user_id, status)`);

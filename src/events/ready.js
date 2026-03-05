@@ -8,6 +8,7 @@ import { startScheduler as startSeedingScheduler } from '../services/seeding/see
 import { startHeartbeat } from '../services/admin/statusHeartbeat.js';
 import { resumeClosingTimers } from '../services/ticket/ticketService.js';
 import { startStatusUpdater } from '../services/serverStatus/serverStatusService.js';
+import { startActionProcessor } from '../services/actionProcessor.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'bot' });
@@ -35,6 +36,7 @@ export default {
       startSeedingScheduler(client);
       startHeartbeat(client);
       startStatusUpdater(client);
+      startActionProcessor(client);
     } catch (err) {
       log.error({ err }, 'Failed to start background services');
     }

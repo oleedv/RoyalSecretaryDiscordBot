@@ -7,6 +7,7 @@ import { buildProspectInfoEmbed, buildForumIntroEmbed, buildProspectComponents, 
 import * as bm from '../battlemetricsService.js';
 import * as whitelistService from '../whitelistService.js';
 import { query, transaction } from '../../database/connection.js';
+import { assignTeamRole, removeTeamRole } from './teamRoleService.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
 
@@ -263,12 +264,18 @@ export async function claimProspect(prospect, mentorId, guild) {
       .catch((err) => log.warn({ err }, 'Failed to add BM prospect flag'));
   }
 
+  // Assign the mentor's team role to the prospect
+  await assignTeamRole(prospect.user_id, mentorId, guild)
+
   log.info({ prospectId: prospect.id, mentorId }, 'Mentor claimed prospect');
   return {};
 }
 
 export async function unclaimProspect(prospect, actorId, guild) {
   if (!prospect.mentor_id) return { error: 'This prospect does not have a mentor.' };
+
+  // Remove the team role before clearing mentor_id
+  await removeTeamRole(prospect.user_id, prospect.mentor_id, guild)
 
   await query('UPDATE prospects SET mentor_id = NULL WHERE id = ?', [prospect.id]);
 
@@ -409,6 +416,12 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
   }
 
   const { prospectRoleId, whitelistRoleId } = config.prospects;
+
+  // Remove team role if mentor was assigned
+  if (prospect.mentor_id) {
+    await removeTeamRole(prospect.user_id, prospect.mentor_id, guild)
+  }
+
   const member = await guild.members.fetch(prospect.user_id).catch(() => null);
   if (member) {
     if (prospectRoleId) await member.roles.remove(prospectRoleId).catch(() => null);

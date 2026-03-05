@@ -1,5 +1,6 @@
 import { createEmbed } from '../utils/embed.js';
 import { getOpenProspectsByMentor, unclaimProspect } from '../services/prospect/prospectService.js';
+import { removeTeamRole, deleteTeamRole } from '../services/prospect/teamRoleService.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'memberLeave' });
@@ -33,7 +34,10 @@ export async function handleProspectMemberLeave(prospect, member, guild) {
 export async function handleMentorLeave(userId, guild) {
   const prospects = await getOpenProspectsByMentor(userId);
   for (const prospect of prospects) {
+    await removeTeamRole(prospect.user_id, userId, guild)
     await unclaimProspect(prospect, userId, guild);
     log.info({ prospectId: prospect.id, mentorId: userId }, 'Auto-unclaimed mentor who left server');
   }
+  // Delete the team role since the mentor is gone
+  await deleteTeamRole(userId, guild)
 }
