@@ -56,7 +56,7 @@ export function buildSeedingPanelMessage(seederCount, dailyTs, threshold) {
 export function buildSeedingCallEmbed({
   layerName, playerCount, threshold, thumbnailUrl,
   avgSeedTime, avgSeedTrend,
-  serverName, gameMode, fastestSeed,
+  gameMode, fastestSeed,
 }) {
   const embed = createEmbed('Seeding')
     .setTitle('Seeding Time!')
@@ -67,9 +67,8 @@ export function buildSeedingCallEmbed({
     )
     .setColor(0x57f287);
 
-  // Row 1: Server info
+  // Row 1: Map info
   const row1 = [];
-  if (serverName) row1.push({ name: 'Server', value: serverName, inline: true });
   row1.push({ name: 'Current Map', value: layerName || 'Unknown', inline: true });
   if (gameMode) row1.push({ name: 'Game Mode', value: gameMode, inline: true });
   if (row1.length) embed.addFields(...row1);
@@ -91,6 +90,38 @@ export function buildSeedingCallEmbed({
 
   if (thumbnailUrl) {
     embed.setImage(thumbnailUrl);
+  }
+
+  return embed;
+}
+
+export function buildSeedingRapportEmbed({ date, totalSeeders, totalJoins, avgSeedMinutes, totalSeedMinutes, seeders }) {
+  const dateLabel = new Date(date + 'T12:00:00Z').toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+  });
+
+  const embed = createEmbed('Seeding')
+    .setTitle(`Seeding Rapport - ${dateLabel}`)
+    .setColor(0x57f287);
+
+  embed.addFields(
+    { name: 'Total Seeders', value: String(totalSeeders || 0), inline: true },
+    { name: 'Total Joins', value: String(totalJoins || 0), inline: true },
+    { name: 'Avg Seed Time', value: avgSeedMinutes ? `${avgSeedMinutes} min` : '--', inline: true },
+  );
+
+  if (seeders && seeders.length > 0) {
+    // Show top 15 seeders by seed duration
+    const top = seeders.slice(0, 15);
+    const lines = top.map((s, i) => {
+      const dur = s.seedDurationMinutes != null ? `${s.seedDurationMinutes}m` : '--';
+      return `**${i + 1}.** ${s.playerName} - ${dur}`;
+    });
+    embed.addFields({ name: 'Top Seeders', value: lines.join('\n') || 'No data', inline: false });
+
+    if (seeders.length > 15) {
+      embed.setFooter({ text: `+${seeders.length - 15} more seeders not shown` });
+    }
   }
 
   return embed;

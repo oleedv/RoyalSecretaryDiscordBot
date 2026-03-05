@@ -363,7 +363,7 @@ async function updateSeedingState(client) {
 
 // ── Message posting ──
 
-async function postSeedingCall(client, cfg) {
+export async function postSeedingCall(client, cfg) {
   const channel = await client.channels.fetch(cfg.channel_id).catch(() => null);
   if (!channel) {
     log.error({ channelId: cfg.channel_id }, 'Seeding channel not found');
@@ -382,7 +382,6 @@ async function postSeedingCall(client, cfg) {
     thumbnailUrl,
     avgSeedTime: stats.avgMinutes,
     avgSeedTrend: stats.trend,
-    serverName: state.serverName,
     gameMode,
     fastestSeed: stats.fastest,
   });
@@ -438,7 +437,6 @@ async function updateCallMessage(client, cfg, session, state) {
       thumbnailUrl,
       avgSeedTime: stats.avgMinutes,
       avgSeedTrend: stats.trend,
-      serverName: state.serverName,
       gameMode,
       fastestSeed: stats.fastest,
     });

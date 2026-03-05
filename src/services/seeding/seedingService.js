@@ -185,3 +185,54 @@ export async function getSeedingStats(days = 30) {
 export async function clearTrackedMessages(channelId) {
   await query('DELETE FROM seeding_messages WHERE channel_id = ?', [channelId]);
 }
+
+// ── Rapport ──
+
+export async function getSeedingRapport(date) {
+  // Query SquadJS database for per-player seeding data
+  const seeders = await query(
+    `SELECT
+       p.last_known_name AS playerName,
+       p.steam_id AS steamId,
+       j.time AS joinTime,
+       l.time AS leaveTime,
+       l.seed_duration AS seedDuration,
+       l.session_duration AS sessionDuration
+     FROM squadjs_connections j
+     JOIN squadjs_players p ON p.id = j.player_id
+     LEFT JOIN squadjs_connections l ON l.player_id = j.player_id
+       AND l.server_id = j.server_id
+       AND l.event_type = 'leave'
+       AND l.time > j.time
+       AND l.time < j.time + INTERVAL 24 HOUR
+     WHERE j.event_type = 'join'
+       AND j.seed_join = 1
+       AND DATE(j.time) = ?
+     ORDER BY l.seed_duration DESC`,
+    [date],
+    'squadjs'
+  )
+
+  const uniquePlayers = new Set(seeders.map(s => s.steamId || s.playerName))
+  const totalSeedSeconds = seeders.reduce((sum, s) => sum + (s.seedDuration || 0), 0)
+  const seedersWithDuration = seeders.filter(s => s.seedDuration > 0)
+  const avgSeedSeconds = seedersWithDuration.length > 0
+    ? Math.round(totalSeedSeconds / seedersWithDuration.length)
+    : 0
+
+  return {
+    date,
+    totalSeeders: uniquePlayers.size,
+    totalJoins: seeders.length,
+    avgSeedMinutes: Math.round(avgSeedSeconds / 60),
+    totalSeedMinutes: Math.round(totalSeedSeconds / 60),
+    seeders: seeders.map(s => ({
+      playerName: s.playerName || 'Unknown',
+      steamId: s.steamId || null,
+      joinTime: s.joinTime ? new Date(s.joinTime).toISOString() : null,
+      leaveTime: s.leaveTime ? new Date(s.leaveTime).toISOString() : null,
+      seedDurationMinutes: s.seedDuration != null ? Math.round(s.seedDuration / 60) : null,
+      sessionDurationMinutes: s.sessionDuration != null ? Math.round(s.sessionDuration / 60) : null,
+    })),
+  }
+}

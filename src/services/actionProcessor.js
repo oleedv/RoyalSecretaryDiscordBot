@@ -87,6 +87,10 @@ async function dispatch(actionType, targetType, targetId, payload, actorId, guil
       return handleReopenTicket(targetId, actorId, guild)
     case 'force_close_ticket':
       return handleForceCloseTicket(targetId, guild)
+    case 'send_seeding_call':
+      return handleSendSeedingCall(client)
+    case 'send_seeding_rapport':
+      return handleSendSeedingRapport(payload, client)
     default:
       throw new Error(`Unknown action type: ${actionType}`)
   }
@@ -144,4 +148,32 @@ async function handleForceCloseTicket(ticketId, guild) {
   }
 
   await forceCloseTicket(ticket, channel)
+}
+
+async function handleSendSeedingCall(client) {
+  const { postSeedingCall } = await import('./seeding/seedingScheduler.js')
+  const { getSeedingConfig } = await import('./seeding/seedingService.js')
+  const cfg = await getSeedingConfig()
+  if (!cfg?.enabled || !cfg.channel_id) throw new Error('Seeding not enabled or channel not configured')
+  await postSeedingCall(client, cfg)
+}
+
+async function handleSendSeedingRapport(payload, client) {
+  const { getSeedingConfig, getSeedingRapport } = await import('./seeding/seedingService.js')
+  const { buildSeedingRapportEmbed } = await import('./seeding/seedingEmbeds.js')
+
+  const cfg = await getSeedingConfig()
+  if (!cfg?.channel_id) throw new Error('Seeding channel not configured')
+
+  const date = payload.date
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Missing or invalid date in payload')
+
+  const rapport = await getSeedingRapport(date)
+
+  const channel = await client.channels.fetch(cfg.channel_id).catch(() => null)
+  if (!channel) throw new Error(`Seeding channel ${cfg.channel_id} not found`)
+
+  const embed = buildSeedingRapportEmbed(rapport)
+  await channel.send({ embeds: [embed] })
+  log.info({ date }, 'Seeding rapport posted to Discord')
 }
