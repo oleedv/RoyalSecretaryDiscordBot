@@ -26,6 +26,8 @@ function createState() {
     reserveQueue: 0,
     gameVersion: null,
     currentLayerObj: null,
+    lastEventTime: Date.now(),
+    reconnectErrorCount: 0,
   };
 }
 
@@ -41,6 +43,7 @@ function extractMapName(layerName) {
 function fetchPlayers(conn) {
   if (!conn.socket?.connected) return;
   conn.socket.emit('players', (data) => {
+    conn.state.lastEventTime = Date.now();
     if (Array.isArray(data)) {
       conn.state.players = data;
       log.debug({ count: data.length }, 'Fetched player list');
@@ -51,6 +54,7 @@ function fetchPlayers(conn) {
 function fetchLayerObj(conn) {
   if (!conn.socket?.connected) return;
   conn.socket.emit('currentLayer', (data) => {
+    conn.state.lastEventTime = Date.now();
     if (data) {
       conn.state.currentLayerObj = data;
       log.debug({ layer: data.name }, 'Fetched layer object');
@@ -66,14 +70,23 @@ function connectServer(serverCfg) {
 
   conn.socket = io(serverCfg.url, {
     auth: { token: serverCfg.token },
+    transports: ['websocket'],
     reconnection: true,
     reconnectionDelay: 5000,
+    reconnectionDelayMax: 30000,
     reconnectionAttempts: Infinity,
+    timeout: 10000,
   });
 
   conn.socket.on('connect', () => {
+    if (conn.state.reconnectErrorCount > 0) {
+      log.info({ name: serverCfg.name, attempts: conn.state.reconnectErrorCount }, 'Reconnected to SquadJS');
+    } else {
+      log.info({ name: serverCfg.name }, 'Connected to SquadJS');
+    }
+    conn.state.reconnectErrorCount = 0;
     conn.state.connected = true;
-    log.info({ name: serverCfg.name }, 'Connected to SquadJS');
+    conn.state.lastEventTime = Date.now();
   });
 
   conn.socket.on('disconnect', (reason) => {
@@ -82,7 +95,12 @@ function connectServer(serverCfg) {
   });
 
   conn.socket.on('connect_error', (err) => {
-    log.error({ name: serverCfg.name, err: err.message }, 'SquadJS connection error');
+    conn.state.reconnectErrorCount++;
+    if (conn.state.reconnectErrorCount === 1) {
+      log.error({ name: serverCfg.name, err: err.message }, 'SquadJS connection error');
+    } else if (conn.state.reconnectErrorCount % 5 === 0) {
+      log.warn({ name: serverCfg.name, attempt: conn.state.reconnectErrorCount }, 'Still reconnecting to SquadJS');
+    }
   });
 
   conn.socket.on('UPDATED_A2S_INFORMATION', (data) => {
@@ -124,6 +142,7 @@ function connectServer(serverCfg) {
   });
 
   conn.socket.onAny((event, data) => {
+    conn.state.lastEventTime = Date.now();
     if (!KNOWN_EVENTS.includes(event)) {
       log.debug({ name: serverCfg.name, event, dataKeys: data ? Object.keys(data) : null }, 'SquadJS event');
     }
@@ -140,6 +159,20 @@ export function connect() {
   for (const serverCfg of servers) {
     connectServer(serverCfg);
   }
+
+  // Watchdog: detect zombie connections every 60s
+  setInterval(() => {
+    const now = Date.now();
+    for (const [name, conn] of connections) {
+      if (!conn.state.connected) continue;
+      const staleSec = (now - conn.state.lastEventTime) / 1000;
+      if (staleSec > 120) {
+        log.warn({ name, staleSec: Math.round(staleSec) }, 'No events received, forcing reconnect');
+        conn.socket.disconnect();
+        conn.socket.connect();
+      }
+    }
+  }, 60_000);
 }
 
 export function disconnect() {
