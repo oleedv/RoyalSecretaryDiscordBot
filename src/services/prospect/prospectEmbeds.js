@@ -198,7 +198,7 @@ export function buildAcceptedAnnouncementEmbed(member, prospect) {
     .setThumbnail(member?.user.displayAvatarURL() || null);
 }
 
-export function buildVoteEmbed(prospect, bmStats = null) {
+export function buildVoteEmbed(prospect, playtimeStats = null) {
   const { periodDays } = config.prospects;
   const extra = prospect.extra_days || 0;
   const totalPeriod = periodDays + extra;
@@ -222,24 +222,11 @@ export function buildVoteEmbed(prospect, bmStats = null) {
     embed.addFields({ name: 'Voting extended', value: `${extra} d`, inline: true });
   }
 
-  if (bmStats) {
-    embed.addFields({
-      name: 'Gameplay Hours',
-      value: bmStats.hours != null ? `${bmStats.hours}h` : 'N/A',
-      inline: true,
-    });
-
-    const seedingKey = Object.keys(bmStats.counters || {}).find(
-      (k) => k.toLowerCase().includes('seed')
+  if (playtimeStats) {
+    embed.addFields(
+      { name: 'Gameplay Hours', value: `${playtimeStats.playtimeHours}h`, inline: true },
+      { name: 'Seeding Hours', value: `${playtimeStats.seedHours}h`, inline: true },
     );
-    const seedingValue = seedingKey != null ? bmStats.counters[seedingKey] : null;
-    embed.addFields({
-      name: 'Seeding Hours',
-      value: seedingValue != null
-        ? `${Math.round((seedingValue / 3600) * 10) / 10}h`
-        : 'N/A',
-      inline: true,
-    });
   }
 
   if (prospect.mentor_id) {

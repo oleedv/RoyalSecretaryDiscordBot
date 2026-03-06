@@ -1,7 +1,7 @@
 import { createEmbed } from '../../utils/embed.js';
 import { buildVoteEmbed, buildVoteComponents, buildVoteAnnouncementEmbed, buildEndVoteComponents } from './prospectEmbeds.js';
 import { query } from '../../database/connection.js';
-import { resolveAndGetStats } from '../battlemetricsService.js';
+import { getPlaytime } from '../playtimeService.js';
 import * as whitelistService from '../whitelistService.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
@@ -49,14 +49,12 @@ export async function postVote(prospect, client) {
   const thread = await forumChannel.threads.fetch(prospect.forum_thread_id).catch(() => null);
   if (!thread) return;
 
-  let bmStats = null;
+  let playtimeStats = null;
   if (prospect.steam_id && prospect.steam_id.toUpperCase() !== 'Q') {
-    const startDate = new Date(prospect.created_at).toISOString().slice(0, 10);
-    const endDate = new Date().toISOString().slice(0, 10);
-    bmStats = await resolveAndGetStats(prospect.steam_id, startDate, endDate).catch(() => null);
+    playtimeStats = await getPlaytime(prospect.steam_id, prospect.created_at).catch(() => null);
   }
 
-  const voteEmbed = buildVoteEmbed(prospect, bmStats);
+  const voteEmbed = buildVoteEmbed(prospect, playtimeStats);
   const counts = { yes: 0, no: 0, unsure: 0 };
   const components = buildVoteComponents(counts);
   const voteMsg = await thread.send({ embeds: [voteEmbed], components });

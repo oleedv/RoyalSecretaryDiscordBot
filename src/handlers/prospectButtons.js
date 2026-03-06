@@ -9,6 +9,7 @@ import {
 import { getOpenProspectByUser, getProspectByChannel, getProspectByChannelAnyStatus, claimProspect, unclaimProspect, acceptProspect, extendProspect, closeProspect } from '../services/prospect/prospectService.js';
 import { postVote, getProspectByVoteMessage, upsertVote, getVoteCounts } from '../services/prospect/prospectVoting.js';
 import { buildVoteComponents, buildCloseTicketComponents } from '../services/prospect/prospectEmbeds.js';
+import { getPlaytime } from '../services/playtimeService.js';
 import { query } from '../database/connection.js';
 import { errorEmbed, successEmbed, infoEmbed } from '../utils/embed.js';
 import { requireRole } from '../utils/permissions.js';
@@ -234,8 +235,18 @@ export async function handleTestVote(interaction) {
   if (!prospect.forum_thread_id) return interaction.editReply({ embeds: [errorEmbed('This prospect has not been accepted yet.')] });
   if (prospect.vote_posted_at) return interaction.editReply({ embeds: [errorEmbed('A vote has already been posted for this prospect.')] });
 
+  let playtimeWarning = null;
+  if (prospect.steam_id && prospect.steam_id.toUpperCase() !== 'Q') {
+    const stats = await getPlaytime(prospect.steam_id, prospect.created_at).catch(() => null);
+    if (stats && stats.playtimeHours < 16) {
+      playtimeWarning = `**${prospect.alias}** only has **${stats.playtimeHours}h** playtime (16h required). Posting vote anyway since this is a force action.`;
+    }
+  }
+
   await postVote(prospect, interaction.client);
-  await interaction.editReply({ embeds: [successEmbed(`Force vote posted for **${prospect.alias}**.`)] });
+  const embeds = [successEmbed(`Force vote posted for **${prospect.alias}**.`)];
+  if (playtimeWarning) embeds.unshift(infoEmbed(playtimeWarning));
+  await interaction.editReply({ embeds });
   log.info({ prospectId: prospect.id, actorId: interaction.user.id }, 'Force vote triggered');
 }
 
