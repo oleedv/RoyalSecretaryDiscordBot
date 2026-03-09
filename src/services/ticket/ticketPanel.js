@@ -40,7 +40,18 @@ export function buildPanelMessage() {
       .setStyle(ButtonStyle.Primary)
   );
 
-  return { embeds: [embed], components: [row] };
+  const row2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('ticket_create_co')
+      .setLabel('CO Ticket')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('ticket_create_admin')
+      .setLabel('Admin Ticket')
+      .setStyle(ButtonStyle.Danger)
+  );
+
+  return { embeds: [embed], components: [row, row2] };
 }
 
 export async function ensureTicketPanel(client) {

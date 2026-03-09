@@ -3,7 +3,7 @@ import { getOpenTicketByUser, getClosingTicketByUser, reopenTicket, getClosedTic
 import { buildTicketInfoEmbed, buildTicketComponents } from '../services/ticket/ticketEmbeds.js';
 import { getStoredSteamId } from '../services/userService.js';
 import { findBotMessageByCustomId } from '../utils/messageSearch.js';
-import { getOpenProspectByUser } from '../services/prospect/prospectService.js';
+import { getOpenProspectByUser, getProspectByUserWithChannel } from '../services/prospect/prospectService.js';
 import * as ticketMessages from '../handlers/ticketMessages.js';
 import * as prospectMessages from '../handlers/prospectMessages.js';
 import { infoEmbed, createEmbed } from '../utils/embed.js';
@@ -81,6 +81,12 @@ async function handleDM(message) {
     return prospectMessages.handleDM(message, prospect);
   }
 
+  // Fallback: allow DM relay for recently-closed prospects whose channel still exists
+  const closedProspect = await getProspectByUserWithChannel(message.author.id);
+  if (closedProspect) {
+    return prospectMessages.handleDM(message, closedProspect);
+  }
+
   const embed = createEmbed()
     .setTitle('Royal Battalion')
     .setDescription(
@@ -109,7 +115,29 @@ async function handleDM(message) {
     );
   }
 
-  return message.reply({ embeds: [embed], components: [buttons] });
+  const components = [buttons];
+
+  // Add CO/Admin ticket buttons for members
+  const guild = await message.client.guilds.fetch(config.guild.id).catch(() => null);
+  if (guild) {
+    const member = await guild.members.fetch(message.author.id).catch(() => null);
+    const normalRoles = config.tickets?.roles?.normal || [];
+    if (member && normalRoles.some((r) => member.roles.cache.has(r))) {
+      const memberButtons = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('ticket_create_co')
+          .setLabel('CO Ticket')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId('ticket_create_admin')
+          .setLabel('Admin Ticket')
+          .setStyle(ButtonStyle.Danger),
+      );
+      components.push(memberButtons);
+    }
+  }
+
+  return message.reply({ embeds: [embed], components });
 }
 
 async function handleGuild(message) {

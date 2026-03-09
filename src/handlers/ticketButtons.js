@@ -4,6 +4,7 @@ import {
   TextInputStyle,
   ActionRowBuilder,
 } from 'discord.js';
+import { getStoredSteamId } from '../services/userService.js';
 import {
   getTicketByChannel,
   getTicketByChannelStatus,
@@ -15,7 +16,6 @@ import {
   getClosedTicketsByUser,
 } from '../services/ticket/ticketService.js';
 import { buildTicketInfoEmbed, buildTicketComponents } from '../services/ticket/ticketEmbeds.js';
-import { getStoredSteamId } from '../services/userService.js';
 import { errorEmbed, infoEmbed } from '../utils/embed.js';
 import { requireRole } from '../utils/permissions.js';
 import { findBotMessageByCustomId } from '../utils/messageSearch.js';
@@ -29,6 +29,65 @@ const allTicketStaffRoles = () => {
   const r = config.tickets.roles || {};
   return [...(r.normal || []), ...(r.communityOfficer || []), ...(r.adminOfficer || []), ...(r.compTeam || []), ...(r.whitelist || [])];
 };
+
+async function handleCreateWithTier(interaction, tier) {
+  const memberRoles = interaction.member?.roles?.cache;
+  const normalRoles = config.tickets.roles.normal || [];
+  const isMember = memberRoles && normalRoles.some((r) => memberRoles.has(r));
+
+  if (!isMember) {
+    return interaction.reply({
+      embeds: [errorEmbed('You need to be a member to create CO/Admin tickets. Please create a normal ticket instead.')],
+      flags: ['Ephemeral'],
+    });
+  }
+
+  const storedSteamId = await getStoredSteamId(interaction.user.id);
+  const modalId = storedSteamId ? `ticket_create_${tier}_modal_quick` : `ticket_create_${tier}_modal`;
+
+  const ticketModal = new ModalBuilder()
+    .setCustomId(modalId)
+    .setTitle(tier === 'co' ? 'Create CO Ticket' : 'Create Admin Ticket');
+
+  const components = [];
+
+  if (!storedSteamId) {
+    components.push(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('ticket_steam_id')
+          .setLabel('Steam ID (Steam64 or profile URL, optional)')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('e.g. 76561198012345678')
+          .setRequired(true)
+      )
+    );
+  }
+
+  components.push(
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('ticket_reason')
+        .setLabel('Why are you creating this ticket?')
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder('Briefly describe your issue...')
+        .setMinLength(5)
+        .setMaxLength(500)
+        .setRequired(true)
+    )
+  );
+
+  ticketModal.addComponents(...components);
+  await interaction.showModal(ticketModal);
+}
+
+export async function handleCreateCo(interaction) {
+  return handleCreateWithTier(interaction, 'co');
+}
+
+export async function handleCreateAdmin(interaction) {
+  return handleCreateWithTier(interaction, 'admin');
+}
 
 export async function handleCreate(interaction) {
   const storedSteamId = await getStoredSteamId(interaction.user.id);
@@ -76,6 +135,7 @@ export async function handleEscalate(interaction) {
   if (!ticket) return interaction.editReply({ embeds: [errorEmbed('No open ticket found for this channel.')] });
 
   const tierMap = {
+    ticket_escalate_normal: 'normal',
     ticket_escalate_co: 'community_officer',
     ticket_escalate_admin: 'admin_officer',
     ticket_escalate_comp: 'comp_team',

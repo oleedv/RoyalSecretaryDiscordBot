@@ -135,6 +135,14 @@ export async function getProspectByChannel(channelId) {
   return rows[0] || null;
 }
 
+export async function getProspectByUserWithChannel(userId) {
+  const rows = await query(
+    'SELECT * FROM prospects WHERE user_id = ? AND channel_id IS NOT NULL AND status IN (?, ?) ORDER BY created_at DESC LIMIT 1',
+    [userId, 'accepted', 'denied']
+  );
+  return rows[0] || null;
+}
+
 export async function getProspectByChannelAnyStatus(channelId) {
   const rows = await query(
     'SELECT * FROM prospects WHERE channel_id = ? ORDER BY created_at DESC LIMIT 1',

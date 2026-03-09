@@ -99,17 +99,25 @@ export async function timeoutUser(userId, timedOutById) {
 
 const activeCreations = new Set();
 
-export async function createTicket(userId, guild, { steamId, reason } = {}) {
+export async function createTicket(userId, guild, { steamId, reason, tier = 'normal' } = {}) {
   if (activeCreations.has(userId)) return { error: 'Ticket creation already in progress.' };
   activeCreations.add(userId);
   try {
-    return await _createTicket(userId, guild, { steamId, reason });
+    return await _createTicket(userId, guild, { steamId, reason, tier });
   } finally {
     activeCreations.delete(userId);
   }
 }
 
-async function _createTicket(userId, guild, { steamId, reason } = {}) {
+const tierConfigKey = {
+  normal: 'normal',
+  community_officer: 'communityOfficer',
+  admin_officer: 'adminOfficer',
+  comp_team: 'compTeam',
+  whitelist: 'whitelist',
+};
+
+async function _createTicket(userId, guild, { steamId, reason, tier = 'normal' } = {}) {
   const existing = await getOpenTicketByUser(userId);
   if (existing) return { error: 'You already have an open ticket.' };
 
@@ -127,7 +135,9 @@ async function _createTicket(userId, guild, { steamId, reason } = {}) {
   const shortId = uuid.slice(0, 6);
   const { categoryId, roles } = config.tickets;
 
-  const permissionOverwrites = buildPrivateChannelPermissions(guild, roles.normal);
+  const configKey = tierConfigKey[tier] || 'normal';
+  const tierRoles = roles[configKey] || roles.normal;
+  const permissionOverwrites = buildPrivateChannelPermissions(guild, tierRoles);
 
   const channel = await guild.channels.create({
     name: `ticket-${shortId}`,
@@ -137,8 +147,8 @@ async function _createTicket(userId, guild, { steamId, reason } = {}) {
   });
 
   await query(
-    'INSERT INTO tickets (uuid, channel_id, user_id, reason) VALUES (?, ?, ?, ?)',
-    [uuid, channel.id, userId, reason || null]
+    'INSERT INTO tickets (uuid, channel_id, user_id, reason, tier) VALUES (?, ?, ?, ?, ?)',
+    [uuid, channel.id, userId, reason || null, tier]
   );
 
   const rows = await query('SELECT * FROM tickets WHERE uuid = ?', [uuid]);
@@ -152,29 +162,30 @@ async function _createTicket(userId, guild, { steamId, reason } = {}) {
   const member = await guild.members.fetch(userId).catch(() => null);
   const userTag = member?.user.tag || userId;
 
-  const previousTickets = await getClosedTicketsByUser(userId, 'normal');
-  const infoEmbed = buildTicketInfoEmbed(userTag, userId, uuid, 'normal', previousTickets.length, { steamId, reason });
-  const components = buildTicketComponents('normal');
+  const previousTickets = await getClosedTicketsByUser(userId, tier);
+  const embed = buildTicketInfoEmbed(userTag, userId, uuid, tier, previousTickets.length, { steamId, reason });
+  const components = buildTicketComponents(tier);
 
-  await channel.send({ embeds: [infoEmbed], components });
+  await channel.send({ embeds: [embed], components });
 
   // Ping staff roles so they get a notification
-  const staffPing = roles.normal.map((r) => `<@&${r}>`).join(' ');
-  await channel.send({ content: staffPing, allowedMentions: { roles: roles.normal } }).then((m) => m.delete().catch(() => null));
+  const staffPing = tierRoles.map((r) => `<@&${r}>`).join(' ');
+  await channel.send({ content: staffPing, allowedMentions: { roles: tierRoles } }).then((m) => m.delete().catch(() => null));
 
-  log.info({ uuid, userId, channelId: channel.id }, 'Ticket created');
+  log.info({ uuid, userId, channelId: channel.id, tier }, 'Ticket created');
   return { ticket, channel };
 }
 
 export async function escalateTicket(ticket, tier, channel, actorId = null) {
-  if (ticket.tier !== 'normal') {
-    return { error: 'This ticket has already been escalated.' };
+  if (ticket.tier === tier) {
+    return { error: 'This ticket is already assigned to that team.' };
   }
 
   const { roles } = config.tickets;
 
   const allRoles = new Set([...roles.normal, ...roles.communityOfficer, ...roles.adminOfficer, ...roles.compTeam, ...roles.whitelist]);
   const tierRoleMap = {
+    normal: roles.normal,
     community_officer: roles.communityOfficer,
     admin_officer: roles.adminOfficer,
     comp_team: roles.compTeam,
@@ -212,18 +223,20 @@ export async function escalateTicket(ticket, tier, channel, actorId = null) {
   const infoEmbed = buildTicketInfoEmbed(userTag, ticket.user_id, ticket.uuid, tier, previousTickets.length, { steamId, reason: ticket.reason });
   const components = buildTicketComponents(tier);
 
-  const topMsg = await findBotMessageByCustomId(channel, channel.client.user.id, ['ticket_close', 'ticket_escalate_co', 'ticket_escalate_comp', 'ticket_escalate_wl']);
+  const topMsg = await findBotMessageByCustomId(channel, channel.client.user.id, ['ticket_close', 'ticket_escalate_co', 'ticket_escalate_admin', 'ticket_escalate_comp', 'ticket_escalate_wl', 'ticket_escalate_normal']);
   if (topMsg) {
     await topMsg.edit({ embeds: [infoEmbed], components });
   }
 
   const tierLabels = {
+    normal: 'Normal',
     community_officer: 'Community Officer',
     admin_officer: 'Admin Officer',
     comp_team: 'Comp Team',
     whitelist: 'Whitelist',
   };
   const tierColors = {
+    normal: 0x5865f2,
     community_officer: 0xfee75c,
     admin_officer: 0xed4245,
     comp_team: 0x57f287,
@@ -231,9 +244,9 @@ export async function escalateTicket(ticket, tier, channel, actorId = null) {
   };
   const tierLabel = tierLabels[tier] || tier;
   const notifEmbed = createEmbed('Ticket')
-    .setTitle('Ticket Escalated')
-    .setDescription(`This ticket has been escalated to **${tierLabel}**.\n\nFrom this point forward, this conversation is confidential and only visible to the **${tierLabel}** team.`)
-    .setColor(tierColors[tier] || 0xfee75c);
+    .setTitle('Ticket Transferred')
+    .setDescription(`This ticket has been transferred to **${tierLabel}**.\n\nFrom this point forward, this conversation is confidential and only visible to the **${tierLabel}** team.`)
+    .setColor(tierColors[tier] || 0x5865f2);
 
   await channel.send({ embeds: [notifEmbed] });
 
@@ -258,7 +271,7 @@ export async function beginCloseGracePeriod(ticket, closedById, channel, client)
   );
 
   // Disable existing buttons on the info embed
-  const topMsg = await findBotMessageByCustomId(channel, client.user.id, ['ticket_close', 'ticket_escalate_co']);
+  const topMsg = await findBotMessageByCustomId(channel, client.user.id, ['ticket_close', 'ticket_escalate_normal', 'ticket_escalate_co', 'ticket_escalate_admin', 'ticket_escalate_comp', 'ticket_escalate_wl']);
   if (topMsg) {
     const disabledComponents = topMsg.components.map((row) => {
       const newRow = ActionRowBuilder.from(row);

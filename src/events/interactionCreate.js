@@ -24,6 +24,9 @@ setInterval(() => {
 
 const buttonHandlers = {
   ticket_create: ticketButtons.handleCreate,
+  ticket_create_co: ticketButtons.handleCreateCo,
+  ticket_create_admin: ticketButtons.handleCreateAdmin,
+  ticket_escalate_normal: ticketButtons.handleEscalate,
   ticket_escalate_co: ticketButtons.handleEscalate,
   ticket_escalate_admin: ticketButtons.handleEscalate,
   ticket_escalate_comp: ticketButtons.handleEscalate,
@@ -71,6 +74,10 @@ const buttonHandlers = {
 const modalHandlers = {
   ticket_create_modal: ticketModals.handleCreateModal,
   ticket_create_modal_quick: ticketModals.handleCreateModalQuick,
+  ticket_create_co_modal: ticketModals.handleCreateCoModal,
+  ticket_create_co_modal_quick: ticketModals.handleCreateCoModalQuick,
+  ticket_create_admin_modal: ticketModals.handleCreateAdminModal,
+  ticket_create_admin_modal_quick: ticketModals.handleCreateAdminModalQuick,
   prospect_modal_1: prospectModals.handleModal1,
   prospect_modal_2: prospectModals.handleModal2,
   prospect_deny_modal: prospectModals.handleDenyModal,

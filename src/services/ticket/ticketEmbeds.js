@@ -53,6 +53,14 @@ export function buildTicketInfoEmbed(userTag, userId, uuid, tier, previousCount 
   return embed;
 }
 
+const TRANSFER_BUTTONS = [
+  { tier: 'normal', customId: 'ticket_escalate_normal', label: 'Normal', emoji: '\u{1F4E5}', style: ButtonStyle.Secondary },
+  { tier: 'community_officer', customId: 'ticket_escalate_co', label: 'CO', emoji: '\u{2B06}\u{FE0F}', style: ButtonStyle.Primary },
+  { tier: 'admin_officer', customId: 'ticket_escalate_admin', label: 'Admin', emoji: '\u{1F6E1}\u{FE0F}', style: ButtonStyle.Danger },
+  { tier: 'comp_team', customId: 'ticket_escalate_comp', label: 'Comp', emoji: '\u{2694}\u{FE0F}', style: ButtonStyle.Primary },
+  { tier: 'whitelist', customId: 'ticket_escalate_wl', label: 'Whitelist', emoji: '\u{1F4CB}', style: ButtonStyle.Secondary },
+];
+
 export function buildTicketComponents(tier) {
   const closeRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -67,32 +75,17 @@ export function buildTicketComponents(tier) {
       .setStyle(ButtonStyle.Danger)
   );
 
-  if (tier !== 'normal') {
-    return [closeRow];
-  }
+  const transferButtons = TRANSFER_BUTTONS
+    .filter((b) => b.tier !== tier)
+    .map((b) =>
+      new ButtonBuilder()
+        .setCustomId(b.customId)
+        .setLabel(b.label)
+        .setEmoji(b.emoji)
+        .setStyle(b.style)
+    );
 
-  const escalationRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('ticket_escalate_co')
-      .setLabel('CO')
-      .setEmoji('\u{2B06}\u{FE0F}')
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId('ticket_escalate_admin')
-      .setLabel('Admin')
-      .setEmoji('\u{1F6E1}\u{FE0F}')
-      .setStyle(ButtonStyle.Danger),
-    new ButtonBuilder()
-      .setCustomId('ticket_escalate_comp')
-      .setLabel('Comp')
-      .setEmoji('\u{2694}\u{FE0F}')
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId('ticket_escalate_wl')
-      .setLabel('Whitelist')
-      .setEmoji('\u{1F4CB}')
-      .setStyle(ButtonStyle.Secondary)
-  );
+  const transferRow = new ActionRowBuilder().addComponents(...transferButtons);
 
-  return [closeRow, escalationRow];
+  return [closeRow, transferRow];
 }

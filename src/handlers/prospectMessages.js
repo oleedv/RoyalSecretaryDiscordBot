@@ -2,7 +2,7 @@ import { createEmbed } from '../utils/embed.js';
 import { formatForDb, applyAttachments } from '../utils/attachments.js';
 import { parseTextCommand } from '../utils/commands.js';
 import { trySendWithFiles } from '../utils/discord.js';
-import { getProspectByChannel, saveProspectMessage, closeProspect } from '../services/prospect/prospectService.js';
+import { getProspectByChannelAnyStatus, saveProspectMessage, closeProspect } from '../services/prospect/prospectService.js';
 import config from '../config.js';
 import logger from '../logger.js';
 
@@ -11,12 +11,16 @@ const fetchGuild = (client) => client.guilds.fetch(config.guild.id);
 const log = logger.child({ module: 'prospectMessages' });
 
 export async function handleGuild(message) {
-  const prospect = await getProspectByChannel(message.channel.id);
+  const prospect = await getProspectByChannelAnyStatus(message.channel.id);
   if (!prospect) return false;
 
   const cmd = parseTextCommand(message.content);
 
   if (cmd?.type === 'close') {
+    if (prospect.status !== 'open') {
+      await message.reply('This prospect is already closed. Use the Close Ticket button to delete the channel.').then((m) => setTimeout(() => m.delete().catch(() => null), 5000));
+      return true;
+    }
     await closeProspect(prospect, message.author.id, 'closed', message.guild);
     await message.channel.delete().catch(() => null);
     log.info({ prospectId: prospect.id, closedBy: message.author.id }, 'Prospect closed via !close');

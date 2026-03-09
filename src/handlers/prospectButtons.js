@@ -299,7 +299,7 @@ export async function handleEndVote(interaction) {
     }).catch(() => null);
   }
 
-  const reason = outcome === 'denied' ? `Vote result: ${counts.yes} yes, ${counts.no} no, ${counts.unsure} unsure` : undefined;
+  const reason = outcome === 'denied' ? 'The membership vote did not pass.' : undefined;
 
   await closeProspect(prospect, interaction.user.id, outcome, interaction.guild, reason);
 

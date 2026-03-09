@@ -7,7 +7,7 @@ import logger from '../logger.js';
 
 const log = logger.child({ module: 'ticketModals' });
 
-export async function handleCreateModal(interaction) {
+async function createWithSteamInput(interaction, tier = 'normal') {
   const steamInput = interaction.fields.getTextInputValue('ticket_steam_id').trim();
   const reason = interaction.fields.getTextInputValue('ticket_reason').trim();
 
@@ -25,6 +25,7 @@ export async function handleCreateModal(interaction) {
   const result = await createTicket(interaction.user.id, guild, {
     steamId: steamValidation.steamId,
     reason,
+    tier,
   });
   if (result.error) {
     return interaction.editReply({ embeds: [errorEmbed(result.error)] });
@@ -40,10 +41,10 @@ export async function handleCreateModal(interaction) {
   });
 
   linkSteamId(interaction.user.id, steamValidation.steamId);
-  log.info({ userId: interaction.user.id, channelId: result.channel.id }, 'Ticket created via modal');
+  log.info({ userId: interaction.user.id, channelId: result.channel.id, tier }, 'Ticket created via modal');
 }
 
-export async function handleCreateModalQuick(interaction) {
+async function createWithStoredSteam(interaction, tier = 'normal') {
   const reason = interaction.fields.getTextInputValue('ticket_reason').trim();
 
   await interaction.deferReply({ flags: ['Ephemeral'] });
@@ -57,6 +58,7 @@ export async function handleCreateModalQuick(interaction) {
   const result = await createTicket(interaction.user.id, guild, {
     steamId,
     reason,
+    tier,
   });
   if (result.error) {
     return interaction.editReply({ embeds: [errorEmbed(result.error)] });
@@ -71,5 +73,32 @@ export async function handleCreateModalQuick(interaction) {
     embeds: [successEmbed(`Ticket created! Check your DMs. Channel: <#${result.channel.id}>`)],
   });
 
-  log.info({ userId: interaction.user.id, channelId: result.channel.id }, 'Ticket created via quick modal (stored Steam ID)');
+  log.info({ userId: interaction.user.id, channelId: result.channel.id, tier }, 'Ticket created via quick modal');
+}
+
+// Normal ticket modals
+export async function handleCreateModal(interaction) {
+  return createWithSteamInput(interaction, 'normal');
+}
+
+export async function handleCreateModalQuick(interaction) {
+  return createWithStoredSteam(interaction, 'normal');
+}
+
+// CO ticket modals
+export async function handleCreateCoModal(interaction) {
+  return createWithSteamInput(interaction, 'community_officer');
+}
+
+export async function handleCreateCoModalQuick(interaction) {
+  return createWithStoredSteam(interaction, 'community_officer');
+}
+
+// Admin ticket modals
+export async function handleCreateAdminModal(interaction) {
+  return createWithSteamInput(interaction, 'admin_officer');
+}
+
+export async function handleCreateAdminModalQuick(interaction) {
+  return createWithStoredSteam(interaction, 'admin_officer');
 }
