@@ -24,7 +24,7 @@ export async function ensurePanel(client, channelId, customId, buildMessage, lab
   }
 
   const messages = await channel.messages.fetch({ limit: 50 });
-  const hasPanel = messages.some(
+  const existingPanel = messages.find(
     (msg) =>
       msg.author.id === client.user.id &&
       msg.components.some((row) =>
@@ -32,11 +32,14 @@ export async function ensurePanel(client, channelId, customId, buildMessage, lab
       )
   );
 
-  if (hasPanel) {
-    log.info(`${label} panel already exists`);
+  const payload = buildMessage();
+
+  if (existingPanel) {
+    await existingPanel.edit(payload);
+    log.info(`${label} panel updated`);
     return;
   }
 
-  await channel.send(buildMessage());
+  await channel.send(payload);
   log.info(`${label} panel posted automatically`);
 }

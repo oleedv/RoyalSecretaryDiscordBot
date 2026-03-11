@@ -1,6 +1,9 @@
 import { query } from '../../database/connection.js';
 import { isConnected as isSquadJsConnected } from '../seeding/seedingSocket.js';
 import { isSchedulerActive as isSeedingActive } from '../seeding/seedingScheduler.js';
+import logger from '../../utils/logger.js';
+
+const log = logger.child({ module: 'statusHeartbeat' });
 
 let heartbeatInterval = null;
 let botStartedAt = null;
@@ -14,7 +17,7 @@ export async function startHeartbeat(client) {
     [botStartedAt]
   ).catch(() => {});
 
-  heartbeatInterval = setInterval(() => tick(client), 60000);
+  heartbeatInterval = setInterval(() => tick(client), 30000);
   tick(client);
 }
 
@@ -28,36 +31,50 @@ export async function stopHeartbeat() {
 
 async function tick(client) {
   try {
-    let dbConnected = 0;
-    try { await query('SELECT 1'); dbConnected = 1; } catch { /* noop */ }
-
-    const memberCount = client.guilds.cache.reduce((sum, g) => sum + g.memberCount, 0);
-
-    await query(
-      `UPDATE bot_status SET
-        status = 'online',
-        uptime_seconds = ?,
-        guild_count = ?,
-        member_count = ?,
-        latency_ms = ?,
-        db_connected = ?,
-        squadjs_connected = ?,
-        seeding_scheduler_active = ?,
-        prospect_scheduler_active = 0,
-        started_at = COALESCE(started_at, ?)
-      WHERE id = 1`,
-      [
-        Math.round(process.uptime()),
-        client.guilds.cache.size,
-        memberCount,
-        client.ws.ping,
-        dbConnected,
-        isSquadJsConnected() ? 1 : 0,
-        isSeedingActive() ? 1 : 0,
-        botStartedAt,
-      ]
-    );
-  } catch {
-    // Silently fail - if DB is down, heartbeat can't write anyway
+    await writeBeat(client);
+  } catch (err) {
+    log.warn({ err: err.message }, 'Heartbeat tick failed, retrying in 5s');
+    setTimeout(() => retryTick(client), 5000);
   }
+}
+
+async function retryTick(client) {
+  try {
+    await writeBeat(client);
+    log.info('Heartbeat retry succeeded');
+  } catch (err) {
+    log.error({ err: err.message }, 'Heartbeat retry also failed');
+  }
+}
+
+async function writeBeat(client) {
+  let dbConnected = 0;
+  try { await query('SELECT 1'); dbConnected = 1; } catch { /* noop */ }
+
+  const memberCount = client.guilds.cache.reduce((sum, g) => sum + g.memberCount, 0);
+
+  await query(
+    `UPDATE bot_status SET
+      status = 'online',
+      uptime_seconds = ?,
+      guild_count = ?,
+      member_count = ?,
+      latency_ms = ?,
+      db_connected = ?,
+      squadjs_connected = ?,
+      seeding_scheduler_active = ?,
+      prospect_scheduler_active = 0,
+      started_at = COALESCE(started_at, ?)
+    WHERE id = 1`,
+    [
+      Math.round(process.uptime()),
+      client.guilds.cache.size,
+      memberCount,
+      client.ws.ping,
+      dbConnected,
+      isSquadJsConnected() ? 1 : 0,
+      isSeedingActive() ? 1 : 0,
+      botStartedAt,
+    ]
+  );
 }

@@ -29,7 +29,13 @@ export function buildPanelMessage() {
         name: 'What to Expect',
         value:
           'Once your ticket is created, a member of staff will respond as soon as possible. ' +
-          'Please breifly let us know what you need help with and we will redirect you to the correct team.',
+          'Please briefly let us know what you need help with and we will redirect you to the correct team.',
+      },
+      {
+        name: 'CO & Admin Tickets',
+        value:
+          'The **CO Ticket** and **Admin Ticket** buttons are restricted to clan members only. ' +
+          'If you are not a member and need to reach a Community Officer or Admin, please create a normal ticket and staff will redirect you.',
       },
     );
 
