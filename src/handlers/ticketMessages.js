@@ -3,7 +3,7 @@ import { createEmbed, infoEmbed } from '../utils/embed.js';
 import { formatForDb, applyAttachments } from '../utils/attachments.js';
 import { parseTextCommand } from '../utils/commands.js';
 import { trySendWithFiles } from '../utils/discord.js';
-import { getTicketByChannel, saveMessage, beginCloseGracePeriod, getClosedTicketsByUser } from '../services/ticket/ticketService.js';
+import { getTicketByChannel, saveMessage, beginCloseGracePeriod, getAllClosedTicketsByUser } from '../services/ticket/ticketService.js';
 import { detectSteamIds, buildSteamEmbed, buildVanityEmbed } from '../services/steamService.js';
 import config from '../config.js';
 import logger from '../logger.js';
@@ -26,11 +26,11 @@ export async function handleGuild(message) {
   }
 
   if (cmd?.type === 'logs') {
-    const previous = await getClosedTicketsByUser(ticket.user_id, ticket.tier);
+    const previous = await getAllClosedTicketsByUser(ticket.user_id);
     if (previous.length === 0) {
       await message.channel.send('This user has no previous tickets.');
     } else {
-      const { embed, components } = buildLogsPage(previous, 1, ticket.user_id, ticket.tier);
+      const { embed, components } = buildLogsPage(previous, 1, ticket.user_id, 'all');
       await message.channel.send({ embeds: [embed], components });
     }
     await message.delete().catch(() => null);

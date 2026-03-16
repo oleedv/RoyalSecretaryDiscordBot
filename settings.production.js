@@ -55,6 +55,7 @@ export default {
     memberFlagId: '60539480-0d14-11ec-a83f-b32d5968dd59',
   },
   seeding: {
+    seedingServer: 'production',
     defaultThreshold: 40,
     defaultResetThreshold: 20,
     defaultTime: '16:00',

@@ -308,7 +308,7 @@ async function updateSeedingState(client) {
     const cfg = await getSeedingConfig();
     if (!cfg?.enabled) return;
 
-    const state = getServerState();
+    const state = getServerState(config.seeding?.seedingServer);
     if (!state.connected) return;
 
     const session = await getActiveSession();
@@ -370,7 +370,7 @@ export async function postSeedingCall(client, cfg) {
     return;
   }
 
-  const state = getServerState();
+  const state = getServerState(config.seeding?.seedingServer);
   const stats = await getSeedingStats();
   const gameMode = extractGameMode(state.currentLayer);
   const thumbnailUrl = getLayerImageUrl(state.currentLayerObj, state.currentLayer);

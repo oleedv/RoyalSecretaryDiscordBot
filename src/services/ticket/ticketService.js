@@ -57,6 +57,13 @@ export async function getClosedTicketsByUser(userId, tier) {
   );
 }
 
+export async function getAllClosedTicketsByUser(userId) {
+  return await query(
+    'SELECT t.uuid, t.tier, t.created_at, (SELECT tm.content FROM ticket_messages tm WHERE tm.ticket_id = t.id AND tm.is_staff = 0 ORDER BY tm.id ASC LIMIT 1) AS first_message FROM tickets t WHERE t.user_id = ? AND t.status = ? ORDER BY t.created_at DESC',
+    [userId, 'closed']
+  );
+}
+
 export async function saveMessage(ticketId, authorId, authorTag, content, attachments, isStaff, sourceMessageId, channelMessageId) {
   await query(
     'INSERT INTO ticket_messages (ticket_id, author_id, author_tag, content, attachments, is_staff, source_message_id, channel_message_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',

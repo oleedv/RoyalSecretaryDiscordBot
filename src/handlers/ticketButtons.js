@@ -14,6 +14,7 @@ import {
   forceCloseTicket,
   timeoutUser,
   getClosedTicketsByUser,
+  getAllClosedTicketsByUser,
 } from '../services/ticket/ticketService.js';
 import { buildTicketInfoEmbed, buildTicketComponents } from '../services/ticket/ticketEmbeds.js';
 import { errorEmbed, infoEmbed } from '../utils/embed.js';
@@ -243,7 +244,9 @@ export async function handleLogsPagination(interaction) {
 
   await interaction.deferUpdate();
 
-  const previous = await getClosedTicketsByUser(userId, tier);
+  const previous = tier === 'all'
+    ? await getAllClosedTicketsByUser(userId)
+    : await getClosedTicketsByUser(userId, tier);
   if (previous.length === 0) {
     return interaction.message.edit({ content: 'This user has no previous tickets.', embeds: [], components: [] });
   }
