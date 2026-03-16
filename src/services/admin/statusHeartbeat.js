@@ -1,7 +1,7 @@
 import { query } from '../../database/connection.js';
 import { isConnected as isSquadJsConnected } from '../seeding/seedingSocket.js';
 import { isSchedulerActive as isSeedingActive } from '../seeding/seedingScheduler.js';
-import logger from '../../utils/logger.js';
+import logger from '../../logger.js';
 
 const log = logger.child({ module: 'statusHeartbeat' });
 
