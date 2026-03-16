@@ -34,8 +34,8 @@ export default {
       startScheduler(client);
       connectSquadJS();
       startSeedingScheduler(client);
-      startHeartbeat(client);
-      startStatusUpdater(client);
+      await startHeartbeat(client);
+      await startStatusUpdater(client);
       startActionProcessor(client);
     } catch (err) {
       log.error({ err }, 'Failed to start background services');

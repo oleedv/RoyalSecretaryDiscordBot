@@ -9,6 +9,16 @@ const log = logger.child({ module: 'serverStatus' });
 let updateInterval = null;
 const statusMessages = []; // [{ name, messageId }]
 
+let lastSuccessfulUpdate = Date.now();
+let lastEmptyStatesWarn = 0;
+let lastNameMismatchWarn = 0;
+let lastStaleWarn = 0;
+const THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
+
+// Stored references for self-recovery
+let _channel = null;
+let _client = null;
+
 async function findExistingMessages(channel, client, serverCount) {
   const messages = await channel.messages.fetch({ limit: 20 });
   const botMessages = messages
@@ -39,7 +49,27 @@ async function ensureMessages(channel, client, serverStates, threshold) {
 async function updateMessages(channel, client) {
   try {
     const serverStates = getAllServerStates();
-    if (!serverStates.length) return;
+
+    if (!serverStates.length) {
+      const now = Date.now();
+      if (now - lastEmptyStatesWarn >= THROTTLE_MS) {
+        lastEmptyStatesWarn = now;
+        log.warn('No server states available from SquadJS - status embeds not updating');
+      }
+      return;
+    }
+
+    // Self-recovery: if we have server data but no tracked messages, re-initialize
+    if (!statusMessages.length && serverStates.length) {
+      log.warn('No status messages tracked but server states exist - attempting re-initialization');
+      const seedCfg = await getSeedingConfig();
+      const threshold = seedCfg?.seed_threshold ?? config.seeding?.defaultThreshold ?? 40;
+      await ensureMessages(channel, client, serverStates, threshold);
+      if (statusMessages.length) {
+        log.info({ count: statusMessages.length }, 'Self-recovery: re-created status messages');
+      }
+      return;
+    }
 
     const seedCfg = await getSeedingConfig();
     const threshold = seedCfg?.seed_threshold ?? config.seeding?.defaultThreshold ?? 40;
@@ -47,21 +77,51 @@ async function updateMessages(channel, client) {
     for (let i = 0; i < statusMessages.length; i++) {
       const entry = statusMessages[i];
       const serverData = serverStates.find((s) => s.name === entry.name);
-      if (!serverData) continue;
 
-      const embed = buildServerStatusEmbed(serverData.state, threshold);
+      if (!serverData) {
+        const now = Date.now();
+        if (now - lastNameMismatchWarn >= THROTTLE_MS) {
+          lastNameMismatchWarn = now;
+          log.warn(
+            { expected: entry.name, available: serverStates.map((s) => s.name) },
+            'Server name mismatch - no matching state found'
+          );
+        }
+        continue;
+      }
 
-      let msg = await channel.messages.fetch(entry.messageId).catch(() => null);
-      if (msg) {
-        await msg.edit({ embeds: [embed] });
-      } else {
-        msg = await channel.send({ embeds: [embed] });
-        entry.messageId = msg.id;
-        log.info({ name: entry.name, messageId: msg.id }, 'Recreated status message');
+      try {
+        const embed = buildServerStatusEmbed(serverData.state, threshold);
+
+        let msg = await channel.messages.fetch(entry.messageId).catch(() => null);
+        if (msg) {
+          await msg.edit({ embeds: [embed] });
+        } else {
+          msg = await channel.send({ embeds: [embed] });
+          entry.messageId = msg.id;
+          log.info({ name: entry.name, messageId: msg.id }, 'Recreated status message');
+        }
+      } catch (msgErr) {
+        log.error({ err: msgErr, name: entry.name }, 'Failed to update individual status message');
       }
     }
+
+    lastSuccessfulUpdate = Date.now();
   } catch (err) {
     log.error({ err }, 'Failed to update server status messages');
+  }
+
+  // Staleness warning
+  const staleDuration = Date.now() - lastSuccessfulUpdate;
+  if (staleDuration > THROTTLE_MS) {
+    const now = Date.now();
+    if (now - lastStaleWarn >= THROTTLE_MS) {
+      lastStaleWarn = now;
+      log.warn(
+        { staleMinutes: Math.round(staleDuration / 60_000) },
+        'Server status embeds have not been successfully updated'
+      );
+    }
   }
 }
 
@@ -77,6 +137,9 @@ export async function startStatusUpdater(client) {
     log.warn({ channelId }, 'Server status channel not found');
     return;
   }
+
+  _channel = channel;
+  _client = client;
 
   const serverStates = getAllServerStates();
   if (!serverStates.length) {
@@ -105,6 +168,8 @@ export function stopStatusUpdater() {
     clearInterval(updateInterval);
     updateInterval = null;
     statusMessages.length = 0;
+    _channel = null;
+    _client = null;
     log.info('Server status updater stopped');
   }
 }

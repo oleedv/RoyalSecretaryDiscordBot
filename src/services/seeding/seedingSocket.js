@@ -165,8 +165,11 @@ export function connect() {
   }
 
   // Watchdog: detect zombie connections every 60s
+  let watchdogTicks = 0;
   setInterval(() => {
     const now = Date.now();
+    watchdogTicks++;
+
     for (const [name, conn] of connections) {
       if (!conn.state.connected) continue;
       const staleSec = (now - conn.state.lastEventTime) / 1000;
@@ -175,6 +178,21 @@ export function connect() {
         conn.socket.disconnect();
         conn.socket.connect();
       }
+    }
+
+    // Log connection state summary every 5 minutes (every 5th tick)
+    if (watchdogTicks % 5 === 0) {
+      const summary = [];
+      for (const [name, conn] of connections) {
+        const staleSec = Math.round((now - conn.state.lastEventTime) / 1000);
+        summary.push({
+          name,
+          connected: conn.state.connected,
+          players: conn.state.playerCount,
+          lastEventSec: staleSec,
+        });
+      }
+      log.info({ servers: summary }, 'SquadJS connection state summary');
     }
   }, 60_000);
 }
