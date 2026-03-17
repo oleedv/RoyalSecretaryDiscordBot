@@ -95,9 +95,9 @@ jobs:
             STATUS=$(docker ps --filter name=royal-secretary-bot-prod --format "{{.Status}}")
             echo "Container status: ${STATUS}"
 
-            if [ -z "$STATUS" ]; then
-              echo "Container is not running!"
-              docker logs --tail 30 royal-secretary-bot-prod 2>&1 || true
+            if [ -z "$STATUS" ] || ! echo "$STATUS" | grep -q "Up"; then
+              echo "Container is not running or crash-looping!"
+              docker logs --tail 50 royal-secretary-bot-prod 2>&1 || true
               exit 1
             fi
 
