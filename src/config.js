@@ -1,6 +1,6 @@
 import settings from '../settings.js';
 
-const requiredEnvVars = ['DISCORD_TOKEN', 'DISCORD_CLIENT_ID', 'DB_HOST', 'DB_USER', 'DB_PASSWORD'];
+const requiredEnvVars = ['DISCORD_TOKEN', 'DISCORD_CLIENT_ID', 'DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
 
 export function validateConfig() {
   const missing = requiredEnvVars.filter((key) => !process.env[key]);
@@ -28,9 +28,9 @@ const config = Object.freeze({
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     databases: {
-      secretary: process.env.DB_NAME || 'Royal_secretary_staging',
+      secretary: process.env.DB_NAME,
       squadjs: 'SquadJS',
-      website: process.env.WEBSITE_DB_NAME || 'royal_battalion_stg',
+      website: process.env.WEBSITE_DB_NAME,
     },
   },
   squadjs: parseSquadJsServers(process.env.SQUADJS_SERVERS),
