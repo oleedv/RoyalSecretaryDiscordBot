@@ -115,29 +115,7 @@ async function handleDM(message) {
     );
   }
 
-  const components = [buttons];
-
-  // Add CO/Admin ticket buttons for members
-  const guild = await message.client.guilds.fetch(config.guild.id).catch(() => null);
-  if (guild) {
-    const member = await guild.members.fetch(message.author.id).catch(() => null);
-    const normalRoles = config.tickets?.roles?.normal || [];
-    if (member && normalRoles.some((r) => member.roles.cache.has(r))) {
-      const memberButtons = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId('ticket_create_co')
-          .setLabel('CO Ticket')
-          .setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder()
-          .setCustomId('ticket_create_admin')
-          .setLabel('Admin Ticket')
-          .setStyle(ButtonStyle.Danger),
-      );
-      components.push(memberButtons);
-    }
-  }
-
-  return message.reply({ embeds: [embed], components });
+  return message.reply({ embeds: [embed], components: [buttons] });
 }
 
 async function handleGuild(message) {

@@ -1,10 +1,5 @@
-import {
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  ActionRowBuilder,
-} from 'discord.js';
 import { getStoredSteamId } from '../services/userService.js';
+import { rawModal, labelComponent, textInput, checkboxGroup } from '../utils/modalComponents.js';
 import {
   getTicketByChannel,
   getTicketByChannelStatus,
@@ -31,102 +26,37 @@ const allTicketStaffRoles = () => {
   return [...(r.normal || []), ...(r.communityOfficer || []), ...(r.adminOfficer || []), ...(r.compTeam || []), ...(r.whitelist || [])];
 };
 
-async function handleCreateWithTier(interaction, tier) {
-  const memberRoles = interaction.member?.roles?.cache;
-  const normalRoles = config.tickets.roles.normal || [];
-  const isMember = memberRoles && normalRoles.some((r) => memberRoles.has(r));
-
-  if (!isMember) {
-    return interaction.reply({
-      embeds: [errorEmbed('You need to be a member to create CO/Admin tickets. Please create a normal ticket instead.')],
-      flags: ['Ephemeral'],
-    });
-  }
-
-  const storedSteamId = await getStoredSteamId(interaction.user.id);
-  const modalId = storedSteamId ? `ticket_create_${tier}_modal_quick` : `ticket_create_${tier}_modal`;
-
-  const ticketModal = new ModalBuilder()
-    .setCustomId(modalId)
-    .setTitle(tier === 'co' ? 'Create CO Ticket' : 'Create Admin Ticket');
-
-  const components = [];
-
-  if (!storedSteamId) {
-    components.push(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId('ticket_steam_id')
-          .setLabel('Steam ID (Steam64 or profile URL, optional)')
-          .setStyle(TextInputStyle.Short)
-          .setPlaceholder('e.g. 76561198012345678')
-          .setRequired(true)
-      )
-    );
-  }
-
-  components.push(
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('ticket_reason')
-        .setLabel('Why are you creating this ticket?')
-        .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder('Briefly describe your issue...')
-        .setMinLength(5)
-        .setMaxLength(500)
-        .setRequired(true)
-    )
-  );
-
-  ticketModal.addComponents(...components);
-  await interaction.showModal(ticketModal);
-}
-
-export async function handleCreateCo(interaction) {
-  return handleCreateWithTier(interaction, 'co');
-}
-
-export async function handleCreateAdmin(interaction) {
-  return handleCreateWithTier(interaction, 'admin');
-}
-
 export async function handleCreate(interaction) {
   const storedSteamId = await getStoredSteamId(interaction.user.id);
+  const modalId = storedSteamId ? 'ticket_create_modal_quick' : 'ticket_create_modal';
 
-  const ticketModal = new ModalBuilder()
-    .setCustomId(storedSteamId ? 'ticket_create_modal_quick' : 'ticket_create_modal')
-    .setTitle('Create a Support Ticket');
-
-  const components = [];
+  const components = [
+    labelComponent('Team', checkboxGroup('ticket_teams', [
+      { label: 'Normal', value: 'normal', default: true },
+      { label: 'Community Officer (Members Only)', value: 'community_officer' },
+      { label: 'Admin Officer (Members Only)', value: 'admin_officer' },
+    ], { minValues: 1, maxValues: 1 })),
+  ];
 
   if (!storedSteamId) {
     components.push(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId('ticket_steam_id')
-          .setLabel('Steam ID (Steam64 or profile URL, optional)')
-          .setStyle(TextInputStyle.Short)
-          .setPlaceholder('e.g. 76561198012345678')
-          .setRequired(true)
-      )
+      labelComponent('Steam ID (Steam64 or profile URL)', textInput('ticket_steam_id', 'short', {
+        placeholder: 'e.g. 76561198012345678',
+        required: true,
+      }))
     );
   }
 
   components.push(
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('ticket_reason')
-        .setLabel('Why are you creating this ticket?')
-        .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder('Briefly describe your issue...')
-        .setMinLength(5)
-        .setMaxLength(500)
-        .setRequired(true)
-    )
+    labelComponent('Why are you creating this ticket?', textInput('ticket_reason', 'paragraph', {
+      placeholder: 'Briefly describe your issue...',
+      minLength: 5,
+      maxLength: 500,
+      required: true,
+    }))
   );
 
-  ticketModal.addComponents(...components);
-  await interaction.showModal(ticketModal);
+  await interaction.showModal(rawModal(modalId, 'Create a Support Ticket', components));
 }
 
 export async function handleEscalate(interaction) {

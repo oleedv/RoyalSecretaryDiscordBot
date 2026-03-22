@@ -113,7 +113,7 @@ export async function handleModal2(interaction) {
   const prevClan = interaction.fields.getTextInputValue('prev_clan').trim();
   const whyRb = interaction.fields.getTextInputValue('why_rb').trim();
   const activeHours = interaction.fields.getTextInputValue('active_hours').trim();
-  const competitive = interaction.fields.getTextInputValue('competitive').trim();
+  const competitive = interaction.fields.getField('competitive').value ?? '';
   const steamId = interaction.fields.getTextInputValue('steam_id').trim();
 
   const errors = [];

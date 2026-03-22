@@ -6,6 +6,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
 } from 'discord.js';
+import { rawModal, labelComponent, textInput, radioGroup } from '../utils/modalComponents.js';
 import { getOpenProspectByUser, getProspectByChannel, getProspectByChannelAnyStatus, claimProspect, unclaimProspect, acceptProspect, extendProspect, closeProspect } from '../services/prospect/prospectService.js';
 import { postVote, getProspectByVoteMessage, upsertVote, getVoteCounts } from '../services/prospect/prospectVoting.js';
 import { buildVoteComponents, buildCloseTicketComponents } from '../services/prospect/prospectEmbeds.js';
@@ -74,50 +75,17 @@ export async function handleApply(interaction) {
 }
 
 export async function handleModal2Open(interaction) {
-  const modal = new ModalBuilder()
-    .setCustomId('prospect_modal_2')
-    .setTitle('Join Royal Battalion (2/2)');
-
-  modal.addComponents(
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('prev_clan')
-        .setLabel('Previous clan? (or "No")')
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-    ),
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('why_rb')
-        .setLabel('Why do you want to join RB?')
-        .setStyle(TextInputStyle.Paragraph)
-        .setMinLength(10)
-        .setRequired(true)
-    ),
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('active_hours')
-        .setLabel('Active hours (UTC)')
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('e.g. 18:00 - 23:00 UTC')
-        .setRequired(true)
-    ),
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('competitive')
-        .setLabel('Interested in competitive play?')
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-    ),
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('steam_id')
-        .setLabel('Steam ID (Steam64 or profile URL)')
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('e.g. 76561198012345678')
-        .setRequired(true)
-    )
-  );
+  const modal = rawModal('prospect_modal_2', 'Join Royal Battalion (2/2)', [
+    labelComponent('Previous clan? (or "No")', textInput('prev_clan', 'short', { required: true })),
+    labelComponent('Why do you want to join RB?', textInput('why_rb', 'paragraph', { minLength: 10, required: true })),
+    labelComponent('Active hours (UTC)', textInput('active_hours', 'short', { placeholder: 'e.g. 18:00 - 23:00 UTC', required: true })),
+    labelComponent('Interested in competitive play?', radioGroup('competitive', [
+      { label: 'Yes', value: 'Yes' },
+      { label: 'No', value: 'No' },
+      { label: 'Unsure', value: 'Unsure' },
+    ])),
+    labelComponent('Steam ID (Steam64 or profile URL)', textInput('steam_id', 'short', { placeholder: 'e.g. 76561198012345678', required: true })),
+  ]);
 
   await interaction.showModal(modal);
 }

@@ -32,10 +32,10 @@ export function buildPanelMessage() {
           'Please briefly let us know what you need help with and we will redirect you to the correct team.',
       },
       {
-        name: 'CO & Admin Tickets',
+        name: 'Team Selection',
         value:
-          'The **CO Ticket** and **Admin Ticket** buttons are restricted to clan members only. ' +
-          'If you are not a member and need to reach a Community Officer or Admin, please create a normal ticket and staff will redirect you.',
+          'When creating a ticket you can choose which team to contact: **Normal**, **Community Officer**, or **Admin**. ' +
+          'CO and Admin options are restricted to clan members.',
       },
     );
 
@@ -46,18 +46,7 @@ export function buildPanelMessage() {
       .setStyle(ButtonStyle.Primary)
   );
 
-  const row2 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('ticket_create_co')
-      .setLabel('CO Ticket')
-      .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId('ticket_create_admin')
-      .setLabel('Admin Ticket')
-      .setStyle(ButtonStyle.Danger)
-  );
-
-  return { embeds: [embed], components: [row, row2] };
+  return { embeds: [embed], components: [row] };
 }
 
 export async function ensureTicketPanel(client) {
