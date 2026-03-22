@@ -60,10 +60,10 @@ jobs:
             DB_HOST=${{ secrets.DB_HOST }}
             DB_USER=${{ secrets.DB_USER }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            DB_NAME=${{ secrets.DB_NAME }}
-            WEBSITE_DB_NAME=${{ secrets.WEBSITE_DB_NAME }}
+            DB_NAME=Royal_secretary_staging
+            WEBSITE_DB_NAME=royal_battalion_stg
             MARIADB_ROOT_PASSWORD_STAGING=${{ secrets.DB_ROOT_PASSWORD }}
-            MARIADB_DATABASE_STAGING=${{ secrets.DB_NAME }}
+            MARIADB_DATABASE_STAGING=Royal_secretary_staging
             MARIADB_USER_STAGING=${{ secrets.DB_USER }}
             MARIADB_PASSWORD_STAGING=${{ secrets.DB_PASSWORD }}
             SQUADJS_SERVERS=${{ secrets.SQUADJS_SERVERS }}
