@@ -8,6 +8,7 @@ import logger from '../../logger.js';
 const log = logger.child({ module: 'prospectScheduler' });
 
 let intervalId = null;
+let isRunning = false;
 
 export function startScheduler(client) {
   if (intervalId) {
@@ -22,6 +23,11 @@ export function startScheduler(client) {
 }
 
 async function runVoteCheck(client) {
+  if (isRunning) {
+    log.warn('Vote check still running from previous tick, skipping');
+    return;
+  }
+  isRunning = true;
   try {
     const prospects = await getProspectsNeedingVote();
     if (prospects.length === 0) return;
@@ -64,6 +70,8 @@ async function runVoteCheck(client) {
     }
   } catch (err) {
     log.error({ err }, 'Vote check failed');
+  } finally {
+    isRunning = false;
   }
 }
 

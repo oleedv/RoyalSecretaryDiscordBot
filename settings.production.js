@@ -29,8 +29,8 @@ export default {
     panelChannelId: '1476956067882864671',               // "Join RB" panel channel
     forumChannelId: '1476956459211423814',               // Forum channel for public prospect posts
     loungeChannelId: '1476955931794473141',              // Public announcements (voting, accepted)
-    periodDays: 21,
-    voteDaysBefore: 7,
+    periodDays: 28,
+    voteDaysBefore: 14,
     roles: ['1204763136830218260', '654022866261770270', '1213958671843860552', '1295470787934814259', '989894740642263082', '733974178797191189'],                      // Staff roles, trainee mentor, mentor, seniro mentor, recruitment officer, comm officer, rb managers
     prospectRoleId: '706053335106715650',               // Prospect role
     whitelistRoleId: '528574587747958794',              // Whitelist role aka rb member

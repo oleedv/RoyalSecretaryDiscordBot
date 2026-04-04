@@ -9,15 +9,25 @@ const log = logger.child({ module: 'teamRole' })
 const ROLE_PREFIX = 'Team '
 
 /**
- * Find an existing "Team <name>" role for a mentor, matching by stored mentor ID
- * in the role's name pattern. We look up the mentor's display name and search roles.
+ * Build the unique role name for a mentor: "Team <DisplayName> (<id>)"
+ */
+function buildRoleName(displayName, mentorId) {
+  return `${ROLE_PREFIX}${displayName} (${mentorId})`
+}
+
+/**
+ * Find an existing team role for a mentor.
+ * Checks new format "Team <name> (<id>)" first, falls back to legacy "Team <name>".
  */
 export async function getTeamRole(mentorId, guild) {
   const mentor = await guild.members.fetch(mentorId).catch(() => null)
   if (!mentor) return null
 
-  const roleName = `${ROLE_PREFIX}${mentor.displayName}`
-  return guild.roles.cache.find((r) => r.name === roleName) || null
+  const newName = buildRoleName(mentor.displayName, mentorId)
+  const legacyName = `${ROLE_PREFIX}${mentor.displayName}`
+  return guild.roles.cache.find((r) => r.name === newName)
+    || guild.roles.cache.find((r) => r.name === legacyName)
+    || null
 }
 
 /**
@@ -30,15 +40,17 @@ export async function ensureTeamRole(mentorId, guild) {
     return null
   }
 
-  const roleName = `${ROLE_PREFIX}${mentor.displayName}`
-  let role = guild.roles.cache.find((r) => r.name === roleName)
+  const newName = buildRoleName(mentor.displayName, mentorId)
+  const legacyName = `${ROLE_PREFIX}${mentor.displayName}`
+  let role = guild.roles.cache.find((r) => r.name === newName)
+    || guild.roles.cache.find((r) => r.name === legacyName)
 
   if (!role) {
     role = await guild.roles.create({
-      name: roleName,
+      name: newName,
       reason: `Team role for mentor ${mentor.user.tag}`,
     })
-    log.info({ mentorId, roleId: role.id, roleName }, 'Created team role')
+    log.info({ mentorId, roleId: role.id, roleName: newName }, 'Created team role')
   }
 
   return role
@@ -46,21 +58,26 @@ export async function ensureTeamRole(mentorId, guild) {
 
 /**
  * Give a prospect the mentor's team role.
+ * Returns true on success, false on failure.
  */
 export async function assignTeamRole(prospectUserId, mentorId, guild) {
-  const role = await ensureTeamRole(mentorId, guild)
-  if (!role) return
+  try {
+    const role = await ensureTeamRole(mentorId, guild)
+    if (!role) return false
 
-  const member = await guild.members.fetch(prospectUserId).catch(() => null)
-  if (!member) {
-    log.warn({ prospectUserId }, 'Could not fetch prospect member for team role assignment')
-    return
+    const member = await guild.members.fetch(prospectUserId).catch(() => null)
+    if (!member) {
+      log.warn({ prospectUserId }, 'Could not fetch prospect member for team role assignment')
+      return false
+    }
+
+    await member.roles.add(role)
+    log.info({ prospectUserId, mentorId, roleId: role.id }, 'Assigned team role to prospect')
+    return true
+  } catch (err) {
+    log.error({ err, prospectUserId, mentorId }, 'Failed to assign team role to prospect')
+    return false
   }
-
-  await member.roles.add(role).catch((err) =>
-    log.error({ err, prospectUserId, roleId: role.id }, 'Failed to add team role to prospect')
-  )
-  log.info({ prospectUserId, mentorId, roleId: role.id }, 'Assigned team role to prospect')
 }
 
 /**

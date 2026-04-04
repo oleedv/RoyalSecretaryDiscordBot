@@ -31,8 +31,12 @@ export default {
 
         const prospects = await getOpenProspectsByMentor(oldMember.id)
         for (const prospect of prospects) {
-          await removeTeamRole(prospect.user_id, oldMember.id, guild)
-          await unclaimProspect(prospect, oldMember.id, guild)
+          try {
+            await removeTeamRole(prospect.user_id, oldMember.id, guild)
+            await unclaimProspect(prospect, oldMember.id, guild)
+          } catch (err) {
+            log.error({ err, prospectId: prospect.id, mentorId: oldMember.id }, 'Failed to unclaim prospect during mentor role removal')
+          }
         }
 
         await deleteTeamRole(oldMember.id, guild)

@@ -155,7 +155,7 @@ export async function getProspectsNeedingVote() {
   const { periodDays, voteDaysBefore } = config.prospects;
   const daysUntilVote = periodDays - voteDaysBefore;
   return await query(
-    'SELECT * FROM prospects WHERE status = ? AND forum_thread_id IS NOT NULL AND vote_posted_at IS NULL AND TIMESTAMPDIFF(DAY, created_at, NOW()) >= (? + COALESCE(extra_days, 0))',
+    'SELECT * FROM prospects WHERE status = ? AND forum_thread_id IS NOT NULL AND vote_posted_at IS NULL AND paused_at IS NULL AND TIMESTAMPDIFF(DAY, created_at, NOW()) >= (? + COALESCE(extra_days, 0))',
     ['open', daysUntilVote]
   );
 }
@@ -186,19 +186,26 @@ export async function createProspect(userId, guild, formData) {
     permissionOverwrites,
   });
 
-  await query(
-    `INSERT INTO prospects (uuid, channel_id, user_id, alias, nationality, date_of_birth, squad_hours, preferred_roles, prev_clan, why_rb, active_hours, competitive, steam_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [uuid, channel.id, userId, formData.alias, formData.nationality, formData.dateOfBirth, formData.squadHours, formData.preferredRoles, formData.prevClan, formData.whyRb, formData.activeHours, formData.competitive, formData.steamId]
-  );
+  let prospect;
+  try {
+    await query(
+      `INSERT INTO prospects (uuid, channel_id, user_id, alias, nationality, date_of_birth, squad_hours, preferred_roles, prev_clan, why_rb, active_hours, competitive, steam_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [uuid, channel.id, userId, formData.alias, formData.nationality, formData.dateOfBirth, formData.squadHours, formData.preferredRoles, formData.prevClan, formData.whyRb, formData.activeHours, formData.competitive, formData.steamId]
+    );
 
-  const rows = await query('SELECT * FROM prospects WHERE uuid = ?', [uuid]);
-  const prospect = rows[0];
+    const rows = await query('SELECT * FROM prospects WHERE uuid = ?', [uuid]);
+    prospect = rows[0];
 
-  await query(
-    'INSERT INTO prospect_events (prospect_id, event_type, actor_id) VALUES (?, ?, ?)',
-    [prospect.id, 'created', userId]
-  );
+    await query(
+      'INSERT INTO prospect_events (prospect_id, event_type, actor_id) VALUES (?, ?, ?)',
+      [prospect.id, 'created', userId]
+    );
+  } catch (err) {
+    log.error({ err, uuid, channelId: channel.id }, 'Failed to insert prospect record, cleaning up channel');
+    await channel.delete().catch(() => null);
+    throw err;
+  }
 
   const member = await guild.members.fetch(userId).catch(() => null);
   const infoEmbed = buildProspectInfoEmbed(member, prospect);
@@ -233,7 +240,8 @@ export async function createProspect(userId, guild, formData) {
 export async function claimProspect(prospect, mentorId, guild) {
   if (prospect.mentor_id) return { error: 'This prospect already has a mentor.' };
 
-  await query('UPDATE prospects SET mentor_id = ? WHERE id = ?', [mentorId, prospect.id]);
+  const result = await query('UPDATE prospects SET mentor_id = ? WHERE id = ? AND mentor_id IS NULL', [mentorId, prospect.id]);
+  if (result.affectedRows === 0) return { error: 'Another mentor just claimed this prospect.' };
 
   const mentor = await guild.members.fetch(mentorId).catch(() => null);
   const mentorTag = mentor?.user.tag || mentorId;
@@ -273,7 +281,13 @@ export async function claimProspect(prospect, mentorId, guild) {
   }
 
   // Assign the mentor's team role to the prospect
-  await assignTeamRole(prospect.user_id, mentorId, guild)
+  const roleAssigned = await assignTeamRole(prospect.user_id, mentorId, guild)
+  if (!roleAssigned && staffChannel) {
+    staffChannel.send({ embeds: [createEmbed('Prospect')
+      .setTitle('Team Role Warning')
+      .setDescription(`Could not assign the team role to <@${prospect.user_id}>. The claim succeeded but the role may need to be assigned manually.`)
+      .setColor(0xfee75c)] }).catch(() => null);
+  }
 
   log.info({ prospectId: prospect.id, mentorId }, 'Mentor claimed prospect');
   return {};

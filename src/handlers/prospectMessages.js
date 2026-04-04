@@ -91,7 +91,10 @@ export async function handleDM(message, prospect) {
   if (!guild) return;
 
   const channel = await guild.channels.fetch(prospect.channel_id).catch(() => null);
-  if (!channel) return;
+  if (!channel) {
+    log.warn({ prospectId: prospect.id, channelId: prospect.channel_id }, 'Staff channel missing for prospect DM relay');
+    return;
+  }
 
   const embed = createEmbed('Prospect')
     .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
