@@ -21,10 +21,8 @@ async function deleteLogsEmbeds(channel, botId) {
   if (!messages) return;
   for (const msg of messages.values()) {
     if (msg.author.id !== botId) continue;
-    const hasLogsComponent = msg.components.some((row) =>
-      row.components.some((c) => c.customId?.startsWith('logs_'))
-    );
-    if (hasLogsComponent) await msg.delete().catch(() => null);
+    const isLogsEmbed = msg.embeds.some((e) => e.title?.startsWith('Previous Tickets'));
+    if (isLogsEmbed) await msg.delete().catch(() => null);
   }
 }
 
