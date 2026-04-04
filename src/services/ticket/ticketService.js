@@ -16,6 +16,18 @@ const GRACE_PERIOD_MS = 60 * 60 * 1000; // 1 hour
 // In-memory timer store for closing grace periods (channelId → timeout ref)
 const closingTimers = new Map();
 
+async function deleteLogsEmbeds(channel, botId) {
+  const messages = await channel.messages.fetch({ limit: 50 }).catch(() => null);
+  if (!messages) return;
+  for (const msg of messages.values()) {
+    if (msg.author.id !== botId) continue;
+    const hasLogsComponent = msg.components.some((row) =>
+      row.components.some((c) => c.customId?.startsWith('logs_'))
+    );
+    if (hasLogsComponent) await msg.delete().catch(() => null);
+  }
+}
+
 // ── DB Accessors ──
 
 export async function getOpenTicketByUser(userId) {
@@ -249,6 +261,9 @@ export async function escalateTicket(ticket, tier, channel, actorId = null) {
     comp_team: 0x57f287,
     whitelist: 0x3498db,
   };
+  // Remove any !logs embeds from the previous team
+  await deleteLogsEmbeds(channel, channel.client.user.id);
+
   const tierLabel = tierLabels[tier] || tier;
   const notifEmbed = createEmbed('Ticket')
     .setTitle('Ticket Transferred')
@@ -289,6 +304,9 @@ export async function beginCloseGracePeriod(ticket, closedById, channel, client)
     });
     await topMsg.edit({ components: disabledComponents }).catch(() => null);
   }
+
+  // Remove any !logs embeds before closing
+  await deleteLogsEmbeds(channel, client.user.id);
 
   // Send closing embed with Reopen + Force Close buttons
   const deleteAt = Math.floor((Date.now() + GRACE_PERIOD_MS) / 1000);
