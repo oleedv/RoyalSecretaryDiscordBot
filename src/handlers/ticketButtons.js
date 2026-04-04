@@ -1,5 +1,5 @@
 import { getStoredSteamId } from '../services/userService.js';
-import { rawModal, labelComponent, textInput, checkboxGroup } from '../utils/modalComponents.js';
+import { rawModal, labelComponent, textInput, radioGroup } from '../utils/modalComponents.js';
 import {
   getTicketByChannel,
   getTicketByChannelStatus,
@@ -31,11 +31,11 @@ export async function handleCreate(interaction) {
   const modalId = storedSteamId ? 'ticket_create_modal_quick' : 'ticket_create_modal';
 
   const components = [
-    labelComponent('Team', checkboxGroup('ticket_teams', [
+    labelComponent('Team', radioGroup('ticket_teams', [
       { label: 'Normal', value: 'normal', default: true },
       { label: 'Community Officer (Members Only)', value: 'community_officer' },
       { label: 'Admin Officer (Members Only)', value: 'admin_officer' },
-    ], { minValues: 1, maxValues: 1 })),
+    ])),
   ];
 
   if (!storedSteamId) {

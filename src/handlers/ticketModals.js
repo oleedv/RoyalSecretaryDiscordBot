@@ -9,7 +9,7 @@ const log = logger.child({ module: 'ticketModals' });
 
 function extractTier(interaction) {
   const field = interaction.fields.getField('ticket_teams');
-  return field.values?.[0] ?? 'normal';
+  return field.value ?? field.values?.[0] ?? 'normal';
 }
 
 function validateMembership(interaction, tier) {
