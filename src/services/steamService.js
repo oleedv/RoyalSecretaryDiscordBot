@@ -46,7 +46,7 @@ export function detectSteamIds(text) {
 
 export function buildSteamEmbed(steamId) {
   return createEmbed('Ticket')
-    .setTitle('Steam Profile Detected')
+    .setTitle('Player Lookup')
     .setColor(0x1b2838)
     .addFields(
       { name: 'Steam ID', value: steamId, inline: true },
@@ -55,6 +55,7 @@ export function buildSteamEmbed(steamId) {
         value: [
           `[steamid.io](https://steamid.io/lookup/${steamId})`,
           `[BattleMetrics](https://www.battlemetrics.com/rcon/players?filter[search]=${steamId})`,
+          `[CBL](https://communitybanlist.com/search/${steamId})`,
         ].join(' | '),
       }
     );
@@ -62,13 +63,16 @@ export function buildSteamEmbed(steamId) {
 
 export function buildVanityEmbed(vanityUrl) {
   return createEmbed('Ticket')
-    .setTitle('Steam Profile Detected')
+    .setTitle('Player Lookup')
     .setColor(0x1b2838)
     .addFields(
       { name: 'Vanity URL', value: vanityUrl, inline: true },
       {
         name: 'Links',
-        value: `[steamid.io](https://steamid.io/lookup/${vanityUrl})`,
+        value: [
+          `[steamid.io](https://steamid.io/lookup/${vanityUrl})`,
+          `[CBL](https://communitybanlist.com/search/${vanityUrl})`,
+        ].join(' | '),
       }
     );
 }
