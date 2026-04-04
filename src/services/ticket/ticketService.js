@@ -61,9 +61,15 @@ export async function getTicketByChannelStatus(channelId, status) {
 }
 
 export async function getClosedTicketsByUser(userId, tier) {
+  if (tier === 'normal') {
+    return await query(
+      'SELECT t.uuid, t.tier, t.created_at, (SELECT tm.content FROM ticket_messages tm WHERE tm.ticket_id = t.id AND tm.is_staff = 0 ORDER BY tm.id ASC LIMIT 1) AS first_message FROM tickets t WHERE t.user_id = ? AND t.status = ? AND t.tier = ? ORDER BY t.created_at DESC',
+      [userId, 'closed', tier]
+    );
+  }
   return await query(
-    'SELECT t.uuid, t.tier, t.created_at, (SELECT tm.content FROM ticket_messages tm WHERE tm.ticket_id = t.id AND tm.is_staff = 0 ORDER BY tm.id ASC LIMIT 1) AS first_message FROM tickets t WHERE t.user_id = ? AND t.status = ? AND t.tier = ? ORDER BY t.created_at DESC',
-    [userId, 'closed', tier]
+    'SELECT t.uuid, t.tier, t.created_at, (SELECT tm.content FROM ticket_messages tm WHERE tm.ticket_id = t.id AND tm.is_staff = 0 ORDER BY tm.id ASC LIMIT 1) AS first_message FROM tickets t WHERE t.user_id = ? AND t.status = ? AND t.tier IN (?, ?) ORDER BY t.created_at DESC',
+    [userId, 'closed', tier, 'normal']
   );
 }
 
