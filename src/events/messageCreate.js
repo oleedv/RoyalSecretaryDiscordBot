@@ -17,8 +17,6 @@ export default {
   name: Events.MessageCreate,
 
   async execute(message) {
-    log.info({ partial: message.partial, guild: !!message.guild, channelType: message.channel?.type, authorId: message.author?.id }, 'messageCreate: raw event');
-
     if (message.partial) {
       try { message = await message.fetch(); } catch (err) {
         log.error({ err }, 'messageCreate: failed to fetch partial');
@@ -26,8 +24,6 @@ export default {
       }
     }
     if (message.author.bot) return;
-
-    log.info({ userId: message.author.id, isDM: !message.guild, channelId: message.channel?.id }, 'messageCreate: received');
 
     logMessage(message);
 
@@ -47,11 +43,11 @@ export default {
 };
 
 async function handleDM(message) {
-  log.info({ userId: message.author.id }, 'handleDM: start');
+  log.debug({ userId: message.author.id }, 'handleDM: start');
 
   const ticket = await getOpenTicketByUser(message.author.id);
   if (ticket) {
-    log.info({ userId: message.author.id, ticketId: ticket.id }, 'handleDM: found open ticket');
+    log.debug({ userId: message.author.id, ticketId: ticket.id }, 'handleDM: found open ticket');
     return ticketMessages.handleDM(message, ticket);
   }
 
@@ -89,7 +85,7 @@ async function handleDM(message) {
     return ticketMessages.handleDM(message, { ...closingTicket, status: 'open' });
   }
 
-  log.info({ userId: message.author.id }, 'handleDM: no open/closing ticket');
+  log.debug({ userId: message.author.id }, 'handleDM: no open/closing ticket');
 
   const prospect = await getOpenProspectByUser(message.author.id);
   if (prospect) {
@@ -99,15 +95,19 @@ async function handleDM(message) {
     return prospectMessages.handleDM(message, prospect);
   }
 
-  log.info({ userId: message.author.id }, 'handleDM: no open prospect');
+  log.debug({ userId: message.author.id }, 'handleDM: no open prospect');
 
   // Fallback: allow DM relay for recently-closed prospects whose channel still exists
   const closedProspect = await getProspectByUserWithChannel(message.author.id);
   if (closedProspect) {
-    return prospectMessages.handleDM(message, closedProspect);
+    const guild = await message.client.guilds.fetch(config.guild.id).catch(() => null);
+    const prospectChannel = guild ? await guild.channels.fetch(closedProspect.channel_id).catch(() => null) : null;
+    if (prospectChannel) {
+      return prospectMessages.handleDM(message, closedProspect);
+    }
   }
 
-  log.info({ userId: message.author.id }, 'handleDM: sending welcome menu');
+  log.debug({ userId: message.author.id }, 'handleDM: sending welcome menu');
 
   const embed = createEmbed()
     .setTitle('Royal Battalion')
