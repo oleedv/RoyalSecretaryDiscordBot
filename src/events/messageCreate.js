@@ -6,7 +6,7 @@ import { findBotMessageByCustomId } from '../utils/messageSearch.js';
 import { getOpenProspectByUser, getProspectByUserWithChannel } from '../services/prospect/prospectService.js';
 import * as ticketMessages from '../handlers/ticketMessages.js';
 import * as prospectMessages from '../handlers/prospectMessages.js';
-import { infoEmbed, createEmbed } from '../utils/embed.js';
+import { infoEmbed, createEmbed, errorEmbed } from '../utils/embed.js';
 import { logMessage } from '../services/admin/messageLogger.js';
 import config from '../config.js';
 import logger from '../logger.js';
@@ -17,6 +17,9 @@ export default {
   name: Events.MessageCreate,
 
   async execute(message) {
+    if (message.partial) {
+      try { message = await message.fetch(); } catch { return; }
+    }
     if (message.author.bot) return;
 
     logMessage(message);
@@ -28,14 +31,20 @@ export default {
         await handleGuild(message);
       }
     } catch (err) {
-      log.error({ err, userId: message.author.id, channelId: message.channel.id }, 'Error handling message');
+      log.error({ err, userId: message.author?.id, channelId: message.channel?.id }, 'Error handling message');
+      if (!message.guild) {
+        message.reply({ embeds: [errorEmbed('Something went wrong. Please try again later, or contact <@195412349153312768> Ole if this keeps happening.')] }).catch(() => {});
+      }
     }
   },
 };
 
 async function handleDM(message) {
+  log.debug({ userId: message.author.id }, 'handleDM: start');
+
   const ticket = await getOpenTicketByUser(message.author.id);
   if (ticket) {
+    log.debug({ userId: message.author.id, ticketId: ticket.id }, 'handleDM: found open ticket');
     return ticketMessages.handleDM(message, ticket);
   }
 
@@ -73,6 +82,8 @@ async function handleDM(message) {
     return ticketMessages.handleDM(message, { ...closingTicket, status: 'open' });
   }
 
+  log.debug({ userId: message.author.id }, 'handleDM: no open/closing ticket');
+
   const prospect = await getOpenProspectByUser(message.author.id);
   if (prospect) {
     if (!prospect.mentor_id) {
@@ -81,11 +92,15 @@ async function handleDM(message) {
     return prospectMessages.handleDM(message, prospect);
   }
 
+  log.debug({ userId: message.author.id }, 'handleDM: no open prospect');
+
   // Fallback: allow DM relay for recently-closed prospects whose channel still exists
   const closedProspect = await getProspectByUserWithChannel(message.author.id);
   if (closedProspect) {
     return prospectMessages.handleDM(message, closedProspect);
   }
+
+  log.debug({ userId: message.author.id }, 'handleDM: sending welcome menu');
 
   const embed = createEmbed()
     .setTitle('Royal Battalion')
