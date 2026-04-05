@@ -74,7 +74,13 @@ async function loadEvents(client) {
 
   for (const file of files) {
     const filePath = join(eventsDir, file);
-    const module = await import(pathToFileURL(filePath).href);
+    let module;
+    try {
+      module = await import(pathToFileURL(filePath).href);
+    } catch (err) {
+      console.error(`Failed to load event ${file}:`, err);
+      throw err;
+    }
     const event = module.default;
 
     if (!event?.name || !event?.execute) {

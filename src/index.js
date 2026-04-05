@@ -49,10 +49,12 @@ async function main() {
 }
 
 process.on('unhandledRejection', (err) => {
-  log.fatal({ err }, 'Unhandled rejection');
+  console.error('Unhandled rejection:', err);
+  log.fatal({ err: { message: err?.message, stack: err?.stack, code: err?.code } }, 'Unhandled rejection');
 });
 
 main().catch((err) => {
-  log.fatal({ err }, 'Fatal startup error');
+  console.error('Fatal startup error:', err);
+  log.fatal({ err: { message: err?.message, stack: err?.stack, code: err?.code } }, 'Fatal startup error');
   process.exit(1);
 });
