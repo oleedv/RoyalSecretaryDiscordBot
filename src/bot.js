@@ -21,10 +21,22 @@ export async function createBot() {
 
   client.commands = new Collection();
 
-  // Diagnostic: log raw gateway DM events to check if Discord delivers them
-  client.on('raw', (packet) => {
-    if (packet.t === 'MESSAGE_CREATE' && !packet.d?.guild_id) {
-      log.info({ authorId: packet.d?.author?.id, channelId: packet.d?.channel_id, t: packet.t }, 'GATEWAY: raw DM event received');
+  // Workaround: discord.js may silently drop DM messageCreate events when
+  // the DM channel isn't cached, even with Partials.Channel. Detect this
+  // via the raw gateway event and manually fetch + re-emit.
+  client.on('raw', async (packet) => {
+    if (packet.t !== 'MESSAGE_CREATE' || packet.d?.guild_id) return;
+
+    const cached = client.channels.cache.has(packet.d.channel_id);
+    if (cached) return; // discord.js will handle it normally
+
+    log.info({ authorId: packet.d?.author?.id, channelId: packet.d?.channel_id }, 'DM channel not cached, fetching manually');
+    try {
+      const channel = await client.channels.fetch(packet.d.channel_id);
+      const message = await channel.messages.fetch(packet.d.id);
+      client.emit('messageCreate', message);
+    } catch (err) {
+      log.error({ err }, 'Failed to fetch uncached DM channel/message');
     }
   });
 
