@@ -61,22 +61,33 @@ export async function getTicketByChannelStatus(channelId, status) {
 }
 
 export async function getClosedTicketsByUser(userId, tier) {
+  const legacyUnion = `
+    UNION ALL
+    SELECT lt.uuid, 'legacy' AS tier, lt.started_at AS created_at,
+      (SELECT ltm.content FROM legacy_ticket_messages ltm WHERE ltm.ticket_id = lt.id AND ltm.type = 'from_user' ORDER BY ltm.id ASC LIMIT 1) AS first_message
+    FROM legacy_tickets lt WHERE lt.user_id = ?`;
+
   if (tier === 'normal') {
     return await query(
-      'SELECT t.uuid, t.tier, t.created_at, (SELECT tm.content FROM ticket_messages tm WHERE tm.ticket_id = t.id AND tm.is_staff = 0 ORDER BY tm.id ASC LIMIT 1) AS first_message FROM tickets t WHERE t.user_id = ? AND t.status = ? AND t.tier = ? ORDER BY t.created_at DESC',
-      [userId, 'closed', tier]
+      `SELECT t.uuid, t.tier, t.created_at, (SELECT tm.content FROM ticket_messages tm WHERE tm.ticket_id = t.id AND tm.is_staff = 0 ORDER BY tm.id ASC LIMIT 1) AS first_message FROM tickets t WHERE t.user_id = ? AND t.status = ? AND t.tier = ?${legacyUnion} ORDER BY created_at DESC`,
+      [userId, 'closed', tier, userId]
     );
   }
   return await query(
-    'SELECT t.uuid, t.tier, t.created_at, (SELECT tm.content FROM ticket_messages tm WHERE tm.ticket_id = t.id AND tm.is_staff = 0 ORDER BY tm.id ASC LIMIT 1) AS first_message FROM tickets t WHERE t.user_id = ? AND t.status = ? AND t.tier IN (?, ?) ORDER BY t.created_at DESC',
-    [userId, 'closed', tier, 'normal']
+    `SELECT t.uuid, t.tier, t.created_at, (SELECT tm.content FROM ticket_messages tm WHERE tm.ticket_id = t.id AND tm.is_staff = 0 ORDER BY tm.id ASC LIMIT 1) AS first_message FROM tickets t WHERE t.user_id = ? AND t.status = ? AND t.tier IN (?, ?)${legacyUnion} ORDER BY created_at DESC`,
+    [userId, 'closed', tier, 'normal', userId]
   );
 }
 
 export async function getAllClosedTicketsByUser(userId) {
   return await query(
-    'SELECT t.uuid, t.tier, t.created_at, (SELECT tm.content FROM ticket_messages tm WHERE tm.ticket_id = t.id AND tm.is_staff = 0 ORDER BY tm.id ASC LIMIT 1) AS first_message FROM tickets t WHERE t.user_id = ? AND t.status = ? ORDER BY t.created_at DESC',
-    [userId, 'closed']
+    `SELECT t.uuid, t.tier, t.created_at, (SELECT tm.content FROM ticket_messages tm WHERE tm.ticket_id = t.id AND tm.is_staff = 0 ORDER BY tm.id ASC LIMIT 1) AS first_message FROM tickets t WHERE t.user_id = ? AND t.status = ?
+    UNION ALL
+    SELECT lt.uuid, 'legacy' AS tier, lt.started_at AS created_at,
+      (SELECT ltm.content FROM legacy_ticket_messages ltm WHERE ltm.ticket_id = lt.id AND ltm.type = 'from_user' ORDER BY ltm.id ASC LIMIT 1) AS first_message
+    FROM legacy_tickets lt WHERE lt.user_id = ?
+    ORDER BY created_at DESC`,
+    [userId, 'closed', userId]
   );
 }
 

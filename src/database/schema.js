@@ -72,6 +72,35 @@ export async function initSchema() {
     )
   `);
 
+  // ── Legacy ticket tables (read-only, data exists on production from old bot) ──
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS legacy_tickets (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      uuid CHAR(36) NOT NULL UNIQUE,
+      thread_number INT NULL,
+      user_id VARCHAR(20) NOT NULL,
+      username VARCHAR(100) NOT NULL,
+      nickname VARCHAR(255) NULL,
+      previous_threads INT NULL,
+      started_at TIMESTAMP NOT NULL,
+      closed_at TIMESTAMP NULL,
+      INDEX idx_legacy_user (user_id)
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS legacy_ticket_messages (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      ticket_id INT NOT NULL,
+      type ENUM('bot','from_user','to_user','bot_to_user','chat','command') NOT NULL,
+      author VARCHAR(100) NULL,
+      content TEXT NULL,
+      created_at TIMESTAMP NOT NULL,
+      FOREIGN KEY (ticket_id) REFERENCES legacy_tickets(id)
+    )
+  `);
+
   await query(`
     CREATE TABLE IF NOT EXISTS prospects (
       id INT AUTO_INCREMENT PRIMARY KEY,

@@ -106,7 +106,7 @@ export async function handleGuild(message) {
 }
 
 const LOGS_PAGE_SIZE = 10;
-const TIER_SHORT = { normal: 'Normal', community_officer: 'Community', admin_officer: 'Admin' };
+const TIER_SHORT = { normal: 'Normal', community_officer: 'Community', admin_officer: 'Admin', legacy: 'Legacy' };
 
 export function buildLogsPage(tickets, page, userId, tier) {
   const totalPages = Math.ceil(tickets.length / LOGS_PAGE_SIZE);
