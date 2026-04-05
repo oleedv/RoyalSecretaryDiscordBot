@@ -15,12 +15,18 @@ function extractTier(interaction) {
 async function validateMembership(interaction, tier) {
   if (tier === 'normal') return null;
   const memberRoleId = config.tickets.memberRoleId;
+  log.info({ tier, memberRoleId, hasMember: !!interaction.member, userId: interaction.user.id }, 'validateMembership: start');
+
   if (!memberRoleId) return 'You need to be a member to create Community Officer/Admin Officer tickets. Please select Normal instead.';
 
   let member = interaction.member;
   if (!member) {
     const guild = await interaction.client.guilds.fetch(config.guild.id).catch(() => null);
+    log.info({ guildFound: !!guild }, 'validateMembership: fetched guild');
     member = guild ? await guild.members.fetch(interaction.user.id).catch(() => null) : null;
+    log.info({ memberFound: !!member, roleIds: member?.roles?.cache?.map(r => r.id) }, 'validateMembership: fetched member');
+  } else {
+    log.info({ roleIds: member.roles?.cache?.map(r => r.id) }, 'validateMembership: using interaction.member');
   }
 
   if (!member?.roles?.cache?.has(memberRoleId)) {
