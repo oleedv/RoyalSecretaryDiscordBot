@@ -155,7 +155,10 @@ async function _createTicket(userId, guild, { steamId, reason, tier = 'normal' }
   }
 
   const uuid = randomUUID();
-  const shortId = uuid.slice(0, 6);
+  const member = await guild.members.fetch(userId).catch(() => null);
+  const channelName = member
+    ? `ticket-${member.user.username.slice(0, 10)}`
+    : `ticket-${uuid.slice(0, 6)}`;
   const { categoryId, roles } = config.tickets;
 
   const configKey = tierConfigKey[tier] || 'normal';
@@ -163,7 +166,7 @@ async function _createTicket(userId, guild, { steamId, reason, tier = 'normal' }
   const permissionOverwrites = buildPrivateChannelPermissions(guild, tierRoles);
 
   const channel = await guild.channels.create({
-    name: `ticket-${shortId}`,
+    name: channelName,
     type: ChannelType.GuildText,
     parent: categoryId || undefined,
     permissionOverwrites,

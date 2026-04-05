@@ -34,8 +34,8 @@ export function buildPanelMessage() {
       {
         name: 'Team Selection',
         value:
-          'When creating a ticket you can choose which team to contact: **Normal**, **Community Officer**, or **Admin**. ' +
-          'CO and Admin options are restricted to clan members.',
+          'When creating a ticket you can choose which team to contact: **Normal**, **Community Officer**, or **Admin Officer**. ' +
+          'CO and Admin Officer options are restricted to clan members.',
       },
     );
 
