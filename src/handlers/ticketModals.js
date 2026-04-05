@@ -15,9 +15,9 @@ function extractTier(interaction) {
 function validateMembership(interaction, tier) {
   if (tier === 'normal') return null;
   const memberRoles = interaction.member?.roles?.cache;
-  const memberRoleId = config.prospects.whitelistRoleId;
-  if (!memberRoles || !memberRoles.has(memberRoleId)) {
-    return 'You need to be a member to create CO/Admin tickets. Please select Normal instead.';
+  const memberRoleId = config.tickets.memberRoleId;
+  if (!memberRoles || !memberRoleId || !memberRoles.has(memberRoleId)) {
+    return 'You need to be a member to create Community Officer/Admin Officer tickets. Please select Normal instead.';
   }
   return null;
 }

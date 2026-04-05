@@ -15,6 +15,7 @@ export default {
   tickets: {
     categoryId: '1473728123991490560',
     panelChannelId: '1473728223018750116',
+    memberRoleId: '1406672770242449458',                 // Member role for CO/Admin ticket access
     roles: {
       normal: ['1406672770242449458'],
       communityOfficer: ['1406672908641894400'],

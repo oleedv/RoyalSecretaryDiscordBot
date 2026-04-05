@@ -16,6 +16,7 @@ export default {
   tickets: {
     categoryId: '751826729928097922',                   // Ticket category
     panelChannelId: '1476956038975455423',               // "Create Ticket" panel channel
+    memberRoleId: '1490476355299573923',                 // Member role for CO/Admin ticket access
     roles: {
       normal: ['458273494048964619', '458277129973661719', '733974178797191189'],                   // RB member role, Server admin, RB admin, RB managers
       communityOfficer: ['989894740642263082'],         // CO role
