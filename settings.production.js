@@ -14,7 +14,7 @@ export default {
   channels: {},
   roles: {},
   tickets: {
-    categoryId: '1476956330496364644',                   // Ticket category
+    categoryId: '751826729928097922',                   // Ticket category
     panelChannelId: '1476956038975455423',               // "Create Ticket" panel channel
     roles: {
       normal: ['458273494048964619', '458277129973661719', '733974178797191189'],                   // RB member role, Server admin, RB admin, RB managers
@@ -25,12 +25,12 @@ export default {
     },
   },
   prospects: {
-    categoryId: '1476956405977059490',                   // Prospect category
+    categoryId: '1214968513039704154',                   // Prospect category
     panelChannelId: '1476956067882864671',               // "Join RB" panel channel
-    forumChannelId: '1476956459211423814',               // Forum channel for public prospect posts
+    forumChannelId: '1237525233770958898',               // Forum channel for public prospect posts
     loungeChannelId: '1476955931794473141',              // Public announcements (voting, accepted)
-    periodDays: 28,
-    voteDaysBefore: 14,
+    periodDays: 21,
+    voteDaysBefore: 7,
     roles: ['1204763136830218260', '654022866261770270', '1213958671843860552', '1295470787934814259', '989894740642263082', '733974178797191189'],                      // Staff roles, trainee mentor, mentor, seniro mentor, recruitment officer, comm officer, rb managers
     prospectRoleId: '706053335106715650',               // Prospect role
     whitelistRoleId: '528574587747958794',              // Whitelist role aka rb member
@@ -55,7 +55,6 @@ export default {
     memberFlagId: '60539480-0d14-11ec-a83f-b32d5968dd59',
   },
   seeding: {
-    seedingServer: 'production',
     defaultThreshold: 40,
     defaultResetThreshold: 20,
     defaultTime: '16:00',
