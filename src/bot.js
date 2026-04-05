@@ -21,6 +21,13 @@ export async function createBot() {
 
   client.commands = new Collection();
 
+  // Diagnostic: log raw gateway DM events to check if Discord delivers them
+  client.on('raw', (packet) => {
+    if (packet.t === 'MESSAGE_CREATE' && !packet.d?.guild_id) {
+      log.info({ authorId: packet.d?.author?.id, channelId: packet.d?.channel_id, t: packet.t }, 'GATEWAY: raw DM event received');
+    }
+  });
+
   await loadCommands(client);
   await loadEvents(client);
 
