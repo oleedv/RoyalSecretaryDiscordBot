@@ -185,7 +185,6 @@ async function _createTicket(userId, guild, { steamId, reason, tier = 'normal' }
     [ticket.id, 'created', userId, null]
   );
 
-  const member = await guild.members.fetch(userId).catch(() => null);
   const userTag = member?.user.tag || userId;
 
   const previousTickets = await getClosedTicketsByUser(userId, tier);
