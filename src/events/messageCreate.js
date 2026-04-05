@@ -124,7 +124,8 @@ async function handleDM(message) {
     new ButtonBuilder()
       .setCustomId('prospect_apply')
       .setLabel('Join RB')
-      .setStyle(ButtonStyle.Success),
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(true),
   );
 
   const infoChannelId = config.dm?.infoChannelId;
