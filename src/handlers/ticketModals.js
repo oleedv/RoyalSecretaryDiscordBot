@@ -12,11 +12,18 @@ function extractTier(interaction) {
   return field.value ?? field.values?.[0] ?? 'normal';
 }
 
-function validateMembership(interaction, tier) {
+async function validateMembership(interaction, tier) {
   if (tier === 'normal') return null;
-  const memberRoles = interaction.member?.roles?.cache;
   const memberRoleId = config.tickets.memberRoleId;
-  if (!memberRoles || !memberRoleId || !memberRoles.has(memberRoleId)) {
+  if (!memberRoleId) return 'You need to be a member to create Community Officer/Admin Officer tickets. Please select Normal instead.';
+
+  let member = interaction.member;
+  if (!member) {
+    const guild = await interaction.client.guilds.fetch(config.guild.id).catch(() => null);
+    member = guild ? await guild.members.fetch(interaction.user.id).catch(() => null) : null;
+  }
+
+  if (!member?.roles?.cache?.has(memberRoleId)) {
     return 'You need to be a member to create Community Officer/Admin Officer tickets. Please select Normal instead.';
   }
   return null;
@@ -24,7 +31,7 @@ function validateMembership(interaction, tier) {
 
 async function createWithSteamInput(interaction) {
   const tier = extractTier(interaction);
-  const memberError = validateMembership(interaction, tier);
+  const memberError = await validateMembership(interaction, tier);
   if (memberError) {
     return interaction.reply({ embeds: [errorEmbed(memberError)], flags: ['Ephemeral'] });
   }
@@ -67,7 +74,7 @@ async function createWithSteamInput(interaction) {
 
 async function createWithStoredSteam(interaction) {
   const tier = extractTier(interaction);
-  const memberError = validateMembership(interaction, tier);
+  const memberError = await validateMembership(interaction, tier);
   if (memberError) {
     return interaction.reply({ embeds: [errorEmbed(memberError)], flags: ['Ephemeral'] });
   }
