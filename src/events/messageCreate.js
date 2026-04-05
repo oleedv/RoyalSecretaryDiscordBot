@@ -22,6 +22,8 @@ export default {
     }
     if (message.author.bot) return;
 
+    log.info({ userId: message.author.id, isDM: !message.guild, channelId: message.channel?.id }, 'messageCreate: received');
+
     logMessage(message);
 
     try {
@@ -40,11 +42,11 @@ export default {
 };
 
 async function handleDM(message) {
-  log.debug({ userId: message.author.id }, 'handleDM: start');
+  log.info({ userId: message.author.id }, 'handleDM: start');
 
   const ticket = await getOpenTicketByUser(message.author.id);
   if (ticket) {
-    log.debug({ userId: message.author.id, ticketId: ticket.id }, 'handleDM: found open ticket');
+    log.info({ userId: message.author.id, ticketId: ticket.id }, 'handleDM: found open ticket');
     return ticketMessages.handleDM(message, ticket);
   }
 
@@ -82,7 +84,7 @@ async function handleDM(message) {
     return ticketMessages.handleDM(message, { ...closingTicket, status: 'open' });
   }
 
-  log.debug({ userId: message.author.id }, 'handleDM: no open/closing ticket');
+  log.info({ userId: message.author.id }, 'handleDM: no open/closing ticket');
 
   const prospect = await getOpenProspectByUser(message.author.id);
   if (prospect) {
@@ -92,7 +94,7 @@ async function handleDM(message) {
     return prospectMessages.handleDM(message, prospect);
   }
 
-  log.debug({ userId: message.author.id }, 'handleDM: no open prospect');
+  log.info({ userId: message.author.id }, 'handleDM: no open prospect');
 
   // Fallback: allow DM relay for recently-closed prospects whose channel still exists
   const closedProspect = await getProspectByUserWithChannel(message.author.id);
@@ -100,7 +102,7 @@ async function handleDM(message) {
     return prospectMessages.handleDM(message, closedProspect);
   }
 
-  log.debug({ userId: message.author.id }, 'handleDM: sending welcome menu');
+  log.info({ userId: message.author.id }, 'handleDM: sending welcome menu');
 
   const embed = createEmbed()
     .setTitle('Royal Battalion')
