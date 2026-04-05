@@ -119,8 +119,9 @@ export function buildLogsPage(tickets, page, userId, tier) {
       ? t.first_message.slice(0, 50) + (t.first_message.length > 50 ? '..' : '')
       : '*no message*';
     const shortUuid = t.uuid.slice(0, 6);
+    const ticketPath = t.tier === 'legacy' ? `/ticket/legacy/${t.uuid}` : `/ticket/${t.uuid}`;
     const uuidDisplay = config.webBaseUrl
-      ? `[${new URL(config.webBaseUrl).host}/ticket/${shortUuid}](${config.webBaseUrl}/ticket/${t.uuid})`
+      ? `[${new URL(config.webBaseUrl).host}/ticket/${shortUuid}](${config.webBaseUrl}${ticketPath})`
       : `\`${shortUuid}\``;
     return `${start + i + 1}. **${tierLabel}** - ${preview} - ${uuidDisplay}`;
   });
