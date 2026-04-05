@@ -17,8 +17,13 @@ export default {
   name: Events.MessageCreate,
 
   async execute(message) {
+    log.info({ partial: message.partial, guild: !!message.guild, channelType: message.channel?.type, authorId: message.author?.id }, 'messageCreate: raw event');
+
     if (message.partial) {
-      try { message = await message.fetch(); } catch { return; }
+      try { message = await message.fetch(); } catch (err) {
+        log.error({ err }, 'messageCreate: failed to fetch partial');
+        return;
+      }
     }
     if (message.author.bot) return;
 
