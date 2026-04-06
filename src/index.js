@@ -8,6 +8,7 @@ import { stopScheduler as stopSeedingScheduler } from './services/seeding/seedin
 import { disconnect as disconnectSquadJS } from './services/seeding/seedingSocket.js';
 import { stopHeartbeat } from './services/admin/statusHeartbeat.js';
 import { stopStatusUpdater } from './services/serverStatus/serverStatusService.js';
+import { stopScheduler as stopConfigGuardian } from './services/configGuardian/configGuardianScheduler.js';
 import { flushLogs } from './services/admin/logTransport.js';
 
 const log = logger.child({ module: 'main' });
@@ -36,6 +37,7 @@ async function main() {
     stopSeedingScheduler();
     disconnectSquadJS();
     stopStatusUpdater();
+    stopConfigGuardian();
     await stopHeartbeat();
     await flushLogs();
     client.destroy();
