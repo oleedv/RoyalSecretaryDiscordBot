@@ -63,8 +63,8 @@ export default {
     schedulerCheckMs: 60000,
   },
   seedTracker: {
-    progressionChannelId: '',                            // Channel for progression/milestone embeds
-    leaderboardChannelId: '',                            // Channel for monthly leaderboard
+    progressionChannelId: '1490779113110110399',          // Channel for progression/milestone embeds
+    leaderboardChannelId: '1490779164855242894',          // Channel for monthly leaderboard
     requiredSeedDays: 10,
     rollingWindowDays: 30,
     whitelistDurationDays: 30,
