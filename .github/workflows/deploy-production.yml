@@ -68,6 +68,13 @@ jobs:
             SQUADJS_SERVERS=${{ secrets.SQUADJS_SERVERS }}
             BM_TOKEN=${{ secrets.BM_TOKEN }}
             BM_SERVER_ID=${{ secrets.BM_SERVER_ID }}
+            SFTP_HOST=${{ secrets.SFTP_HOST }}
+            SFTP_PORT=${{ secrets.SFTP_PORT }}
+            SFTP_USER=${{ secrets.SFTP_USER }}
+            SFTP_PASS=${{ secrets.SFTP_PASS }}
+            SFTP_PATH=${{ secrets.SFTP_PATH }}
+            GIT_USER=${{ secrets.GIT_USER }}
+            GIT_TOKEN=${{ secrets.GIT_TOKEN }}
             EOF
 
             docker compose -f docker-compose.prod.yml --env-file .env.prod pull royal-secretary-bot
