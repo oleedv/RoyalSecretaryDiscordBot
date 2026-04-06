@@ -62,6 +62,14 @@ export default {
     defaultTimezone: 'UTC',
     schedulerCheckMs: 60000,
   },
+  seedTracker: {
+    progressionChannelId: '',                            // Channel for progression/milestone embeds
+    leaderboardChannelId: '',                            // Channel for monthly leaderboard
+    requiredSeedDays: 10,
+    rollingWindowDays: 30,
+    whitelistDurationDays: 30,
+    maxExtensionDays: 60,
+  },
   serverStatus: {
     channelId: '1476163752863862875',
     updateIntervalMs: 60000,

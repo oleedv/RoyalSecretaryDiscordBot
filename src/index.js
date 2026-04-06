@@ -7,6 +7,7 @@ import { stopScheduler } from './services/prospect/prospectScheduler.js';
 import { stopScheduler as stopSeedingScheduler } from './services/seeding/seedingScheduler.js';
 import { disconnect as disconnectSquadJS } from './services/seeding/seedingSocket.js';
 import { stopHeartbeat } from './services/admin/statusHeartbeat.js';
+import { stopScheduler as stopSeedTrackerScheduler } from './services/seedTracker/seedTrackerScheduler.js';
 import { stopStatusUpdater } from './services/serverStatus/serverStatusService.js';
 import { stopScheduler as stopConfigGuardian } from './services/configGuardian/configGuardianScheduler.js';
 import { flushLogs } from './services/admin/logTransport.js';
@@ -35,6 +36,7 @@ async function main() {
     log.info(`Received ${signal}, shutting down gracefully...`);
     stopScheduler();
     stopSeedingScheduler();
+    stopSeedTrackerScheduler();
     disconnectSquadJS();
     stopStatusUpdater();
     stopConfigGuardian();

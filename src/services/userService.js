@@ -13,6 +13,16 @@ export async function getStoredSteamId(discordId) {
   }
 }
 
+export async function getDiscordIdBySteamId(steamId) {
+  try {
+    const rows = await query('SELECT discordId FROM User WHERE steamId = ?', [steamId], 'website');
+    return rows[0]?.discordId || null;
+  } catch (err) {
+    log.warn({ err, steamId }, 'Failed to fetch Discord ID by Steam ID');
+    return null;
+  }
+}
+
 export async function linkSteamId(discordId, steamId) {
   if (!steamId || steamId.toUpperCase() === 'Q') return;
   try {
