@@ -4,6 +4,7 @@ import * as ticketModals from '../handlers/ticketModals.js';
 import * as prospectButtons from '../handlers/prospectButtons.js';
 import * as prospectModals from '../handlers/prospectModals.js';
 import * as seedingButtons from '../handlers/seedingButtons.js';
+import * as seedTrackerButtons from '../handlers/seedTrackerButtons.js';
 import * as verifyButtons from '../handlers/verifyButtons.js';
 import { errorEmbed } from '../utils/embed.js';
 import logger from '../logger.js';
@@ -33,6 +34,7 @@ const buttonHandlers = {
   ticket_reopen: ticketButtons.handleReopen,
   ticket_force_close: ticketButtons.handleForceClose,
   ticket_timeout: ticketButtons.handleTimeout,
+  ticket_anonymous: ticketButtons.handleAnonymousToggle,
   prospect_apply: prospectButtons.handleApply,
   prospect_modal_2_open: (interaction) => {
     // Extract Part 1 data from the embed before showing modal 2
@@ -66,6 +68,7 @@ const buttonHandlers = {
   prospect_close_ticket: prospectButtons.handleCloseTicket,
   seeding_join: seedingButtons.handleJoin,
   seeding_leave: seedingButtons.handleLeave,
+  seed_progression: seedTrackerButtons.handleSeedProgression,
   verify_start: verifyButtons.handleStart,
 };
 

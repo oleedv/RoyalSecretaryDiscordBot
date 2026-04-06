@@ -3,7 +3,7 @@ import { ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'disco
 import { createEmbed, infoEmbed } from '../../utils/embed.js';
 import { buildPrivateChannelPermissions } from '../../utils/permissions.js';
 import { findBotMessageByCustomId } from '../../utils/messageSearch.js';
-import { buildTicketInfoEmbed, buildTicketComponents } from './ticketEmbeds.js';
+import { buildTicketInfoEmbed, buildTicketComponents, TIER_CHANNEL_PREFIX } from './ticketEmbeds.js';
 import { query } from '../../database/connection.js';
 import { getStoredSteamId } from '../userService.js';
 import config from '../../config.js';
@@ -11,10 +11,22 @@ import logger from '../../logger.js';
 
 const log = logger.child({ module: 'tickets' });
 
-const GRACE_PERIOD_MS = 60 * 60 * 1000; // 1 hour
+const GRACE_PERIOD_MS = 2 * 60 * 60 * 1000; // 2 hours
 
 // In-memory timer store for closing grace periods (channelId → timeout ref)
 const closingTimers = new Map();
+
+// In-memory store for anonymous mode toggle (channelId → boolean)
+const anonymousModes = new Map();
+
+export function isAnonymousMode(channelId) {
+  return anonymousModes.get(channelId) || false;
+}
+
+export function setAnonymousMode(channelId, enabled) {
+  if (enabled) anonymousModes.set(channelId, true);
+  else anonymousModes.delete(channelId);
+}
 
 async function deleteLogsEmbeds(channel, botId) {
   const messages = await channel.messages.fetch({ limit: 50 }).catch(() => null);
@@ -167,9 +179,10 @@ async function _createTicket(userId, guild, { steamId, reason, tier = 'normal' }
 
   const uuid = randomUUID();
   const member = await guild.members.fetch(userId).catch(() => null);
+  const prefix = TIER_CHANNEL_PREFIX[tier] || '';
   const channelName = member
-    ? `ticket-${member.user.username.slice(0, 10)}`
-    : `ticket-${uuid.slice(0, 6)}`;
+    ? `${prefix}ticket-${member.user.username.slice(0, 10)}`
+    : `${prefix}ticket-${uuid.slice(0, 6)}`;
   const { categoryId, roles } = config.tickets;
 
   const configKey = tierConfigKey[tier] || 'normal';
@@ -246,6 +259,16 @@ export async function escalateTicket(ticket, tier, channel, actorId = null) {
 
   await query('UPDATE tickets SET tier = ? WHERE id = ?', [tier, ticket.id]);
 
+  // Rename the channel to match the new tier prefix
+  const newPrefix = TIER_CHANNEL_PREFIX[tier] || '';
+  const baseName = channel.name.replace(/^(AO-|CO-|Comp-|WH-)/, '');
+  const newName = `${newPrefix}${baseName}`;
+  if (newName !== channel.name) {
+    await channel.setName(newName).catch((err) => {
+      log.error({ err, channelId: channel.id }, 'Failed to rename channel on escalation');
+    });
+  }
+
   await query(
     'INSERT INTO ticket_events (ticket_id, event_type, actor_id, detail) VALUES (?, ?, ?, ?)',
     [ticket.id, 'escalated', actorId || channel.guild.members.me.id, tier]
@@ -257,7 +280,7 @@ export async function escalateTicket(ticket, tier, channel, actorId = null) {
   const steamId = await getStoredSteamId(ticket.user_id);
   const previousTickets = await getClosedTicketsByUser(ticket.user_id, tier);
   const infoEmbed = buildTicketInfoEmbed(userTag, ticket.user_id, ticket.uuid, tier, previousTickets.length, { steamId, reason: ticket.reason });
-  const components = buildTicketComponents(tier);
+  const components = buildTicketComponents(tier, isAnonymousMode(channel.id));
 
   const topMsg = await findBotMessageByCustomId(channel, channel.client.user.id, ['ticket_close', 'ticket_escalate_co', 'ticket_escalate_admin', 'ticket_escalate_comp', 'ticket_escalate_wl', 'ticket_escalate_normal']);
   if (topMsg) {
@@ -349,13 +372,14 @@ export async function beginCloseGracePeriod(ticket, closedById, channel, client)
   const user = await client.users.fetch(ticket.user_id).catch(() => null);
   if (user) {
     await user.send({
-      embeds: [infoEmbed('Your ticket has been closed. If you need to add anything, reply here within the next hour and your ticket will be reopened automatically.')],
+      embeds: [infoEmbed('Your ticket has been closed. If you need to add anything, reply here within the next two hours and your ticket will be reopened automatically.')],
     }).catch(() => null);
   }
 
   // Schedule channel deletion after grace period
   const timer = setTimeout(async () => {
     closingTimers.delete(channel.id);
+    anonymousModes.delete(channel.id);
     await query(
       'UPDATE tickets SET status = ? WHERE id = ?',
       ['closed', ticket.id]
@@ -374,6 +398,7 @@ export async function forceCloseTicket(ticket, channel) {
     clearTimeout(timer);
     closingTimers.delete(ticket.channel_id);
   }
+  anonymousModes.delete(ticket.channel_id);
 
   await query(
     'UPDATE tickets SET status = ? WHERE id = ?',

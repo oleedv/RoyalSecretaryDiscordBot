@@ -21,5 +21,12 @@ export function parseTextCommand(text) {
     return { type: 'reply', content: replyContent };
   }
 
+  if (content === '!ar' || content === '!anonymous' || content.startsWith('!ar ') || content.startsWith('!anonymous ')) {
+    let replyContent = '';
+    if (content.startsWith('!ar ')) replyContent = content.slice(4).trim();
+    else if (content.startsWith('!anonymous ')) replyContent = content.slice(11).trim();
+    return { type: 'anonymous_reply', content: replyContent };
+  }
+
   return null;
 }

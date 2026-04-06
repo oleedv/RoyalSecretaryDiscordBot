@@ -17,6 +17,14 @@ const TIER_COLORS = {
   whitelist: 0x3498db,
 };
 
+export const TIER_CHANNEL_PREFIX = {
+  normal: '',
+  community_officer: 'CO-',
+  admin_officer: 'AO-',
+  comp_team: 'Comp-',
+  whitelist: 'WH-',
+};
+
 export function buildTicketInfoEmbed(userTag, userId, uuid, tier, previousCount = 0, { steamId, reason } = {}) {
   const embed = createEmbed('Ticket')
     .setTitle('Ticket')
@@ -61,7 +69,7 @@ const TRANSFER_BUTTONS = [
   { tier: 'whitelist', customId: 'ticket_escalate_wl', label: 'Whitelist', emoji: '\u{1F4CB}', style: ButtonStyle.Secondary },
 ];
 
-export function buildTicketComponents(tier) {
+export function buildTicketComponents(tier, anonymousMode = false) {
   const closeRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId('ticket_close')
@@ -72,7 +80,11 @@ export function buildTicketComponents(tier) {
       .setCustomId('ticket_timeout')
       .setLabel('Timeout')
       .setEmoji('\u{23F0}')
-      .setStyle(ButtonStyle.Danger)
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId('ticket_anonymous')
+      .setLabel(anonymousMode ? 'Anonymous: ON' : 'Anonymous')
+      .setStyle(anonymousMode ? ButtonStyle.Success : ButtonStyle.Secondary)
   );
 
   const transferButtons = TRANSFER_BUTTONS

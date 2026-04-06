@@ -3,7 +3,7 @@ import { createEmbed, infoEmbed } from '../utils/embed.js';
 import { formatForDb, applyAttachments } from '../utils/attachments.js';
 import { parseTextCommand } from '../utils/commands.js';
 import { trySendWithFiles } from '../utils/discord.js';
-import { getTicketByChannel, saveMessage, beginCloseGracePeriod, getClosedTicketsByUser } from '../services/ticket/ticketService.js';
+import { getTicketByChannel, saveMessage, beginCloseGracePeriod, getClosedTicketsByUser, isAnonymousMode } from '../services/ticket/ticketService.js';
 import { detectSteamIds, buildSteamEmbed, buildVanityEmbed } from '../services/steamService.js';
 import config from '../config.js';
 import logger from '../logger.js';
@@ -11,6 +11,64 @@ import logger from '../logger.js';
 const fetchGuild = (client) => client.guilds.fetch(config.guild.id);
 
 const log = logger.child({ module: 'ticketMessages' });
+
+async function sendStaffReply(message, ticket, replyContent, anonymous) {
+  if (!replyContent && message.attachments.size === 0) {
+    await message.reply('Please provide a message to send.').then((m) => setTimeout(() => m.delete().catch(() => null), 5000));
+    return;
+  }
+
+  const user = await message.client.users.fetch(ticket.user_id).catch(() => null);
+  if (!user) {
+    await message.reply('Could not find the ticket user.').then((m) => setTimeout(() => m.delete().catch(() => null), 5000));
+    return;
+  }
+
+  const dmOptions = {};
+  if (replyContent) {
+    const senderName = anonymous ? 'Staff' : message.author.displayName;
+    dmOptions.content = `**[Ticket]** **${senderName}**: ${replyContent}`;
+  }
+  if (message.attachments.size > 0) {
+    dmOptions.files = message.attachments.map((a) => ({ attachment: a.url, name: a.name }));
+  }
+
+  let dmFailed = false;
+  let dmTooLarge = false;
+  try {
+    const { tooLarge } = await trySendWithFiles(user, dmOptions);
+    dmTooLarge = tooLarge;
+  } catch (err) {
+    log.error({ err, userId: ticket.user_id }, 'Failed to DM ticket user');
+    dmFailed = true;
+  }
+
+  const logEmbed = createEmbed('Ticket')
+    .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
+    .setDescription(replyContent || '*Attachment only*')
+    .setColor(anonymous ? 0x99aab5 : 0x5865f2);
+
+  if (anonymous) {
+    logEmbed.setFooter({ text: 'Royal Battalion \u25cf Ticket \u25cf Sent anonymously' });
+  }
+
+  const logOptions = { embeds: [logEmbed] };
+  applyAttachments(logEmbed, logOptions, message.attachments);
+
+  await trySendWithFiles(message.channel, logOptions);
+
+  if (dmFailed) {
+    await message.channel.send('Failed to send DM to the user. They may have DMs disabled.');
+  } else if (dmTooLarge) {
+    await message.channel.send('The file was too large to send to the user. They received the text but the attachment was sent as a link only.');
+  }
+  await message.delete().catch(() => null);
+
+  const attachments = formatForDb(message.attachments);
+  await saveMessage(ticket.id, message.author.id, message.author.tag, replyContent, attachments, true);
+
+  log.debug({ ticketId: ticket.id, staffId: message.author.id, anonymous }, 'Staff reply sent');
+}
 
 export async function handleGuild(message) {
   const ticket = await getTicketByChannel(message.channel.id);
@@ -38,58 +96,13 @@ export async function handleGuild(message) {
   }
 
   if (cmd?.type === 'reply') {
-    const replyContent = cmd.content;
+    const anonymous = isAnonymousMode(message.channel.id);
+    await sendStaffReply(message, ticket, cmd.content, anonymous);
+    return true;
+  }
 
-    if (!replyContent && message.attachments.size === 0) {
-      await message.reply('Please provide a message to send.').then((m) => setTimeout(() => m.delete().catch(() => null), 5000));
-      return true;
-    }
-
-    const user = await message.client.users.fetch(ticket.user_id).catch(() => null);
-    if (!user) {
-      await message.reply('Could not find the ticket user.').then((m) => setTimeout(() => m.delete().catch(() => null), 5000));
-      return true;
-    }
-
-    const dmOptions = {};
-    if (replyContent) {
-      dmOptions.content = `**[Ticket]** **${message.author.displayName}**: ${replyContent}`;
-    }
-    if (message.attachments.size > 0) {
-      dmOptions.files = message.attachments.map((a) => ({ attachment: a.url, name: a.name }));
-    }
-
-    let dmFailed = false;
-    let dmTooLarge = false;
-    try {
-      const { tooLarge } = await trySendWithFiles(user, dmOptions);
-      dmTooLarge = tooLarge;
-    } catch (err) {
-      log.error({ err, userId: ticket.user_id }, 'Failed to DM ticket user');
-      dmFailed = true;
-    }
-
-    const logEmbed = createEmbed('Ticket')
-      .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
-      .setDescription(replyContent || '*Attachment only*')
-      .setColor(0x5865f2);
-
-    const logOptions = { embeds: [logEmbed] };
-    applyAttachments(logEmbed, logOptions, message.attachments);
-
-    await trySendWithFiles(message.channel, logOptions);
-
-    if (dmFailed) {
-      await message.channel.send('Failed to send DM to the user. They may have DMs disabled.');
-    } else if (dmTooLarge) {
-      await message.channel.send('The file was too large to send to the user. They received the text but the attachment was sent as a link only.');
-    }
-    await message.delete().catch(() => null);
-
-    const attachments = formatForDb(message.attachments);
-    await saveMessage(ticket.id, message.author.id, message.author.tag, replyContent, attachments, true);
-
-    log.debug({ ticketId: ticket.id, staffId: message.author.id }, 'Staff reply sent');
+  if (cmd?.type === 'anonymous_reply') {
+    await sendStaffReply(message, ticket, cmd.content, true);
     return true;
   }
 

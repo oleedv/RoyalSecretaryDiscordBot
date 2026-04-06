@@ -10,6 +10,8 @@ import {
   timeoutUser,
   getClosedTicketsByUser,
   getAllClosedTicketsByUser,
+  isAnonymousMode,
+  setAnonymousMode,
 } from '../services/ticket/ticketService.js';
 import { buildTicketInfoEmbed, buildTicketComponents } from '../services/ticket/ticketEmbeds.js';
 import { errorEmbed, infoEmbed } from '../utils/embed.js';
@@ -164,6 +166,23 @@ export async function handleTimeout(interaction) {
 
   await interaction.deleteReply();
   log.info({ ticketId: ticket.id, targetUserId: ticket.user_id, staffId: interaction.user.id }, 'User timed out via ticket button');
+}
+
+export async function handleAnonymousToggle(interaction) {
+  if (await requireRole(interaction, allTicketStaffRoles())) return;
+  await interaction.deferUpdate();
+
+  const ticket = await getTicketByChannel(interaction.channel.id);
+  if (!ticket) return;
+
+  const current = isAnonymousMode(interaction.channel.id);
+  const newMode = !current;
+  setAnonymousMode(interaction.channel.id, newMode);
+
+  const components = buildTicketComponents(ticket.tier, newMode);
+  await interaction.message.edit({ components });
+
+  log.info({ ticketId: ticket.id, anonymousMode: newMode, staffId: interaction.user.id }, 'Anonymous mode toggled');
 }
 
 export async function handleLogsPagination(interaction) {
