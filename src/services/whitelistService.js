@@ -73,6 +73,45 @@ export async function expireByRole(steamId, role) {
   }
 }
 
+export async function upsertSeederEntry(steamId, name, expiresAt) {
+  if (!isConfigured()) return null;
+  try {
+    // Check for existing entry
+    const existing = await query(
+      "SELECT id, role, expiresAt FROM WhitelistEntry WHERE steamId = ? AND server = 'main'",
+      [steamId],
+      'website'
+    );
+
+    if (existing.length > 0) {
+      const entry = existing[0];
+      // If they have a non-Seeder active whitelist, skip
+      if (entry.role !== 'Seeder' && (!entry.expiresAt || new Date(entry.expiresAt) > new Date())) {
+        return null;
+      }
+      // Update existing entry
+      await query(
+        'UPDATE WhitelistEntry SET role = ?, name = ?, expiresAt = ?, addedBy = ? WHERE id = ?',
+        ['Seeder', name, expiresAt, 'SeedTracker', entry.id],
+        'website'
+      );
+      return { id: entry.id, steamId, role: 'Seeder', expiresAt };
+    }
+
+    // Create new entry
+    const id = generateId();
+    await query(
+      "INSERT INTO WhitelistEntry (id, steamId, server, name, role, addedBy, expiresAt, createdAt) VALUES (?, ?, 'main', ?, 'Seeder', 'SeedTracker', ?, NOW())",
+      [id, steamId, name, expiresAt],
+      'website'
+    );
+    return { id, steamId, role: 'Seeder', expiresAt };
+  } catch (err) {
+    log.warn({ err, steamId }, 'Failed to upsert seeder whitelist entry');
+    return null;
+  }
+}
+
 export async function updateRole(steamId, fromRole, toRole) {
   if (!isConfigured()) return null;
   try {

@@ -41,6 +41,14 @@ export default {
       unsure: '1472142752538955807',
     },
   },
+  seedTracker: {
+    progressionChannelId: '',                            // Channel for progression/milestone embeds
+    leaderboardChannelId: '',                            // Channel for monthly leaderboard
+    requiredSeedDays: 10,
+    rollingWindowDays: 30,
+    whitelistDurationDays: 30,
+    maxExtensionDays: 60,
+  },
   verification: {
     panelChannelId: '',                                  // Channel where the verify panel is posted
     logChannelId: '',                                    // Staff channel for verification logs

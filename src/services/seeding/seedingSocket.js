@@ -5,11 +5,13 @@ import logger from '../../logger.js';
 const log = logger.child({ module: 'seedingSocket' });
 
 const connections = new Map(); // name -> { socket, state }
+let discordClient = null;
 
 const KNOWN_EVENTS = [
   'UPDATED_A2S_INFORMATION', 'UPDATED_PLAYER_INFORMATION',
   'UPDATED_LAYER_INFORMATION', 'NEW_GAME',
   'PLAYER_CONNECTED', 'PLAYER_DISCONNECTED',
+  'SEED_SESSION_COMPLETE', 'SEED_MILESTONE',
 ];
 
 function createState() {
@@ -145,6 +147,28 @@ function connectServer(serverCfg) {
     conn.state.playerCount = Math.max(0, conn.state.playerCount - 1);
   });
 
+  conn.socket.on('SEED_SESSION_COMPLETE', (data) => {
+    log.info({ name: serverCfg.name, steamId: data?.steamID, player: data?.playerName }, 'Seed session complete event');
+    if (discordClient && data) {
+      import('../seedTracker/seedTrackerService.js').then(({ processCompletedSession }) => {
+        processCompletedSession(data, discordClient).catch((err) => {
+          log.error({ err }, 'Failed to process seed session complete');
+        });
+      });
+    }
+  });
+
+  conn.socket.on('SEED_MILESTONE', (data) => {
+    log.info({ name: serverCfg.name, steamId: data?.steamID, milestone: data?.milestone }, 'Seed milestone event');
+    if (discordClient && data) {
+      import('../seedTracker/seedTrackerService.js').then(({ processMilestone }) => {
+        processMilestone(data, discordClient).catch((err) => {
+          log.error({ err }, 'Failed to process seed milestone');
+        });
+      });
+    }
+  });
+
   conn.socket.onAny((event, data) => {
     conn.state.lastEventTime = Date.now();
     if (!KNOWN_EVENTS.includes(event)) {
@@ -153,7 +177,8 @@ function connectServer(serverCfg) {
   });
 }
 
-export function connect() {
+export function connect(client) {
+  if (client) discordClient = client;
   const servers = config.squadjs;
   if (!servers?.length) {
     log.warn('No SquadJS server configured (SQUADJS_SERVERS env var missing)');
