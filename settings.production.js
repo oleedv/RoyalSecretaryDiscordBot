@@ -74,6 +74,9 @@ export default {
     channelId: '1476956161566572705',                    // Server status channel
     updateIntervalMs: 60000,
   },
+  configGuardian: {
+    channelId: '1490634013503656006',                      // Config Guardian alerts channel
+  },
   verification: {
     panelChannelId: '1478305542328815769',                                  // Channel where the verify panel is posted
     logChannelId: '1478305637921460334',                                    // Staff channel for verification logs
