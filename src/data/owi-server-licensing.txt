@@ -1,0 +1,107 @@
+# OWI Server Licensing and Administration Policies
+# Source: https://www.joinsquad.com/server-licensing-and-administration-policies
+# Note: This content may become outdated. Check the source URL for the latest version.
+
+---
+
+## Server Licensing Policies
+
+### Accountability & Code of Conduct
+The license holder bears responsibility for all community members and admins on the server and associated platforms. All server activity must follow the Offworld Code of Conduct (CoC) with violations addressed within 7 days or risk license revocation.
+
+### Purpose of the License System
+The system ensures players find servers with dedicated admin teams, reliable hardware, teamwork promotion, and positive experiences for new players.
+
+---
+
+## Server License Requirements
+
+**L1.1 -- Developer Access:** Licensed servers must enable admin and debug access for Offworld developers and QA. OWI staff activity remains visible to in-game admins.
+
+**L1.2 -- Public Access:** Servers must remain publicly accessible at all times with no password-locking or hiding. Offworld staff must always be able to access the server.
+
+**L1.3 -- Exploitation:** Intentional bug abuse or attempts to crash other servers may result in license revocation.
+
+**L1.4 -- Naming:** Servers cannot use "official" or imply Offworld Industries affiliation, nor copy licensed server names.
+
+**L1.7 -- Multiple Servers:** Each server needs a unique name; communities running multiple servers must label them clearly.
+
+**L1.8 -- License Limitations:** Communities may apply for up to 4 licenses. Licenses are non-transferable, non-sellable, and non-shareable. Violations result in immediate revocation and possible ban from licensing.
+
+**L1.9 -- Server Ownership:** One main license holder per community. Ownership changes require notification and reapplication.
+
+**L1.11 -- Admins per Server:** Minimum 10 admins per server required; more servers require proportionally more admins (3 servers = 30 admins).
+
+**L1.12 -- Moderation:** Servers set their own disciplinary standards aligned with Squad's Code of Conduct, enforcing rules consistently and transparently. Shared bans must be supported by evidence available upon request. Servers may ban players without evidence if not sharing with third parties.
+
+**L1.13 -- Application Process:** Licensing is not guaranteed and Offworld may reject applications at its discretion. Bypassing bans through alternate aliases results in permanent bans.
+
+---
+
+## SECTION 1: SERVER ADMINS
+
+**A1.1 -- Culture & Community:** Promote teamwork and communication with rules supporting a positive environment.
+
+**A1.2 -- Mediation:** Encourage fair, friendly, and sportsmanlike conduct during conflicts.
+
+**A1.3 -- Staffing Requirements:** 10 admins per server required (3 servers = 30 admins). Admins must be present during peak hours. Lack of coverage can lead to license revocation.
+
+**A1.4 -- Admin Behavior:** Admins must act reasonably and respectfully. Violations through any medium (text, voice, names, actions) result in disciplinary action.
+
+**A1.6 -- Microphone Rules:** No server-wide mic requirements exist. Squad leaders can require mics for their own squads. Servers may require squad leaders to use mics.
+
+**A1.7 -- Locked Squads:** Servers may disallow locked squads but must include this in rules and issue a warning.
+
+**A1.8 -- Languages:** Servers may specify up to 2 supported languages in the server name/rules.
+
+**A1.9 -- Kicks and Bans:** Admins follow Code of Conduct and publish server rules. Making or indicating the intent to make a report to Offworld is NOT a valid reason for a ban. Bans require valid reason/evidence. Ban info cannot be shared externally without valid evidence. Servers do not need to provide evidence to the banned individual.
+
+**A1.10 -- Squad Kicks:** Squad leaders may remove members at their discretion. Kicks must be carried out respectfully and in accordance with server rules and the Code of Conduct.
+
+**A1.11 -- Admin Presence:** Admins monitor servers in-game or remotely during busy hours to ensure rule enforcement.
+
+---
+
+## SECTION 2: SERVER POLICIES
+
+**A2.1 -- Server Rules:** Rules must be accessible to players in-game. Server admins are not allowed to impose rules that are not equal to everyone on the server. Servers may not restrict player access to any kits, roles, weapons, or vehicle access based on a player's playtime.
+
+**A2.2 -- Vehicle Claiming:** Server admins may disable vehicle claiming, but only when admins are present.
+
+**A2.6 -- Data & Browser Manipulation:** Prohibited: faking player counts, misleading server info, obscuring the server's true identity.
+
+**A2.7 -- Ban Appeals:** Servers must provide a way for players to appeal bans. Appeals are at server discretion. CoC breaches can still be reported to Offworld.
+
+**A2.8 -- Reporting Servers:** Servers must tell players how to report them. Reports go to #server-complaints in Offworld Hosting Discord with: server name, evidence, date/time, reporter's name, email, and 64-bit Steam ID.
+
+---
+
+## Monetization
+
+### Explicitly Allowed
+1. Whitelist / Priority Queue -- donors may get early or reserved access
+2. Map Voting Power / Control of Map Rotation -- donors may influence maps
+3. In-Game Recognition -- banners, broadcasts, tags (non-intrusive)
+4. Cosmetic Perks via Mods -- skins/models that do not impact gameplay
+5. Community Services -- stat tracking, analytics, external tools
+
+### Explicitly Banned
+1. Gameplay Perks -- donation-based benefits affecting gameplay balance (speed, health, combat advantages)
+2. Access to Kits or Vehicles -- donors cannot receive preferred access to roles, kits, or vehicles
+3. Gameplay-Affecting Cosmetics -- skins making players invisible, hard to see, or resembling enemy forces
+
+---
+
+## Violations Leading to License Revocation
+- Abuse of admin powers or hostile behavior
+- Exploiting bugs or harming other servers
+- Selling/sharing licenses
+- Poor server performance (Red TPS < 15)
+- Hosting on unapproved hardware (VPS/VM/Cloud unless dedicated/self-hosted)
+- Not responding to incident reports within 7 days
+
+## Appeals
+If a license is revoked, the community will be contacted and given a chance to respond. Appeals go through the Offworld Hosting Discord ticket system. Re-approval may come with conditions, and further violations after appeal result in harsher consequences.
+
+## Policies Are Subject to Change
+This is not an exhaustive list. Policies may change and Offworld can act on situations not explicitly written in the policy. Server owners and admins must stay up to date on current rules.

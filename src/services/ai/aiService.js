@@ -10,17 +10,23 @@ const log = logger.child({ module: 'ai' })
 
 export const ALLOWED_USER_ID = '195412349153312768'
 
-// ── Load rules at startup ──
+// ── Load reference documents at startup ──
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const rulesPath = join(__dirname, '../../data/rules.txt')
-let serverRules
-try {
-  serverRules = readFileSync(rulesPath, 'utf-8')
-  log.info('Server rules loaded for AI suggestions')
-} catch (err) {
-  log.warn({ err }, 'Could not load rules.txt - AI suggestions will work without rules context')
-  serverRules = ''
+
+function loadDataFile(filename) {
+  try {
+    const content = readFileSync(join(__dirname, '../../data', filename), 'utf-8')
+    log.info(`Loaded ${filename} for AI suggestions`)
+    return content
+  } catch (err) {
+    log.warn({ err }, `Could not load ${filename} - AI suggestions will work without it`)
+    return ''
+  }
 }
+
+const serverRules = loadDataFile('rules.txt')
+const owiCodeOfConduct = loadDataFile('owi-code-of-conduct.txt')
+const owiServerLicensing = loadDataFile('owi-server-licensing.txt')
 
 // ── Anthropic client (lazy init) ──
 let client = null
@@ -150,11 +156,17 @@ ${buildSimilarCasesSection(similarCases)}
 SERVER RULES:
 ${serverRules || 'No rules document loaded.'}
 
+OWI CODE OF CONDUCT:
+${owiCodeOfConduct || 'Not loaded.'}
+
+OWI SERVER LICENSING & ADMINISTRATION POLICIES:
+${owiServerLicensing || 'Not loaded.'}
+
 INSTRUCTIONS:
 Analyze the conversation and provide your response in EXACTLY this format:
 
 **Rules Applied:**
-[List which specific rules are relevant to this ticket, with rule numbers if applicable. If no rules apply directly, say "No specific rules apply - general support request."]
+[List which specific server rules AND/OR OWI policies are relevant to this ticket. Cite rule numbers or OWI policy codes (e.g. A1.9, L1.12) when applicable. If the ticket involves OWI-level concerns (e.g. player threatening to report to OWI, ban appeal rights, admin conduct standards), reference the relevant OWI policy. If no rules apply directly, say "No specific rules apply - general support request."]
 
 **Suggested Action:**
 [Recommend what the staff member should do - e.g., warn the user, escalate, close, request more information, etc. Be specific and actionable. Consider the user's history and similar past cases when suggesting actions. If past cases show a pattern of resolution, recommend a consistent approach.]
