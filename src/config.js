@@ -18,6 +18,9 @@ function parseSquadJsServers(envStr) {
 }
 
 const config = Object.freeze({
+  anthropic: {
+    apiKey: process.env.ANTHROPIC_API_KEY || null,
+  },
   discord: {
     token: process.env.DISCORD_TOKEN,
     clientId: process.env.DISCORD_CLIENT_ID,

@@ -17,6 +17,8 @@ import { buildTicketInfoEmbed, buildTicketComponents } from '../services/ticket/
 import { errorEmbed, infoEmbed } from '../utils/embed.js';
 import { requireRole } from '../utils/permissions.js';
 import { findBotMessageByCustomId } from '../utils/messageSearch.js';
+import { isAvailable, generateTicketSuggestion, ALLOWED_USER_ID } from '../services/ai/aiService.js';
+import { buildSuggestionEmbed } from '../services/ai/aiEmbeds.js';
 import { buildLogsPage } from './ticketMessages.js';
 import config from '../config.js';
 import logger from '../logger.js';
@@ -183,6 +185,31 @@ export async function handleAnonymousToggle(interaction) {
   await interaction.message.edit({ components });
 
   log.info({ ticketId: ticket.id, anonymousMode: newMode, staffId: interaction.user.id }, 'Anonymous mode toggled');
+}
+
+export async function handleSuggest(interaction) {
+  if (interaction.user.id !== ALLOWED_USER_ID) {
+    return interaction.reply({ embeds: [errorEmbed('You are not authorized to use AI suggestions.')], flags: ['Ephemeral'] });
+  }
+
+  if (!isAvailable()) {
+    return interaction.reply({ embeds: [errorEmbed('AI suggestions are not configured.')], flags: ['Ephemeral'] });
+  }
+
+  await interaction.deferReply({ flags: ['Ephemeral'] });
+
+  const ticket = await getTicketByChannel(interaction.channel.id);
+  if (!ticket) {
+    return interaction.editReply({ embeds: [errorEmbed('No open ticket found for this channel.')] });
+  }
+
+  const result = await generateTicketSuggestion(ticket);
+  if (result.error) {
+    return interaction.editReply({ embeds: [errorEmbed(result.error)] });
+  }
+
+  await interaction.editReply({ embeds: [buildSuggestionEmbed(result)] });
+  log.info({ ticketId: ticket.id, staffId: interaction.user.id }, 'AI suggestion generated via button');
 }
 
 export async function handleLogsPagination(interaction) {

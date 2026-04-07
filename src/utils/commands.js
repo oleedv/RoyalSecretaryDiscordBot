@@ -28,5 +28,9 @@ export function parseTextCommand(text) {
     return { type: 'anonymous_reply', content: replyContent };
   }
 
+  if (content === '!suggest' || content === '!s') {
+    return { type: 'suggest', content: '' };
+  }
+
   return null;
 }

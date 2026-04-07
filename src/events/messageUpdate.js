@@ -44,7 +44,7 @@ export default {
 
       const newField = {
         name: editCount === 0 ? 'Edit' : `Edit ${editCount + 1}`,
-        value: previousContent.slice(0, 1024),
+        value: (newMessage.content || '*empty*').slice(0, 1024),
       };
 
       if (existingFields.length + 1 > MAX_FIELDS) {
@@ -64,7 +64,7 @@ export default {
           name: originalEmbed.author?.name || newMessage.author.tag,
           iconURL: originalEmbed.author?.iconURL || newMessage.author.displayAvatarURL(),
         })
-        .setDescription(newMessage.content || '*empty*')
+        .setDescription(previousContent)
         .setColor(originalEmbed.color ?? 0x57f287);
 
       if (originalEmbed.image) {

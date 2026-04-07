@@ -1,4 +1,4 @@
-import { Client, Collection, GatewayIntentBits, Partials } from 'discord.js';
+import { ActivityType, Client, Collection, GatewayIntentBits, Partials } from 'discord.js';
 import { readdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
@@ -17,6 +17,10 @@ export async function createBot() {
       GatewayIntentBits.MessageContent,
     ],
     partials: [Partials.Channel, Partials.Message, Partials.User],
+    presence: {
+      activities: [{ name: 'DM for support', type: ActivityType.Custom }],
+      status: 'online',
+    },
   });
 
   client.commands = new Collection();

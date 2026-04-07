@@ -84,7 +84,11 @@ export function buildTicketComponents(tier, anonymousMode = false) {
     new ButtonBuilder()
       .setCustomId('ticket_anonymous')
       .setLabel(anonymousMode ? 'Anonymous: ON' : 'Anonymous')
-      .setStyle(anonymousMode ? ButtonStyle.Success : ButtonStyle.Secondary)
+      .setStyle(anonymousMode ? ButtonStyle.Success : ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('ticket_suggest')
+      .setLabel('Suggest')
+      .setStyle(ButtonStyle.Primary)
   );
 
   const transferButtons = TRANSFER_BUTTONS
