@@ -40,12 +40,60 @@ export function isAvailable() {
   return !!config.anthropic.apiKey
 }
 
-// ── DB query ──
+// ── DB queries ──
 
 async function getTicketMessages(ticketId) {
   return await query(
     'SELECT author_tag, content, is_staff, created_at FROM ticket_messages WHERE ticket_id = ? ORDER BY id ASC',
     [ticketId]
+  )
+}
+
+async function getUserTicketHistory(userId) {
+  return await query(
+    `SELECT t.uuid, t.tier, t.reason, t.created_at,
+      (SELECT tm.content FROM ticket_messages tm WHERE tm.ticket_id = t.id AND tm.is_staff = 0 ORDER BY tm.id ASC LIMIT 1) AS first_message,
+      (SELECT GROUP_CONCAT(te.event_type ORDER BY te.id SEPARATOR ', ') FROM ticket_events te WHERE te.ticket_id = t.id) AS events
+    FROM tickets t
+    WHERE t.user_id = ? AND t.status = 'closed'
+    ORDER BY t.created_at DESC
+    LIMIT 10`,
+    [userId]
+  )
+}
+
+const STOP_WORDS = new Set(['the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'has', 'have', 'been', 'this', 'that', 'with', 'from', 'they', 'will', 'would', 'there', 'their', 'what', 'about', 'which', 'when', 'make', 'like', 'just', 'over', 'such', 'take', 'than', 'them', 'very', 'some', 'could', 'into', 'other', 'then', 'because', 'these', 'also', 'after', 'know', 'being', 'want', 'need', 'please', 'help', 'ticket'])
+
+function extractKeywords(text) {
+  if (!text) return []
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .split(/\s+/)
+    .filter((w) => w.length >= 3 && !STOP_WORDS.has(w))
+    .slice(0, 5)
+}
+
+async function findSimilarTickets(reason, ticketId, userId) {
+  const keywords = extractKeywords(reason)
+  if (keywords.length === 0) return []
+
+  const likeClauses = keywords.map(() => 't.reason LIKE ?').join(' OR ')
+  const likeParams = keywords.map((w) => `%${w}%`)
+
+  return await query(
+    `SELECT t.uuid, t.tier, t.reason, t.created_at,
+      (SELECT tm.content FROM ticket_messages tm WHERE tm.ticket_id = t.id AND tm.is_staff = 0 ORDER BY tm.id ASC LIMIT 1) AS first_user_message,
+      (SELECT tm.content FROM ticket_messages tm WHERE tm.ticket_id = t.id AND tm.is_staff = 1 ORDER BY tm.id ASC LIMIT 1) AS first_staff_reply,
+      (SELECT GROUP_CONCAT(te.event_type ORDER BY te.id SEPARATOR ', ') FROM ticket_events te WHERE te.ticket_id = t.id) AS events
+    FROM tickets t
+    WHERE t.status = 'closed'
+      AND t.id != ?
+      AND t.user_id != ?
+      AND (${likeClauses})
+    ORDER BY t.created_at DESC
+    LIMIT 5`,
+    [ticketId, userId, ...likeParams]
   )
 }
 
@@ -59,7 +107,31 @@ const TIER_LABELS = {
   whitelist: 'Whitelist',
 }
 
-function buildSystemPrompt(ticket) {
+function formatDate(d) {
+  return new Date(d).toISOString().slice(0, 10)
+}
+
+function buildHistorySection(history) {
+  if (!history || history.length === 0) return 'This user has no previous tickets.'
+  const lines = history.map((t, i) => {
+    const reason = t.reason ? t.reason.slice(0, 80) : 'No reason'
+    return `${i + 1}. [${formatDate(t.created_at)}] Tier: ${TIER_LABELS[t.tier] || t.tier} | Reason: ${reason} | Outcome: ${t.events || 'unknown'}`
+  })
+  return `This user has ${history.length} previous ticket${history.length === 1 ? '' : 's'}:\n${lines.join('\n')}`
+}
+
+function buildSimilarCasesSection(cases) {
+  if (!cases || cases.length === 0) return 'No similar past cases found.'
+  const lines = cases.map((t, i) => {
+    const reason = t.reason ? t.reason.slice(0, 80) : 'No reason'
+    const userMsg = t.first_user_message ? t.first_user_message.slice(0, 120) : 'N/A'
+    const staffMsg = t.first_staff_reply ? t.first_staff_reply.slice(0, 120) : 'N/A'
+    return `${i + 1}. [${formatDate(t.created_at)}] Tier: ${TIER_LABELS[t.tier] || t.tier} | Reason: ${reason}\n   User said: ${userMsg}\n   Staff replied: ${staffMsg}\n   Outcome: ${t.events || 'unknown'}`
+  })
+  return lines.join('\n')
+}
+
+function buildSystemPrompt(ticket, userHistory, similarCases) {
   return `You are an assistant for Discord server moderators at Royal Battalion, a gaming community for Squad.
 
 You are analyzing a support ticket to help staff decide how to respond.
@@ -68,6 +140,12 @@ TICKET CONTEXT:
 - Ticket ID: ${ticket.uuid}
 - Tier: ${TIER_LABELS[ticket.tier] || ticket.tier}
 - Reason given at creation: ${ticket.reason || 'None provided'}
+
+USER HISTORY:
+${buildHistorySection(userHistory)}
+
+SIMILAR PAST CASES:
+${buildSimilarCasesSection(similarCases)}
 
 SERVER RULES:
 ${serverRules || 'No rules document loaded.'}
@@ -79,7 +157,7 @@ Analyze the conversation and provide your response in EXACTLY this format:
 [List which specific rules are relevant to this ticket, with rule numbers if applicable. If no rules apply directly, say "No specific rules apply - general support request."]
 
 **Suggested Action:**
-[Recommend what the staff member should do - e.g., warn the user, escalate, close, request more information, etc. Be specific and actionable.]
+[Recommend what the staff member should do - e.g., warn the user, escalate, close, request more information, etc. Be specific and actionable. Consider the user's history and similar past cases when suggesting actions. If past cases show a pattern of resolution, recommend a consistent approach.]
 
 **Draft Reply:**
 [Write a professional, friendly draft message that staff could send to the user. Write it from the perspective of server staff addressing the user directly. Keep it concise.]
@@ -122,13 +200,17 @@ function parseAIResponse(text) {
 
 export async function generateTicketSuggestion(ticket) {
   const anthropic = getClient()
-  const messages = await getTicketMessages(ticket.id)
+  const [messages, userHistory, similarCases] = await Promise.all([
+    getTicketMessages(ticket.id),
+    getUserTicketHistory(ticket.user_id),
+    findSimilarTickets(ticket.reason, ticket.id, ticket.user_id),
+  ])
 
   if (messages.length === 0) {
     return { error: 'No messages found in this ticket.' }
   }
 
-  const systemPrompt = buildSystemPrompt(ticket)
+  const systemPrompt = buildSystemPrompt(ticket, userHistory, similarCases)
   const conversationMessages = buildConversationMessages(messages)
 
   try {
