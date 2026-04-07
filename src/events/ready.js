@@ -1,4 +1,4 @@
-import { ActivityType, Events } from 'discord.js';
+import { Events } from 'discord.js';
 import { ensureTicketPanel } from '../services/ticket/ticketPanel.js';
 import { ensureProspectPanel } from '../services/prospect/prospectPanel.js';
 import { ensureVerifyPanel } from '../services/verify/verifyPanel.js';
@@ -22,11 +22,6 @@ export default {
   async execute(client) {
     log.info(`Logged in as ${client.user.tag}`);
     log.info(`Serving ${client.guilds.cache.size} guild(s)`);
-
-    client.user.setPresence({
-      activities: [{ name: 'DM for support', type: ActivityType.Custom }],
-      status: 'online',
-    });
 
     try {
       await ensureTicketPanel(client);
