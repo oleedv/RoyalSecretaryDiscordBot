@@ -1,9 +1,11 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
-import { createEmbed, infoEmbed } from '../utils/embed.js';
+import { createEmbed, infoEmbed, errorEmbed } from '../utils/embed.js';
 import { formatForDb, applyAttachments } from '../utils/attachments.js';
 import { parseTextCommand } from '../utils/commands.js';
 import { trySendWithFiles } from '../utils/discord.js';
 import { getTicketByChannel, saveMessage, beginCloseGracePeriod, getClosedTicketsByUser, isAnonymousMode } from '../services/ticket/ticketService.js';
+import { isAvailable, generateTicketSuggestion, ALLOWED_USER_ID } from '../services/ai/aiService.js';
+import { buildSuggestionEmbed } from '../services/ai/aiEmbeds.js';
 import { detectSteamIds, buildSteamEmbed, buildVanityEmbed } from '../services/steamService.js';
 import config from '../config.js';
 import logger from '../logger.js';
@@ -103,6 +105,24 @@ export async function handleGuild(message) {
 
   if (cmd?.type === 'anonymous_reply') {
     await sendStaffReply(message, ticket, cmd.content, true);
+    return true;
+  }
+
+  if (cmd?.type === 'suggest') {
+    if (message.author.id !== ALLOWED_USER_ID) return true;
+    if (!isAvailable()) {
+      await message.reply('AI suggestions are not configured.').then((m) => setTimeout(() => m.delete().catch(() => null), 5000));
+      await message.delete().catch(() => null);
+      return true;
+    }
+    await message.channel.sendTyping();
+    await message.delete().catch(() => null);
+    const result = await generateTicketSuggestion(ticket);
+    if (result.error) {
+      await message.channel.send({ embeds: [errorEmbed(result.error)] });
+    } else {
+      await message.channel.send({ embeds: [buildSuggestionEmbed(result)] });
+    }
     return true;
   }
 

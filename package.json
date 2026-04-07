@@ -10,6 +10,7 @@
     "deploy-commands": "bun run src/utils/deploy-commands.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
     "diff": "^8.0.4",
     "discord.js": "^14.16.3",
     "mariadb": "^3.4.0",
