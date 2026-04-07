@@ -305,9 +305,11 @@ export async function escalateTicket(ticket, tier, channel, actorId = null) {
   await deleteLogsEmbeds(channel, channel.client.user.id);
 
   const tierLabel = tierLabels[tier] || tier;
+  const actor = actorId ? await channel.guild.members.fetch(actorId).catch(() => null) : null;
+  const actorName = actor?.displayName || 'Unknown';
   const notifEmbed = createEmbed('Ticket')
     .setTitle('Ticket Transferred')
-    .setDescription(`This ticket has been transferred to **${tierLabel}**.\n\nFrom this point forward, this conversation is confidential and only visible to the **${tierLabel}** team.`)
+    .setDescription(`This ticket has been transferred to **${tierLabel}** by **${actorName}**.`)
     .setColor(tierColors[tier] || 0x5865f2);
 
   await channel.send({ embeds: [notifEmbed] });

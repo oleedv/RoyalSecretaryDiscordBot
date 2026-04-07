@@ -308,6 +308,11 @@ export async function initSchema() {
   // Prospect event migration — add mentor_reassigned
   await query(`ALTER TABLE prospect_events MODIFY COLUMN event_type ENUM('created','vote_started','accepted','denied','closed','paused','unpaused','extended','unclaimed','mentor_reassigned') NOT NULL`);
 
+  // Widen actor_id to accommodate Prisma CUIDs (25 chars) from web app
+  await query(`ALTER TABLE pending_actions MODIFY COLUMN actor_id VARCHAR(30) NOT NULL`);
+  await query(`ALTER TABLE ticket_events MODIFY COLUMN actor_id VARCHAR(30) NOT NULL`);
+  await query(`ALTER TABLE prospect_events MODIFY COLUMN actor_id VARCHAR(30) NOT NULL`);
+
   // ── Performance indexes ──
 
   await query(`CREATE INDEX IF NOT EXISTS idx_tickets_user_status ON tickets (user_id, status)`);
