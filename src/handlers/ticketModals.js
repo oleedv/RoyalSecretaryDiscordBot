@@ -74,7 +74,7 @@ async function createWithSteamInput(interaction) {
     embeds: [successEmbed(`Ticket created! Check your DMs. Channel: <#${result.channel.id}>`)],
   });
 
-  linkSteamId(interaction.user.id, steamValidation.steamId);
+  linkSteamId(interaction.user.id, steamValidation.steamId, interaction.user.username);
   log.info({ userId: interaction.user.id, channelId: result.channel.id, tier }, 'Ticket created via modal');
 }
 

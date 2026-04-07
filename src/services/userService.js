@@ -1,7 +1,12 @@
+import crypto from 'node:crypto';
 import { query } from '../database/connection.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'userService' });
+
+function generateCuid() {
+  return 'c' + crypto.randomBytes(12).toString('hex');
+}
 
 export async function getStoredSteamId(discordId) {
   try {
@@ -23,12 +28,14 @@ export async function getDiscordIdBySteamId(steamId) {
   }
 }
 
-export async function linkSteamId(discordId, steamId) {
+export async function linkSteamId(discordId, steamId, discordName) {
   if (!steamId || steamId.toUpperCase() === 'Q') return;
   try {
     await query(
-      'UPDATE User SET steamId = ? WHERE discordId = ? AND (steamId IS NULL OR steamId = ?)',
-      [steamId, discordId, steamId],
+      `INSERT INTO User (id, discordId, discordName, steamId, updatedAt)
+       VALUES (?, ?, ?, ?, NOW())
+       ON DUPLICATE KEY UPDATE steamId = IF(steamId IS NULL, VALUES(steamId), steamId), updatedAt = NOW()`,
+      [generateCuid(), discordId, discordName || discordId, steamId],
       'website'
     );
   } catch (err) {
