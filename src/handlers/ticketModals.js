@@ -30,6 +30,10 @@ async function validateMembership(interaction, tier) {
   }
 
   if (!member?.roles?.cache?.has(memberRoleId)) {
+    const purgedRoleId = config.purged?.roleId;
+    if (purgedRoleId && member?.roles?.cache?.has(purgedRoleId) && tier === 'community_officer') {
+      return null;
+    }
     return 'You need to be a member to create Community Officer/Admin Officer tickets. Please select Normal instead.';
   }
   return null;

@@ -77,6 +77,10 @@ export default {
   configGuardian: {
     channelId: '1490634013503656006',                      // Config Guardian alerts channel
   },
+  purged: {
+    roleId: '1125873310182428693',                         // Purged member role
+    channelId: '1268287942284148817',                      // Purged members info channel
+  },
   verification: {
     panelChannelId: '1478305542328815769',                                  // Channel where the verify panel is posted
     logChannelId: '1478305637921460334',                                    // Staff channel for verification logs

@@ -49,6 +49,10 @@ export default {
     whitelistDurationDays: 30,
     maxExtensionDays: 60,
   },
+  purged: {
+    roleId: '1491082532236820742',                         // Purged member role
+    channelId: '1491095974771167423',                      // Purged members info channel
+  },
   verification: {
     panelChannelId: '',                                  // Channel where the verify panel is posted
     logChannelId: '',                                    // Staff channel for verification logs
