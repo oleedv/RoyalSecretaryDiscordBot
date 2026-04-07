@@ -351,10 +351,12 @@ export async function beginCloseGracePeriod(ticket, closedById, channel, client)
   await deleteLogsEmbeds(channel, client.user.id);
 
   // Send closing embed with Reopen + Force Close buttons
+  const closedByMember = await channel.guild.members.fetch(closedById).catch(() => null);
+  const closedByName = closedByMember?.displayName || 'Unknown';
   const deleteAt = Math.floor((Date.now() + GRACE_PERIOD_MS) / 1000);
   const closedEmbed = createEmbed('Ticket')
     .setTitle('Ticket Closed')
-    .setDescription(`This ticket has been closed. The channel will be deleted <t:${deleteAt}:R>.\n\nStaff can reopen it or force close it with the buttons below. The user can also reply via DM to reopen.`)
+    .setDescription(`This ticket has been closed by **${closedByName}**. The channel will be deleted <t:${deleteAt}:R>.\n\nStaff can reopen it or force close it with the buttons below. The user can also reply via DM to reopen.`)
     .setColor(0x99aab5);
 
   const reopenRow = new ActionRowBuilder().addComponents(
