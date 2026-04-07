@@ -39,8 +39,8 @@ async function validateMembership(interaction, tier) {
   return null;
 }
 
-async function createWithSteamInput(interaction) {
-  const tier = extractTier(interaction);
+async function createWithSteamInput(interaction, tierOverride) {
+  const tier = tierOverride ?? extractTier(interaction);
   const memberError = await validateMembership(interaction, tier);
   if (memberError) {
     return interaction.reply({ embeds: [errorEmbed(memberError)], flags: ['Ephemeral'] });
@@ -82,8 +82,8 @@ async function createWithSteamInput(interaction) {
   log.info({ userId: interaction.user.id, channelId: result.channel.id, tier }, 'Ticket created via modal');
 }
 
-async function createWithStoredSteam(interaction) {
-  const tier = extractTier(interaction);
+async function createWithStoredSteam(interaction, tierOverride) {
+  const tier = tierOverride ?? extractTier(interaction);
   const memberError = await validateMembership(interaction, tier);
   if (memberError) {
     return interaction.reply({ embeds: [errorEmbed(memberError)], flags: ['Ephemeral'] });
@@ -126,4 +126,12 @@ export async function handleCreateModal(interaction) {
 
 export async function handleCreateModalQuick(interaction) {
   return createWithStoredSteam(interaction);
+}
+
+export async function handlePurgedModal(interaction) {
+  return createWithSteamInput(interaction, 'community_officer');
+}
+
+export async function handlePurgedModalQuick(interaction) {
+  return createWithStoredSteam(interaction, 'community_officer');
 }

@@ -18,9 +18,7 @@ export function buildPanelMessage() {
       {
         name: 'How to Submit a Ticket',
         value:
-          '1. Click the button below\n' +
-          '2. Select **Community Officer**\n' +
-          '3. Briefly describe your situation\n\n' +
+          'Click the button below and briefly describe your situation.\n\n' +
           'A member of our team will review your case and respond as soon as possible. ' +
           'We appreciate your understanding and your time spent as part of the community.',
       },
@@ -28,8 +26,8 @@ export function buildPanelMessage() {
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId('ticket_create')
-      .setLabel('Create Ticket')
+      .setCustomId('purged_ticket_create')
+      .setLabel('Create Community Ticket')
       .setStyle(ButtonStyle.Primary)
   );
 
@@ -37,5 +35,5 @@ export function buildPanelMessage() {
 }
 
 export async function ensurePurgedPanel(client) {
-  await ensurePanel(client, config.purged?.channelId, 'ticket_create', buildPanelMessage, 'Purged');
+  await ensurePanel(client, config.purged?.channelId, 'purged_ticket_create', buildPanelMessage, 'Purged');
 }
