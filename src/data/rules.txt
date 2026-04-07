@@ -186,3 +186,60 @@
 
 1. **Neutral and respectful tone.** If you cannot remain neutral, leave the ticket and tag a senior admin or Admin Officer. Do not return insults or sass.
 2. **Do not over-share.** You may tell a player *why* they were banned, but never show evidence or admin deliberations. Third parties cannot request info about another player's ban.
+
+### 9F — General Admin Procedures
+
+- For any issues or concerns, contact an **Admin Officer**.
+- **Replay software is mandatory.** Always have replay enabled (NVidia/AMD drivers both support this). Even a 5-minute replay buffer is sufficient for evidence and ticket coverage. No exceptions.
+
+### 9G — Warnings
+
+- Warnings must be **clear and understandable** to the player.
+- Issue warnings through **BattleMetrics**.
+- Add a **note** to the player's BattleMetrics profile describing the situation clearly.
+- **Flag** the player as warned.
+- If the player argues or needs further explanation, direct them to the **Support Bot**.
+
+### 9H — Kicks
+
+- Kicks must include a **clear reason** visible to the player.
+- Evidence is **suggested but not required** — it may be useful for later appeals or escalations.
+- **Flag** the player as kicked, with additional flags matching the rule broken.
+- **Consider warning first** — especially for new players unfamiliar with how the game works. Helping them is preferable to punishing them.
+- If they argue upon return, direct them to the **Support Bot**.
+
+### 9I — Bans
+
+- Bans are a **last resort** and **must** be supported with evidence (preferably video and screenshots) to avoid "he said, she said" situations.
+- **Before banning:**
+  1. Ensure evidence is saved (your own, or provided by another player/admin).
+  2. Check Admin Guidelines for the correct ban duration.
+  3. After issuing the ban, share evidence in the appropriate **Evidence Vault** topic.
+
+### 9J — Admin Tickets (Handling Process)
+
+- Leave tickets to the **Admin directly involved** in the situation.
+- If you want to discuss a ticket internally, **open a thread** — do not clutter the ticket itself.
+- If you believe a ticket was mishandled, contact an **Admin Officer** for review.
+- You are **never required** to share evidence with the person appealing.
+
+### 9K — Admin Code of Conduct
+
+> By being an Admin on this server, you agree to follow this Code of Conduct. Violations may result in Admin powers being revoked. @Founder and the head of Admin Staff reserve the right to update this at any time.
+
+1. **Be fair and friendly.** Admins are ambassadors of the server and clan. No jokes, sarcasm, trolling, or memes when handling complaints or in 🆕︱server-feedback — that section is public-facing and must stay clean.
+2. **Co-operate with other admins** at all times; ask for help when needed.
+3. **On-duty requirements:** When performing admin duties, you must be in the Admin Discord VC and in a locked squad named "Admin" to monitor the command channel.
+4. **Enforce rules** using the escalation ladder: Warn → Kick → Ban.
+5. **All kicks/bans must go through BattleMetrics.** Provide screenshots of major incidents.
+6. **Ownership of incidents:**
+   - Bans/incidents are handled by the Admin who dealt with the situation.
+   - If that Admin is unavailable, politely inform the player they will be contacted when the Admin is available.
+   - Major incidents should be escalated to @Founder, @RB Managers, or @RB Server Admin.
+   - 6.1 Keep RB Admin Bot ticket channels **professional and clean** — no sarcastic or snarky comments. Ticket content may be forwarded to OWI's Hosting Discord in serious cases.
+7. **De-escalation:** If a situation turns hostile, stay calm. Do not become defensive, aggressive, or resort to jokes/sarcasm. Ask another Admin to mediate, or escalate to @Founder / @RB Managers / @RB Server Admin.
+8. **In-game arguments:** De-escalate any arguments that break out in Global Chat.
+9. **Do NOT abuse your powers.**
+10. **No DM bypassing:** Do not Direct Message admin information about incidents — all admin activity must be recorded in 🔱︱server-admins with screenshots so other admins can see it.
+
+> Reference: OWI Server Administration Policies — https://forums.joinsquad.com/discussion/22/server-administration-policies#latest

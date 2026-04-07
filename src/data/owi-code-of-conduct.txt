@@ -1,0 +1,53 @@
+# OWI Squad Code of Conduct
+# Source: https://www.joinsquad.com/code-of-conduct
+# Note: This content may become outdated. Check the source URL for the latest version.
+
+---
+
+## Welcome Squaddies
+
+Players are encouraged to offer guidance to less experienced players. There is no wrong way to play the game -- there are only effective and ineffective tactics. The Steam forums and official channels serve as spaces for discussing strategies and providing development feedback.
+
+## Inappropriate Content
+
+Communications channels require mature conduct. The policy prohibits excessive profanity, obscenity, insults, personal attacks, accusations or abusive language. Circumventing language filters through asterisks or abbreviations remains prohibited.
+
+Racist, misogynistic, sexist and ableist language is strictly forbidden. Harassment, abuse and bullying will not be tolerated.
+
+## Constructive Behaviour
+
+Feedback on game performance is welcomed but must remain constructive. "This sucks" tells OWI nothing about the problem or what would remedy it.
+
+## No Flaming
+
+Personal attacks and targeted harassment are prohibited. "But he flamed me first!" is not an acceptable reason to insult another player.
+
+## Stay On Topic
+
+Posts should remain relevant to designated forum sections; off-topic discussions belong in appropriate channels.
+
+## No Spamming
+
+Duplicate posting and chat flooding are prohibited.
+
+## No Thread Bumping
+
+Posting irrelevant content to keep threads visible is forbidden.
+
+## Flagging Or Reporting Posts
+
+Users should report problematic content using the flag system rather than public complaints.
+
+## Reporting In-game Abuse
+
+Players should report hostile behavior to the community team with server details and evidence. "Naming and shaming" users on forums is prohibited.
+
+## Internet Savvy
+
+Offworld Industries employees never request passwords. Personal details should not be shared with other players.
+
+## Disciplinary Procedures
+
+Rule violations result in warnings, temporary bans, or permanent removal. Appeals can be submitted to support@offworldindustries.com.
+
+The foundational principle: treat others as you wish to be treated.

@@ -63,6 +63,33 @@ export async function handleCreate(interaction) {
   await interaction.showModal(rawModal(modalId, 'Create a Support Ticket', components));
 }
 
+export async function handlePurgedCreate(interaction) {
+  const storedSteamId = await getStoredSteamId(interaction.user.id);
+  const modalId = storedSteamId ? 'purged_ticket_modal_quick' : 'purged_ticket_modal';
+
+  const components = [];
+
+  if (!storedSteamId) {
+    components.push(
+      labelComponent('Steam ID (Steam64 or profile URL)', textInput('ticket_steam_id', 'short', {
+        placeholder: 'e.g. 76561198012345678',
+        required: true,
+      }))
+    );
+  }
+
+  components.push(
+    labelComponent('Why are you creating this ticket?', textInput('ticket_reason', 'paragraph', {
+      placeholder: 'Briefly describe your situation...',
+      minLength: 5,
+      maxLength: 500,
+      required: true,
+    }))
+  );
+
+  await interaction.showModal(rawModal(modalId, 'Create a Community Ticket', components));
+}
+
 export async function handleEscalate(interaction) {
   if (await requireRole(interaction, allTicketStaffRoles())) return;
   await interaction.deferReply({ flags: ['Ephemeral'] });
