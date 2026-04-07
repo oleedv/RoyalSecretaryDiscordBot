@@ -196,7 +196,7 @@ export async function handleSuggest(interaction) {
     return interaction.reply({ embeds: [errorEmbed('AI suggestions are not configured.')], flags: ['Ephemeral'] });
   }
 
-  await interaction.deferReply({ flags: ['Ephemeral'] });
+  await interaction.deferReply();
 
   const ticket = await getTicketByChannel(interaction.channel.id);
   if (!ticket) {
