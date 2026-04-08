@@ -21,7 +21,7 @@ export default {
       opt.setName('user').setDescription('Member to check (defaults to yourself)')
     )
     .addIntegerOption((opt) =>
-      opt.setName('days').setDescription('Days to look back (default: 30, max: 90)').setMinValue(1).setMaxValue(90)
+      opt.setName('days').setDescription('Days to look back (default: 30, max: 365)').setMinValue(1).setMaxValue(365)
     ),
 
   async execute(interaction) {
