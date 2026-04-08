@@ -1,0 +1,82 @@
+ROYAL BATTALION - PROSPECT EVALUATION CRITERIA
+================================================
+
+This document defines the criteria used to evaluate prospect applications for Royal Battalion (RB), a gaming community for Squad.
+
+ELIGIBILITY REQUIREMENTS
+------------------------
+- Must be 18 years or older (confirmed via date of birth on application)
+- Must NOT be in another clan that has a Squad server (dual-clanning not allowed)
+- Steam ID must be valid and match a real account
+- Must not have concerning active bans on Community Ban List (CBL)
+- VAC bans older than 1500 days can be ignored; recent VAC bans require discussion and mentor discretion
+- No inappropriate or offensive name history on BattleMetrics
+
+PROSPECT PERIOD REQUIREMENTS
+-----------------------------
+- Prospect period: 4 weeks total
+- Must accumulate 16 hours of in-game time during the 4 weeks
+- Must be present on Discord while playing on the server (voice channel)
+- Discord and in-game name must match
+- Must uphold RB discord and server rules at all times
+- Seeding time counts toward their hours; Discord VC is NOT required during seeding
+
+VOTING REQUIREMENTS
+-------------------
+- Voting starts at the beginning of week 3
+- Must wait the full 2-week voting period even if threshold is met early
+- Need 80% positive feedback
+- Minimum of 10 positive votes required
+- If requirements not met: 3-week cooling off period before reapplying
+
+MENTOR CHECKLIST (PRE-INTERVIEW)
+---------------------------------
+1. Verify the application form is fully filled out (all fields)
+2. Confirm applicant is 18+ from date of birth
+3. Confirm not dual-clanning (check previous clan field)
+4. Steam ID correctly resolves to a BattleMetrics RCON profile
+5. Cross-reference with Community Ban List (CBL) - check risk rating and active bans
+6. Review BattleMetrics for inappropriate past names
+7. Check for VAC bans (>1500 days old = acceptable, otherwise discuss)
+8. Post "Checked" in ticket to signal all checks are green
+
+RED FLAGS (concerns to highlight)
+----------------------------------
+- Any active bans on CBL (especially multiple or from well-known communities)
+- High CBL risk rating (7+/10 is very concerning, 4-6 warrants attention)
+- Active BattleMetrics bans on other servers
+- Multiple expired bans across many different servers (pattern of behavior)
+- VAC ban less than 1500 days old
+- Very low hours in Squad (e.g., under 100 hours claimed but no BM history to support it)
+- Already in another Squad clan (dual-clanning)
+- Under 18 years old
+- First/last seen data showing very recent first appearance (potential alt account)
+- Very low game connections or average session time (suggesting casual play inconsistent with commitment)
+- No Discord activity history (never messaged or joined voice)
+- Applicant's stated hours don't match BattleMetrics recorded playtime
+
+GREEN FLAGS (positives to highlight)
+-------------------------------------
+- Clean CBL record (0 risk rating, positive reputation points)
+- No BattleMetrics bans at all
+- Significant playtime on RB servers specifically
+- Active seeding participation (shows community support)
+- Already active on RB Discord (messages, voice time, reactions)
+- Good average session length (shows commitment per play session)
+- Recent and consistent play activity (not just a one-time visitor)
+- Has competitive interest (aligns with RB's competitive scene)
+- Previous clan experience without issues (shows familiarity with clan structure)
+
+OVERALL ASSESSMENT GUIDANCE
+----------------------------
+- If ALL checks are green (no bans, good hours, 18+, not dual-clanning): straightforward approval for interview
+- If minor concerns exist (e.g., a couple expired bans from years ago, slightly low hours): note them but likely fine, discuss during interview
+- If moderate concerns exist (e.g., active ban on one server, recent VAC ban, dual-clanning with non-Squad clan): flag for mentor discussion, may need management input
+- If major concerns exist (e.g., multiple active bans, high CBL risk, under 18, dual-clanning with Squad clan): likely denial, escalate to senior mentor
+
+IMPORTANT NOTES
+---------------
+- This AI assessment is a tool to ASSIST mentors, not replace their judgment
+- Mentors always have final say on prospect decisions
+- Edge cases should be discussed with senior mentors or community officers
+- The assessment should be factual and based on available data, not speculative

@@ -9,6 +9,7 @@ import * as whitelistService from '../whitelistService.js';
 import { getPlaytime, getConnectionStats } from '../playtimeService.js';
 import { getPlayerSeedStats, getSeedStreak } from '../seedTracker/seedTrackerService.js';
 import { getActivitySummary } from '../activity/activityService.js';
+import { generateProspectEvaluation } from '../ai/prospectAiService.js';
 import { query, transaction } from '../../database/connection.js';
 import { assignTeamRole, removeTeamRole } from './teamRoleService.js';
 import config from '../../config.js';
@@ -107,7 +108,30 @@ function pct(part, total) {
   return `${Math.round((part / total) * 100)}%`;
 }
 
-function appendAllStatsToMessage(message, steamId, userId) {
+function formatBmBans(bmBans) {
+  let text = `**Active:** ${bmBans.activeBans.length} | **Expired:** ${bmBans.expiredBanCount}`;
+
+  if (bmBans.activeBans.length === 0) {
+    text += '\nNo active bans';
+  } else {
+    const shown = bmBans.activeBans.slice(0, 5);
+    for (const ban of shown) {
+      const created = ban.created ? `<t:${Math.floor(new Date(ban.created).getTime() / 1000)}:d>` : '?';
+      const expiry = ban.permanent ? 'permanent' : ban.expires
+        ? `expires <t:${Math.floor(new Date(ban.expires).getTime() / 1000)}:d>`
+        : 'permanent';
+      const reason = ban.reason.length > 80 ? ban.reason.slice(0, 77) + '...' : ban.reason;
+      text += `\n> **${ban.serverName}**\n> ${reason} (${created}, ${expiry})`;
+    }
+    if (bmBans.activeBans.length > 5) {
+      text += `\n> *... and ${bmBans.activeBans.length - 5} more*`;
+    }
+  }
+
+  return text;
+}
+
+function appendAllStatsToMessage(message, steamId, userId, prospect) {
   if (!steamId || steamId.toUpperCase() === 'Q') return;
 
   const startDate = new Date();
@@ -122,7 +146,8 @@ function appendAllStatsToMessage(message, steamId, userId) {
     getSeedStreak(steamId).catch(() => 0),
     getActivitySummary(userId, start, now).catch(() => null),
     fetchCblData(steamId).catch(() => null),
-  ]).then(([connStats, playtime, seedStats, seedStreak, activity, cblData]) => {
+    bm.getPlayerBans(steamId).catch(() => null),
+  ]).then(async ([connStats, playtime, seedStats, seedStreak, activity, cblData, bmBans]) => {
     const embed = message.embeds[0];
     if (!embed) return;
 
@@ -178,6 +203,27 @@ function appendAllStatsToMessage(message, steamId, userId) {
     // Community Ban List
     if (cblData) {
       fields.push({ name: 'Community Ban List', value: formatCblEmbed(cblData) });
+    }
+
+    // BattleMetrics Bans
+    if (bmBans) {
+      const bmText = formatBmBans(bmBans);
+      fields.push({ name: 'BattleMetrics Bans', value: bmText.length > 1024 ? bmText.slice(0, 1021) + '...' : bmText });
+    }
+
+    // AI Assessment
+    if (prospect) {
+      try {
+        const aiText = await generateProspectEvaluation(prospect, {
+          connStats, playtime, seedStats, seedStreak, activity, cblData, bmBans,
+        });
+        if (aiText) {
+          const truncated = aiText.length > 1024 ? aiText.slice(0, 1021) + '...' : aiText;
+          fields.push({ name: 'AI Assessment', value: truncated });
+        }
+      } catch (err) {
+        log.warn({ err }, 'Failed to generate AI prospect evaluation');
+      }
     }
 
     if (fields.length > 0) {
@@ -290,7 +336,7 @@ export async function createProspect(userId, guild, formData) {
   const components = buildProspectComponents(prospect);
 
   const topMsg = await channel.send({ embeds: [infoEmbed], components });
-  appendAllStatsToMessage(topMsg, prospect.steam_id, prospect.user_id);
+  appendAllStatsToMessage(topMsg, prospect.steam_id, prospect.user_id, prospect);
 
   if (mentorRoleId) {
     await channel.send(`<@&${mentorRoleId}> New prospect application!`);
@@ -334,7 +380,7 @@ export async function claimProspect(prospect, mentorId, guild) {
     const topMsg = await findBotMessageByCustomId(staffChannel, guild.client.user.id, ['prospect_claim', 'prospect_accept', 'prospect_deny']);
     if (topMsg) {
       await topMsg.edit({ embeds: [infoEmbed], components });
-      appendAllStatsToMessage(topMsg, updated.steam_id, updated.user_id);
+      appendAllStatsToMessage(topMsg, updated.steam_id, updated.user_id, updated);
     }
 
     const notifEmbed = createEmbed('Prospect')
@@ -394,7 +440,7 @@ export async function unclaimProspect(prospect, actorId, guild) {
     const topMsg = await findBotMessageByCustomId(staffChannel, guild.client.user.id, ['prospect_claim', 'prospect_accept', 'prospect_deny', 'prospect_unclaim']);
     if (topMsg) {
       await topMsg.edit({ embeds: [infoEmbed], components });
-      appendAllStatsToMessage(topMsg, updated.steam_id, updated.user_id);
+      appendAllStatsToMessage(topMsg, updated.steam_id, updated.user_id, updated);
     }
 
     const actor = await guild.members.fetch(actorId).catch(() => null);
@@ -448,7 +494,7 @@ export async function acceptProspect(prospect, acceptedById, guild) {
     const topMsg = await findBotMessageByCustomId(staffChannel, guild.client.user.id, ['prospect_accept', 'prospect_deny']);
     if (topMsg) {
       await topMsg.edit({ embeds: [infoEmbed], components });
-      appendAllStatsToMessage(topMsg, updated.steam_id, updated.user_id);
+      appendAllStatsToMessage(topMsg, updated.steam_id, updated.user_id, updated);
     }
 
     const notifEmbed = createEmbed('Prospect')
@@ -668,7 +714,7 @@ async function refreshStaffEmbed(prospect, guild) {
   const topMsg = await findBotMessageByCustomId(staffChannel, guild.client.user.id, ['prospect_claim', 'prospect_accept', 'prospect_deny']);
   if (topMsg) {
     await topMsg.edit({ embeds: [infoEmbed], components });
-    appendAllStatsToMessage(topMsg, updated.steam_id, updated.user_id);
+    appendAllStatsToMessage(topMsg, updated.steam_id, updated.user_id, updated);
   }
 }
 
