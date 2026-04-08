@@ -20,9 +20,27 @@ function getStatusIndicator(playerCount, seedThreshold, connected) {
   return { text: 'Server is empty', icon: ':red_circle:' };
 }
 
+function isRBMember(name) {
+  return /^\[?RB[|\]\s]/i.test(name);
+}
+
 function formatPlayerList(players) {
   if (!players.length) return '*No players*';
-  const names = players.map((p) => p.name || 'Unknown');
+
+  const sorted = [...players].sort((a, b) => {
+    const nameA = a.name || 'Unknown';
+    const nameB = b.name || 'Unknown';
+    const aRB = isRBMember(nameA);
+    const bRB = isRBMember(nameB);
+    if (aRB !== bRB) return aRB ? -1 : 1;
+    return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+  });
+
+  const names = sorted.map((p) => {
+    const name = p.name || 'Unknown';
+    return isRBMember(name) ? `**${name}**` : name;
+  });
+
   const joined = names.join('\n');
   // Discord field value limit is 1024 chars
   if (joined.length > 1000) {
