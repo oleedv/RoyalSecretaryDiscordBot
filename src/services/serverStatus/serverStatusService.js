@@ -1,5 +1,6 @@
 import config from '../../config.js';
 import logger from '../../logger.js';
+import { query } from '../../database/connection.js';
 import { getAllServerStates } from '../seeding/seedingSocket.js';
 import { getSeedingConfig } from '../seeding/seedingService.js';
 import { buildServerStatusEmbed } from './serverStatusEmbeds.js';
@@ -18,6 +19,22 @@ const THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
 // Stored references for self-recovery
 let _channel = null;
 let _client = null;
+
+// Cached RB member steam IDs
+let rbSteamIds = new Set();
+
+async function refreshRBMembers() {
+  try {
+    const rows = await query(
+      "SELECT steamId FROM WhitelistEntry WHERE role = 'RBMembers' AND server = 'main' AND (expiresAt IS NULL OR expiresAt > NOW())",
+      [],
+      'website'
+    );
+    rbSteamIds = new Set(rows.map((r) => r.steamId));
+  } catch (err) {
+    log.error({ err }, 'Failed to fetch RB members for status display');
+  }
+}
 
 async function findExistingMessages(channel, client, serverCount) {
   const messages = await channel.messages.fetch({ limit: 20 });
@@ -38,7 +55,7 @@ async function ensureMessages(channel, client, serverStates, threshold) {
       statusMessages.push({ name, messageId: existing[i].id });
       log.info({ name, messageId: existing[i].id }, 'Found existing status message');
     } else {
-      const embed = buildServerStatusEmbed(state, threshold);
+      const embed = buildServerStatusEmbed(state, threshold, rbSteamIds);
       const msg = await channel.send({ embeds: [embed] });
       statusMessages.push({ name, messageId: msg.id });
       log.info({ name, messageId: msg.id }, 'Created new status message');
@@ -48,6 +65,7 @@ async function ensureMessages(channel, client, serverStates, threshold) {
 
 async function updateMessages(channel, client) {
   try {
+    await refreshRBMembers();
     const serverStates = getAllServerStates();
 
     if (!serverStates.length) {
@@ -91,7 +109,7 @@ async function updateMessages(channel, client) {
       }
 
       try {
-        const embed = buildServerStatusEmbed(serverData.state, threshold);
+        const embed = buildServerStatusEmbed(serverData.state, threshold, rbSteamIds);
 
         let msg = await channel.messages.fetch(entry.messageId).catch(() => null);
         if (msg) {

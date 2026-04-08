@@ -20,25 +20,21 @@ function getStatusIndicator(playerCount, seedThreshold, connected) {
   return { text: 'Server is empty', icon: ':red_circle:' };
 }
 
-function isRBMember(name) {
-  return /^\[?RB[|\]\s]/i.test(name);
-}
-
-function formatPlayerList(players) {
+function formatPlayerList(players, rbSteamIds) {
   if (!players.length) return '*No players*';
 
   const sorted = [...players].sort((a, b) => {
     const nameA = a.name || 'Unknown';
     const nameB = b.name || 'Unknown';
-    const aRB = isRBMember(nameA);
-    const bRB = isRBMember(nameB);
+    const aRB = rbSteamIds.has(a.steamID);
+    const bRB = rbSteamIds.has(b.steamID);
     if (aRB !== bRB) return aRB ? -1 : 1;
     return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
   });
 
   const names = sorted.map((p) => {
     const name = p.name || 'Unknown';
-    return isRBMember(name) ? `**${name}**` : name;
+    return rbSteamIds.has(p.steamID) ? `**${name}**` : name;
   });
 
   const joined = names.join('\n');
@@ -85,7 +81,7 @@ function getLayerImageUrl(layerObj, layerName) {
   return null;
 }
 
-export function buildServerStatusEmbed(state, seedThreshold = 40) {
+export function buildServerStatusEmbed(state, seedThreshold = 40, rbSteamIds = new Set()) {
   const totalSlots = state.publicSlots + state.reserveSlots;
   const color = getStatusColor(state.playerCount, totalSlots);
   const status = getStatusIndicator(state.playerCount, seedThreshold, state.connected);
@@ -138,12 +134,12 @@ export function buildServerStatusEmbed(state, seedThreshold = 40) {
   embed.addFields(
     {
       name: `Team 1 \u2022 ${team1Players.length} players \u2022 ${faction1}`,
-      value: formatPlayerList(team1Players),
+      value: formatPlayerList(team1Players, rbSteamIds),
       inline: true,
     },
     {
       name: `Team 2 \u2022 ${team2Players.length} players \u2022 ${faction2}`,
-      value: formatPlayerList(team2Players),
+      value: formatPlayerList(team2Players, rbSteamIds),
       inline: true,
     },
   );
