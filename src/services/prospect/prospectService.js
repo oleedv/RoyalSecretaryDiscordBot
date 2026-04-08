@@ -211,27 +211,35 @@ function appendAllStatsToMessage(message, steamId, userId, prospect) {
       fields.push({ name: 'BattleMetrics Bans', value: bmText.length > 1024 ? bmText.slice(0, 1021) + '...' : bmText });
     }
 
-    // AI Assessment
+    const embeds = [];
+
+    if (fields.length > 0) {
+      updated.addFields(fields);
+    }
+    embeds.push(updated);
+
+    // AI Assessment as a separate embed
     if (prospect) {
       try {
         const aiText = await generateProspectEvaluation(prospect, {
           connStats, playtime, seedStats, seedStreak, activity, cblData, bmBans,
         });
         if (aiText) {
-          const truncated = aiText.length > 1024 ? aiText.slice(0, 1021) + '...' : aiText;
-          fields.push({ name: 'AI Assessment', value: truncated });
+          const truncated = aiText.length > 4096 ? aiText.slice(0, 4093) + '...' : aiText;
+          const aiEmbed = createEmbed('Prospect')
+            .setTitle('AI Assessment')
+            .setDescription(truncated)
+            .setColor(0x5865f2);
+          embeds.push(aiEmbed);
         }
       } catch (err) {
         log.warn({ err }, 'Failed to generate AI prospect evaluation');
       }
     }
 
-    if (fields.length > 0) {
-      updated.addFields(fields);
-      message.edit({ embeds: [updated] }).catch((err) =>
-        log.warn({ err }, 'Failed to append stats to prospect embed')
-      );
-    }
+    message.edit({ embeds }).catch((err) =>
+      log.warn({ err }, 'Failed to append stats to prospect embed')
+    );
   }).catch((err) => {
     log.warn({ err, steamId }, 'appendAllStatsToMessage failed');
   });
