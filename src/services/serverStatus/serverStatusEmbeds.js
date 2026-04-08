@@ -68,9 +68,13 @@ function getMatchupString(layerObj) {
   if (!layerObj?.teams || layerObj.teams.length < 2) return null;
   const t1 = layerObj.teams[0];
   const t2 = layerObj.teams[1];
-  const name1 = t1.name || t1.faction || 'Team 1';
-  const name2 = t2.name || t2.faction || 'Team 2';
-  return `${name1} vs\n${name2}`;
+  const fmt = (t) => {
+    const short = t.shortName;
+    const full = t.name || t.faction;
+    if (short && full) return `**${short}**\n${full}`;
+    return full || short || 'Unknown';
+  };
+  return `${fmt(t1)}\nvs\n${fmt(t2)}`;
 }
 
 function getLayerImageUrl(layerObj, layerName) {
