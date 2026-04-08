@@ -11,6 +11,7 @@ export function buildSuggestionEmbed(suggestion) {
     .setDescription('Analysis based on server rules and conversation context.')
     .addFields(
       { name: 'Rules Applied', value: truncate(suggestion.rulesApplied, 1024) },
+      { name: 'External Data Flags', value: truncate(suggestion.externalDataFlags, 1024) },
       { name: 'Suggested Action', value: truncate(suggestion.suggestedAction, 1024) },
       { name: 'Draft Reply', value: truncate(`\`\`\`\n${suggestion.draftReply}\n\`\`\``, 1024) },
     )

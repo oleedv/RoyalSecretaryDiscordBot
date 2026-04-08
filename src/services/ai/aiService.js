@@ -5,6 +5,11 @@ import { fileURLToPath } from 'url'
 import { query } from '../../database/connection.js'
 import config from '../../config.js'
 import logger from '../../logger.js'
+import { getStoredSteamId } from '../userService.js'
+import { fetchCblData } from '../cblService.js'
+import { getSteamProfile, getSteamBans } from '../steamService.js'
+import { getPlayerBans, getPlayerNotes } from '../battlemetricsService.js'
+import { fetchImagesAsBase64 } from '../../utils/attachments.js'
 
 const log = logger.child({ module: 'ai' })
 
@@ -50,7 +55,7 @@ export function isAvailable() {
 
 async function getTicketMessages(ticketId) {
   return await query(
-    'SELECT author_tag, content, is_staff, created_at FROM ticket_messages WHERE ticket_id = ? ORDER BY id ASC',
+    'SELECT author_tag, content, is_staff, created_at, attachments FROM ticket_messages WHERE ticket_id = ? ORDER BY id ASC',
     [ticketId]
   )
 }
@@ -137,7 +142,71 @@ function buildSimilarCasesSection(cases) {
   return lines.join('\n')
 }
 
-function buildSystemPrompt(ticket, userHistory, similarCases) {
+function buildExternalDataSection({ steamId, cblData, steamProfile, steamBans, bmBans, bmNotes }) {
+  if (!steamId) return 'No Steam ID linked to this user - external data unavailable.'
+
+  const sections = []
+  sections.push(`Steam ID: ${steamId}`)
+
+  if (steamProfile) {
+    const lines = [`Profile Visibility: ${steamProfile.visibility}`]
+    if (steamProfile.personaName) lines.push(`Display Name: ${steamProfile.personaName}`)
+    if (steamProfile.accountCreated) lines.push(`Account Created: ${steamProfile.accountCreated}`)
+    sections.push('STEAM PROFILE:\n' + lines.map((l) => `  ${l}`).join('\n'))
+  }
+
+  if (steamBans) {
+    const lines = []
+    lines.push(`VAC Banned: ${steamBans.vacBanned ? 'YES' : 'No'} (${steamBans.numberOfVacBans} ban${steamBans.numberOfVacBans !== 1 ? 's' : ''})`)
+    if (steamBans.vacBanned && steamBans.daysSinceLastBan > 0) lines.push(`Days Since Last Ban: ${steamBans.daysSinceLastBan}`)
+    lines.push(`Game Bans: ${steamBans.numberOfGameBans}`)
+    lines.push(`Community Banned: ${steamBans.communityBanned ? 'YES' : 'No'}`)
+    if (steamBans.economyBan !== 'none') lines.push(`Economy Ban: ${steamBans.economyBan}`)
+    sections.push('STEAM BANS:\n' + lines.map((l) => `  ${l}`).join('\n'))
+  }
+
+  if (cblData) {
+    const lines = []
+    lines.push(`Risk Rating: ${cblData.riskRating ?? 0}/10`)
+    lines.push(`Reputation Points: ${cblData.reputationPoints ?? 0}`)
+    const activeBans = cblData.bans?.edges?.map((e) => e.node) ?? []
+    const expiredCount = cblData.expiredBans?.edges?.length ?? 0
+    lines.push(`Active Bans: ${activeBans.length}`)
+    lines.push(`Expired Bans: ${expiredCount}`)
+    for (const ban of activeBans) {
+      const org = ban.banList?.organisation?.name || 'Unknown'
+      const reason = ban.reason || 'No reason'
+      const created = ban.created ? new Date(ban.created).toISOString().slice(0, 10) : '?'
+      lines.push(`- ${org}: ${reason} (${created})`)
+    }
+    sections.push('COMMUNITY BAN LIST (CBL):\n' + lines.map((l) => `  ${l}`).join('\n'))
+  }
+
+  if (bmBans) {
+    const lines = []
+    lines.push(`Active Bans: ${bmBans.activeBans.length}`)
+    lines.push(`Expired Bans: ${bmBans.expiredBanCount}`)
+    for (const ban of bmBans.activeBans.slice(0, 10)) {
+      const expiry = ban.permanent ? 'permanent' : `expires ${ban.expires ? new Date(ban.expires).toISOString().slice(0, 10) : '?'}`
+      const created = ban.created ? new Date(ban.created).toISOString().slice(0, 10) : '?'
+      lines.push(`- ${ban.serverName}: ${ban.reason} (${created}, ${expiry})`)
+    }
+    sections.push('BATTLEMETRICS BANS:\n' + lines.map((l) => `  ${l}`).join('\n'))
+  }
+
+  if (bmNotes && bmNotes.length > 0) {
+    const lines = []
+    for (const n of bmNotes.slice(0, 10)) {
+      const date = n.createdAt ? new Date(n.createdAt).toISOString().slice(0, 10) : '?'
+      lines.push(`- [${date}] ${n.note}`)
+    }
+    sections.push('BATTLEMETRICS STAFF NOTES:\n' + lines.map((l) => `  ${l}`).join('\n'))
+  }
+
+  return sections.join('\n\n')
+}
+
+function buildSystemPrompt(ticket, userHistory, similarCases, externalDataSection) {
   return `You are an assistant for Discord server moderators at Royal Battalion, a gaming community for Squad.
 
 You are analyzing a support ticket to help staff decide how to respond.
@@ -153,6 +222,9 @@ ${buildHistorySection(userHistory)}
 SIMILAR PAST CASES:
 ${buildSimilarCasesSection(similarCases)}
 
+EXTERNAL PLAYER DATA:
+${externalDataSection || 'No external data available.'}
+
 SERVER RULES:
 ${serverRules || 'No rules document loaded.'}
 
@@ -163,10 +235,15 @@ OWI SERVER LICENSING & ADMINISTRATION POLICIES:
 ${owiServerLicensing || 'Not loaded.'}
 
 INSTRUCTIONS:
+If the conversation includes attached images, examine them carefully. Users often share screenshots of in-game events, ban messages, error screens, or chat logs as evidence. Consider any text or visual information in the images when forming your analysis.
+
 Analyze the conversation and provide your response in EXACTLY this format:
 
 **Rules Applied:**
 [List which specific server rules AND/OR OWI policies are relevant to this ticket. Cite rule numbers or OWI policy codes (e.g. A1.9, L1.12) when applicable. If the ticket involves OWI-level concerns (e.g. player threatening to report to OWI, ban appeal rights, admin conduct standards), reference the relevant OWI policy. If no rules apply directly, say "No specific rules apply - general support request."]
+
+**External Data Flags:**
+[Flag any concerning findings from the external player data: VAC/game bans, CBL active bans or high risk rating, BattleMetrics bans, concerning staff notes, private Steam profile, very new account. If nothing concerning is found, say "No flags from external data." Be specific about what you found and cite the data.]
 
 **Suggested Action:**
 [Recommend what the staff member should do - e.g., warn the user, escalate, close, request more information, etc. Be specific and actionable. Consider the user's history and similar past cases when suggesting actions. If past cases show a pattern of resolution, recommend a consistent approach.]
@@ -174,35 +251,78 @@ Analyze the conversation and provide your response in EXACTLY this format:
 **Draft Reply:**
 [Write a professional, friendly draft message that staff could send to the user. Write it from the perspective of server staff addressing the user directly. Keep it concise.]
 
+Consider external player data (bans, risk ratings, staff notes) when assessing the situation and suggesting actions.
 Keep your analysis brief and practical. Staff are busy - give them actionable information, not essays.`
 }
 
-function buildConversationMessages(messages) {
+async function buildConversationMessages(messages) {
   const recent = messages.slice(-50)
-  const transcript = recent.map((m) => {
+  const MAX_IMAGES = 10
+
+  // Collect image attachments per message, respecting the global budget
+  let imagesBudget = MAX_IMAGES
+  const perMessageAttachments = recent.map((m) => {
+    if (imagesBudget <= 0) return []
+    const images = (m.attachments || []).filter((a) => a.contentType?.startsWith('image/'))
+    const batch = images.slice(0, imagesBudget)
+    imagesBudget -= batch.length
+    return batch
+  })
+
+  // Fetch all images in one parallel batch
+  const allImages = perMessageAttachments.flat()
+  const fetched = allImages.length > 0 ? await fetchImagesAsBase64(allImages, allImages.length) : []
+
+  // Map fetched results back to per-message buckets
+  let fetchIdx = 0
+  const fetchedPerMessage = perMessageAttachments.map((imgs) => {
+    const slice = fetched.slice(fetchIdx, fetchIdx + imgs.length)
+    fetchIdx += imgs.length
+    return slice
+  })
+
+  // Build interleaved text + image content blocks
+  const contentBlocks = [{ type: 'text', text: 'Here is the ticket conversation transcript:\n' }]
+
+  for (let i = 0; i < recent.length; i++) {
+    const m = recent[i]
     const role = m.is_staff ? 'STAFF' : 'USER'
     const time = new Date(m.created_at).toISOString().slice(0, 16).replace('T', ' ')
     const content = m.content || '[attachment only]'
-    return `[${time}] ${role} (${m.author_tag}): ${content}`
-  }).join('\n')
+    const imgs = fetchedPerMessage[i]
 
-  return [
-    {
-      role: 'user',
-      content: `Here is the ticket conversation transcript:\n\n${transcript}\n\nPlease analyze this ticket and provide your suggestion.`,
-    },
-  ]
+    let line = `[${time}] ${role} (${m.author_tag}): ${content}`
+    if (imgs.length > 0) line += ` [${imgs.length} image(s) attached below]`
+
+    contentBlocks.push({ type: 'text', text: line })
+
+    for (const img of imgs) {
+      contentBlocks.push({
+        type: 'image',
+        source: { type: 'base64', media_type: img.media_type, data: img.data },
+      })
+    }
+  }
+
+  contentBlocks.push({
+    type: 'text',
+    text: '\nPlease analyze this ticket and provide your suggestion. If images were included, consider any text, screenshots, or evidence visible in them.',
+  })
+
+  return [{ role: 'user', content: contentBlocks }]
 }
 
 // ── Response parser ──
 
 function parseAIResponse(text) {
-  const rulesMatch = text.match(/\*\*Rules Applied:\*\*\s*([\s\S]*?)(?=\*\*Suggested Action:\*\*)/i)
+  const rulesMatch = text.match(/\*\*Rules Applied:\*\*\s*([\s\S]*?)(?=\*\*External Data Flags:\*\*)/i)
+  const flagsMatch = text.match(/\*\*External Data Flags:\*\*\s*([\s\S]*?)(?=\*\*Suggested Action:\*\*)/i)
   const actionMatch = text.match(/\*\*Suggested Action:\*\*\s*([\s\S]*?)(?=\*\*Draft Reply:\*\*)/i)
   const replyMatch = text.match(/\*\*Draft Reply:\*\*\s*([\s\S]*?)$/i)
 
   return {
     rulesApplied: rulesMatch?.[1]?.trim() || 'Could not parse rules section.',
+    externalDataFlags: flagsMatch?.[1]?.trim() || 'No external data flags.',
     suggestedAction: actionMatch?.[1]?.trim() || 'Could not parse action section.',
     draftReply: replyMatch?.[1]?.trim() || 'Could not parse reply section.',
   }
@@ -212,23 +332,31 @@ function parseAIResponse(text) {
 
 export async function generateTicketSuggestion(ticket) {
   const anthropic = getClient()
-  const [messages, userHistory, similarCases] = await Promise.all([
+  const steamId = await getStoredSteamId(ticket.user_id)
+
+  const [messages, userHistory, similarCases, cblData, steamProfile, steamBans, bmBans, bmNotes] = await Promise.all([
     getTicketMessages(ticket.id),
     getUserTicketHistory(ticket.user_id),
     findSimilarTickets(ticket.reason, ticket.id, ticket.user_id),
+    steamId ? fetchCblData(steamId).catch(() => null) : null,
+    steamId ? getSteamProfile(steamId).catch(() => null) : null,
+    steamId ? getSteamBans(steamId).catch(() => null) : null,
+    steamId ? getPlayerBans(steamId).catch(() => null) : null,
+    steamId ? getPlayerNotes(steamId).catch(() => null) : null,
   ])
 
   if (messages.length === 0) {
     return { error: 'No messages found in this ticket.' }
   }
 
-  const systemPrompt = buildSystemPrompt(ticket, userHistory, similarCases)
-  const conversationMessages = buildConversationMessages(messages)
+  const externalDataSection = buildExternalDataSection({ steamId, cblData, steamProfile, steamBans, bmBans, bmNotes })
+  const systemPrompt = buildSystemPrompt(ticket, userHistory, similarCases, externalDataSection)
+  const conversationMessages = await buildConversationMessages(messages)
 
   try {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
+      max_tokens: 1500,
       system: systemPrompt,
       messages: conversationMessages,
     })

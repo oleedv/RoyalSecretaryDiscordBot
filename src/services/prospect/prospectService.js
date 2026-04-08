@@ -6,6 +6,7 @@ import { findBotMessageByCustomId } from '../../utils/messageSearch.js';
 import { buildProspectInfoEmbed, buildForumIntroEmbed, buildProspectComponents, buildProspectAcceptedComponents, buildAcceptedAnnouncementEmbed } from './prospectEmbeds.js';
 import * as bm from '../battlemetricsService.js';
 import * as whitelistService from '../whitelistService.js';
+import { fetchCblData } from '../cblService.js';
 import { getPlaytime, getConnectionStats } from '../playtimeService.js';
 import { getPlayerSeedStats, getSeedStreak } from '../seedTracker/seedTrackerService.js';
 import { getActivitySummary } from '../activity/activityService.js';
@@ -16,56 +17,6 @@ import config from '../../config.js';
 import logger from '../../logger.js';
 
 const log = logger.child({ module: 'prospects' });
-
-// ── CBL GraphQL ──
-
-async function fetchCblData(steamId) {
-  try {
-    log.info({ steamId }, 'CBL: fetching data');
-    const res = await fetch('https://communitybanlist.com/graphql', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(15000),
-      body: JSON.stringify({
-        query: `query($id: String!) {
-          steamUser(id: $id) {
-            id
-            riskRating
-            reputationPoints
-            bans(expired: false, first: 10) {
-              edges {
-                node {
-                  id
-                  reason
-                  created
-                  expires
-                  banList {
-                    name
-                    organisation { name }
-                  }
-                }
-              }
-            }
-            expiredBans: bans(expired: true, first: 100) {
-              edges { node { id } }
-            }
-          }
-        }`,
-        variables: { id: steamId },
-      }),
-    });
-    if (!res.ok) {
-      log.warn({ steamId, status: res.status }, 'CBL: API returned non-OK status');
-      return null;
-    }
-    const json = await res.json();
-    log.info({ steamId, response: JSON.stringify(json) }, 'CBL: raw API response');
-    return json?.data?.steamUser ?? null;
-  } catch (err) {
-    log.warn({ err, steamId }, 'CBL: fetch failed');
-    return null;
-  }
-}
 
 function formatCblEmbed(cblData) {
   const riskRating = cblData?.riskRating ?? 0;

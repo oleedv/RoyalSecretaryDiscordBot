@@ -186,6 +186,37 @@ export async function getPlayerBans(steamId) {
   }
 }
 
+export async function getPlayerNotes(steamId) {
+  if (!isConfigured()) return null;
+  try {
+    const result = await playerSearch(steamId);
+    if (!result) return null;
+    const { playerId } = result;
+    log.info({ steamId, playerId }, 'BM: fetching player notes');
+    const url = `${BASE_URL}/players/${playerId}?include=playerNote`;
+    const res = await fetch(url, { headers: headers(), signal: AbortSignal.timeout(15000) });
+    if (!res.ok) {
+      log.warn({ steamId, status: res.status }, 'BM: player notes returned non-OK status');
+      return null;
+    }
+    const json = await res.json();
+    const notes = [];
+    for (const item of json?.included ?? []) {
+      if (item.type === 'playerNote') {
+        notes.push({
+          note: item.attributes?.note || '',
+          createdAt: item.attributes?.createdAt || null,
+        });
+      }
+    }
+    notes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return notes;
+  } catch (err) {
+    log.warn({ err, steamId }, 'BM: player notes fetch failed');
+    return null;
+  }
+}
+
 export async function resolveAndGetStats(steamId, startDate, endDate) {
   if (!isConfigured()) return null;
   try {

@@ -1,4 +1,64 @@
 import { createEmbed } from '../utils/embed.js';
+import config from '../config.js';
+import logger from '../logger.js';
+
+const log = logger.child({ module: 'steam' });
+
+const STEAM_API_BASE = 'https://api.steampowered.com';
+
+export function isConfigured() {
+  return !!config.steam?.apiKey;
+}
+
+export async function getSteamProfile(steamId) {
+  if (!isConfigured()) return null;
+  try {
+    const url = `${STEAM_API_BASE}/ISteamUser/GetPlayerSummaries/v0002/?key=${config.steam.apiKey}&steamids=${steamId}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) {
+      log.warn({ steamId, status: res.status }, 'Steam: profile fetch returned non-OK status');
+      return null;
+    }
+    const json = await res.json();
+    const player = json?.response?.players?.[0];
+    if (!player) return null;
+    return {
+      personaName: player.personaname || null,
+      profileUrl: player.profileurl || null,
+      visibility: player.communityvisibilitystate === 3 ? 'public' : 'private',
+      accountCreated: player.timecreated ? new Date(player.timecreated * 1000).toISOString().slice(0, 10) : null,
+    };
+  } catch (err) {
+    log.warn({ err, steamId }, 'Steam: profile fetch failed');
+    return null;
+  }
+}
+
+export async function getSteamBans(steamId) {
+  if (!isConfigured()) return null;
+  try {
+    const url = `${STEAM_API_BASE}/ISteamUser/GetPlayerBans/v1/?key=${config.steam.apiKey}&steamids=${steamId}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) {
+      log.warn({ steamId, status: res.status }, 'Steam: bans fetch returned non-OK status');
+      return null;
+    }
+    const json = await res.json();
+    const player = json?.players?.[0];
+    if (!player) return null;
+    return {
+      vacBanned: player.VACBanned || false,
+      numberOfVacBans: player.NumberOfVACBans || 0,
+      daysSinceLastBan: player.DaysSinceLastBan || 0,
+      numberOfGameBans: player.NumberOfGameBans || 0,
+      communityBanned: player.CommunityBanned || false,
+      economyBan: player.EconomyBan || 'none',
+    };
+  } catch (err) {
+    log.warn({ err, steamId }, 'Steam: bans fetch failed');
+    return null;
+  }
+}
 
 const STEAM64_REGEX = /\b(7656119\d{10})\b/g;
 const STEAM_PROFILE_URL_REGEX = /steamcommunity\.com\/profiles\/(7656119\d{10})/g;
