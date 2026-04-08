@@ -31,7 +31,7 @@ export async function getVoiceStats(userId, startDate, endDate) {
        COALESCE(SUM(video_seconds), 0) AS videoSeconds,
        COUNT(*) AS sessionCount
      FROM voice_sessions
-     WHERE user_id = ? AND joined_at >= ? AND joined_at <= ? AND left_at IS NOT NULL`,
+     WHERE user_id = ? AND joined_at >= ? AND joined_at < DATE_ADD(?, INTERVAL 1 DAY) AND left_at IS NOT NULL`,
     [userId, startDate, endDate]
   );
 
@@ -39,7 +39,7 @@ export async function getVoiceStats(userId, startDate, endDate) {
     `SELECT channel_name, channel_id,
        SUM(duration_seconds) AS totalSeconds
      FROM voice_sessions
-     WHERE user_id = ? AND joined_at >= ? AND joined_at <= ? AND left_at IS NOT NULL AND channel_name IS NOT NULL
+     WHERE user_id = ? AND joined_at >= ? AND joined_at < DATE_ADD(?, INTERVAL 1 DAY) AND left_at IS NOT NULL AND channel_name IS NOT NULL
      GROUP BY channel_id, channel_name
      ORDER BY totalSeconds DESC
      LIMIT 5`,
@@ -116,7 +116,7 @@ export async function getDailyVoiceBreakdown(userId, startDate, endDate) {
   const rows = await query(
     `SELECT DATE(joined_at) AS day, COALESCE(SUM(duration_seconds), 0) AS seconds
      FROM voice_sessions
-     WHERE user_id = ? AND joined_at >= ? AND joined_at <= ? AND left_at IS NOT NULL
+     WHERE user_id = ? AND joined_at >= ? AND joined_at < DATE_ADD(?, INTERVAL 1 DAY) AND left_at IS NOT NULL
      GROUP BY DATE(joined_at)
      ORDER BY day`,
     [userId, startDate, endDate]
@@ -141,7 +141,7 @@ export async function getAfkVoiceSeconds(userId, startDate, endDate, afkChannelI
   const rows = await query(
     `SELECT COALESCE(SUM(duration_seconds), 0) AS seconds
      FROM voice_sessions
-     WHERE user_id = ? AND channel_id = ? AND joined_at >= ? AND joined_at <= ? AND left_at IS NOT NULL`,
+     WHERE user_id = ? AND channel_id = ? AND joined_at >= ? AND joined_at < DATE_ADD(?, INTERVAL 1 DAY) AND left_at IS NOT NULL`,
     [userId, afkChannelId, startDate, endDate]
   );
   return Number(rows[0].seconds);

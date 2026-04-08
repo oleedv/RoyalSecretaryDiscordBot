@@ -12,7 +12,7 @@ export async function getPlaytime(steamId, startDate, endDate = null) {
      WHERE p.steam_id = ?
        AND c.event_type = 'leave'
        AND c.time >= ?
-       AND c.time <= ?`,
+       AND c.time < DATE_ADD(?, INTERVAL 1 DAY)`,
     [steamId, startDate, end],
     'squadjs'
   );
@@ -38,7 +38,7 @@ export async function getConnectionStats(steamId, startDate, endDate = null) {
      WHERE p.steam_id = ?
        AND c.event_type = 'leave'
        AND c.time >= ?
-       AND c.time <= ?`,
+       AND c.time < DATE_ADD(?, INTERVAL 1 DAY)`,
     [steamId, startDate, end],
     'squadjs'
   );
