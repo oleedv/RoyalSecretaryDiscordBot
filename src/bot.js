@@ -15,8 +15,10 @@ export async function createBot() {
       GatewayIntentBits.GuildMembers,
       GatewayIntentBits.DirectMessages,
       GatewayIntentBits.MessageContent,
+      GatewayIntentBits.GuildVoiceStates,
+      GatewayIntentBits.GuildMessageReactions,
     ],
-    partials: [Partials.Channel, Partials.Message, Partials.User],
+    partials: [Partials.Channel, Partials.Message, Partials.User, Partials.Reaction],
     presence: {
       activities: [{ name: 'DM for support', type: ActivityType.Custom }],
       status: 'online',

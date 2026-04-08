@@ -321,5 +321,49 @@ export async function initSchema() {
   await query(`CREATE INDEX IF NOT EXISTS idx_prospects_channel_status ON prospects (channel_id, status)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_ticket_messages_source ON ticket_messages (source_message_id)`);
 
+  // ── Activity tracking tables ──
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS voice_sessions (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      user_id VARCHAR(20) NOT NULL,
+      channel_id VARCHAR(20) NOT NULL,
+      channel_name VARCHAR(100),
+      joined_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      left_at TIMESTAMP NULL,
+      duration_seconds INT NULL,
+      muted_seconds INT DEFAULT 0,
+      deafened_seconds INT DEFAULT 0,
+      streaming_seconds INT DEFAULT 0,
+      video_seconds INT DEFAULT 0,
+      INDEX idx_vs_user_joined (user_id, joined_at),
+      INDEX idx_vs_joined (joined_at)
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS message_activity_daily (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      user_id VARCHAR(20) NOT NULL,
+      channel_id VARCHAR(20) NOT NULL,
+      channel_name VARCHAR(100),
+      message_date DATE NOT NULL,
+      message_count INT DEFAULT 0,
+      UNIQUE KEY uq_mad_user_channel_date (user_id, channel_id, message_date),
+      INDEX idx_mad_user_date (user_id, message_date)
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS user_reactions_daily (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      user_id VARCHAR(20) NOT NULL,
+      reaction_date DATE NOT NULL,
+      reaction_count INT DEFAULT 0,
+      UNIQUE KEY uq_urd_user_date (user_id, reaction_date),
+      INDEX idx_urd_user_date (user_id, reaction_date)
+    )
+  `);
+
   log.info('Database schema initialized');
 }

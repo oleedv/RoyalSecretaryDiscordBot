@@ -10,6 +10,8 @@ import { stopHeartbeat } from './services/admin/statusHeartbeat.js';
 import { stopScheduler as stopSeedTrackerScheduler } from './services/seedTracker/seedTrackerScheduler.js';
 import { stopStatusUpdater } from './services/serverStatus/serverStatusService.js';
 import { stopScheduler as stopConfigGuardian } from './services/configGuardian/configGuardianScheduler.js';
+import { finalizeAllSessions } from './services/activity/voiceTracker.js';
+import { stopScheduler as stopActivityScheduler } from './services/activity/activityScheduler.js';
 import { flushLogs } from './services/admin/logTransport.js';
 
 const log = logger.child({ module: 'main' });
@@ -40,6 +42,8 @@ async function main() {
     disconnectSquadJS();
     stopStatusUpdater();
     stopConfigGuardian();
+    stopActivityScheduler();
+    await finalizeAllSessions();
     await stopHeartbeat();
     await flushLogs();
     client.destroy();
