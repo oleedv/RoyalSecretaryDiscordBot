@@ -20,9 +20,23 @@ function getStatusIndicator(playerCount, seedThreshold, connected) {
   return { text: 'Server is empty', icon: ':red_circle:' };
 }
 
-function formatPlayerList(players) {
+function formatPlayerList(players, rbSteamIds) {
   if (!players.length) return '*No players*';
-  const names = players.map((p) => p.name || 'Unknown');
+
+  const sorted = [...players].sort((a, b) => {
+    const nameA = a.name || 'Unknown';
+    const nameB = b.name || 'Unknown';
+    const aRB = rbSteamIds.has(a.steamID);
+    const bRB = rbSteamIds.has(b.steamID);
+    if (aRB !== bRB) return aRB ? -1 : 1;
+    return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+  });
+
+  const names = sorted.map((p) => {
+    const name = p.name || 'Unknown';
+    return rbSteamIds.has(p.steamID) ? `**${name}**` : name;
+  });
+
   const joined = names.join('\n');
   // Discord field value limit is 1024 chars
   if (joined.length > 1000) {
@@ -50,9 +64,13 @@ function getMatchupString(layerObj) {
   if (!layerObj?.teams || layerObj.teams.length < 2) return null;
   const t1 = layerObj.teams[0];
   const t2 = layerObj.teams[1];
-  const name1 = t1.name || t1.faction || 'Team 1';
-  const name2 = t2.name || t2.faction || 'Team 2';
-  return `${name1} vs\n${name2}`;
+  const fmt = (t) => {
+    const short = t.shortName;
+    const full = t.name || t.faction;
+    if (short && full) return `**${short}**\n${full}`;
+    return full || short || 'Unknown';
+  };
+  return `${fmt(t1)}\nvs\n${fmt(t2)}`;
 }
 
 function getLayerImageUrl(layerObj, layerName) {
@@ -63,7 +81,7 @@ function getLayerImageUrl(layerObj, layerName) {
   return null;
 }
 
-export function buildServerStatusEmbed(state, seedThreshold = 40) {
+export function buildServerStatusEmbed(state, seedThreshold = 40, rbSteamIds = new Set()) {
   const totalSlots = state.publicSlots + state.reserveSlots;
   const color = getStatusColor(state.playerCount, totalSlots);
   const status = getStatusIndicator(state.playerCount, seedThreshold, state.connected);
@@ -116,12 +134,12 @@ export function buildServerStatusEmbed(state, seedThreshold = 40) {
   embed.addFields(
     {
       name: `Team 1 \u2022 ${team1Players.length} players \u2022 ${faction1}`,
-      value: formatPlayerList(team1Players),
+      value: formatPlayerList(team1Players, rbSteamIds),
       inline: true,
     },
     {
       name: `Team 2 \u2022 ${team2Players.length} players \u2022 ${faction2}`,
-      value: formatPlayerList(team2Players),
+      value: formatPlayerList(team2Players, rbSteamIds),
       inline: true,
     },
   );
