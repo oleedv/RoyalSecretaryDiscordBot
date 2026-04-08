@@ -93,30 +93,7 @@ function formatCblEmbed(cblData) {
   return text;
 }
 
-function appendCblToMessage(message, steamId) {
-  if (!steamId || steamId.toUpperCase() === 'Q') return;
-
-  log.info({ steamId }, 'CBL: starting background fetch');
-  fetchCblData(steamId).then((cblData) => {
-    const text = formatCblEmbed(cblData);
-    log.info({ steamId }, 'CBL: appending to embed');
-
-    const embed = message.embeds[0];
-    if (!embed) {
-      log.warn('CBL: message has no embeds to update');
-      return;
-    }
-
-    const updated = EmbedBuilder.from(embed).addFields({ name: 'Community Ban List', value: text });
-    message.edit({ embeds: [updated] }).catch((err) =>
-      log.warn({ err }, 'CBL: failed to edit message')
-    );
-  }).catch((err) => {
-    log.warn({ err, steamId }, 'CBL: appendCblToMessage failed');
-  });
-}
-
-// ── Game + Discord Stats ──
+// ── Combined Stats + CBL Append ──
 
 function formatDuration(seconds) {
   const h = Math.floor(seconds / 3600);
@@ -130,7 +107,7 @@ function pct(part, total) {
   return `${Math.round((part / total) * 100)}%`;
 }
 
-function appendStatsToMessage(message, steamId, userId) {
+function appendAllStatsToMessage(message, steamId, userId) {
   if (!steamId || steamId.toUpperCase() === 'Q') return;
 
   const startDate = new Date();
@@ -144,7 +121,8 @@ function appendStatsToMessage(message, steamId, userId) {
     getPlayerSeedStats(steamId, 30).catch(() => null),
     getSeedStreak(steamId).catch(() => 0),
     getActivitySummary(userId, start, now).catch(() => null),
-  ]).then(([connStats, playtime, seedStats, seedStreak, activity]) => {
+    fetchCblData(steamId).catch(() => null),
+  ]).then(([connStats, playtime, seedStats, seedStreak, activity, cblData]) => {
     const embed = message.embeds[0];
     if (!embed) return;
 
@@ -197,6 +175,11 @@ function appendStatsToMessage(message, steamId, userId) {
       fields.push({ name: 'Discord Activity (90d)', value: lines.join('\n'), inline: true });
     }
 
+    // Community Ban List
+    if (cblData) {
+      fields.push({ name: 'Community Ban List', value: formatCblEmbed(cblData) });
+    }
+
     if (fields.length > 0) {
       updated.addFields(fields);
       message.edit({ embeds: [updated] }).catch((err) =>
@@ -204,7 +187,7 @@ function appendStatsToMessage(message, steamId, userId) {
       );
     }
   }).catch((err) => {
-    log.warn({ err, steamId }, 'appendStatsToMessage failed');
+    log.warn({ err, steamId }, 'appendAllStatsToMessage failed');
   });
 }
 
@@ -307,8 +290,7 @@ export async function createProspect(userId, guild, formData) {
   const components = buildProspectComponents(prospect);
 
   const topMsg = await channel.send({ embeds: [infoEmbed], components });
-  appendCblToMessage(topMsg, prospect.steam_id);
-  appendStatsToMessage(topMsg, prospect.steam_id, prospect.user_id);
+  appendAllStatsToMessage(topMsg, prospect.steam_id, prospect.user_id);
 
   if (mentorRoleId) {
     await channel.send(`<@&${mentorRoleId}> New prospect application!`);
@@ -352,8 +334,7 @@ export async function claimProspect(prospect, mentorId, guild) {
     const topMsg = await findBotMessageByCustomId(staffChannel, guild.client.user.id, ['prospect_claim', 'prospect_accept', 'prospect_deny']);
     if (topMsg) {
       await topMsg.edit({ embeds: [infoEmbed], components });
-      appendCblToMessage(topMsg, updated.steam_id);
-      appendStatsToMessage(topMsg, updated.steam_id, updated.user_id);
+      appendAllStatsToMessage(topMsg, updated.steam_id, updated.user_id);
     }
 
     const notifEmbed = createEmbed('Prospect')
@@ -413,8 +394,7 @@ export async function unclaimProspect(prospect, actorId, guild) {
     const topMsg = await findBotMessageByCustomId(staffChannel, guild.client.user.id, ['prospect_claim', 'prospect_accept', 'prospect_deny', 'prospect_unclaim']);
     if (topMsg) {
       await topMsg.edit({ embeds: [infoEmbed], components });
-      appendCblToMessage(topMsg, updated.steam_id);
-      appendStatsToMessage(topMsg, updated.steam_id, updated.user_id);
+      appendAllStatsToMessage(topMsg, updated.steam_id, updated.user_id);
     }
 
     const actor = await guild.members.fetch(actorId).catch(() => null);
@@ -468,8 +448,7 @@ export async function acceptProspect(prospect, acceptedById, guild) {
     const topMsg = await findBotMessageByCustomId(staffChannel, guild.client.user.id, ['prospect_accept', 'prospect_deny']);
     if (topMsg) {
       await topMsg.edit({ embeds: [infoEmbed], components });
-      appendCblToMessage(topMsg, updated.steam_id);
-      appendStatsToMessage(topMsg, updated.steam_id, updated.user_id);
+      appendAllStatsToMessage(topMsg, updated.steam_id, updated.user_id);
     }
 
     const notifEmbed = createEmbed('Prospect')
@@ -689,8 +668,7 @@ async function refreshStaffEmbed(prospect, guild) {
   const topMsg = await findBotMessageByCustomId(staffChannel, guild.client.user.id, ['prospect_claim', 'prospect_accept', 'prospect_deny']);
   if (topMsg) {
     await topMsg.edit({ embeds: [infoEmbed], components });
-    appendCblToMessage(topMsg, updated.steam_id);
-    appendStatsToMessage(topMsg, updated.steam_id, updated.user_id);
+    appendAllStatsToMessage(topMsg, updated.steam_id, updated.user_id);
   }
 }
 
