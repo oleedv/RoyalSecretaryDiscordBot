@@ -26,7 +26,11 @@ let rbSteamIds = new Set();
 async function refreshRBMembers() {
   try {
     const rows = await query(
-      "SELECT steamId FROM WhitelistEntry WHERE role = 'RBMembers' AND server = 'main' AND (expiresAt IS NULL OR expiresAt > NOW())",
+      `SELECT DISTINCT w.steamId FROM WhitelistEntry w
+       LEFT JOIN AdminGroup g ON g.id = w.groupId
+       LEFT JOIN Clan c ON c.id = w.clanId
+       WHERE (w.expiresAt IS NULL OR w.expiresAt > NOW())
+         AND (w.clan IN ('RB', 'Royal Battalion') OR c.name = 'Royal Battalion' OR c.tag = 'RB' OR g.name = 'Member')`,
       [],
       'website'
     );
