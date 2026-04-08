@@ -8,6 +8,7 @@ import * as ticketMessages from '../handlers/ticketMessages.js';
 import * as prospectMessages from '../handlers/prospectMessages.js';
 import { infoEmbed, createEmbed, errorEmbed } from '../utils/embed.js';
 import { logMessage } from '../services/admin/messageLogger.js';
+import { incrementMessageCount } from '../services/activity/activityService.js';
 import config from '../config.js';
 import logger from '../logger.js';
 
@@ -26,6 +27,7 @@ export default {
     if (message.author.bot) return;
 
     logMessage(message);
+    if (message.guild) incrementMessageCount(message.author.id, message.channel.id, message.channel.name);
 
     try {
       if (!message.guild) {

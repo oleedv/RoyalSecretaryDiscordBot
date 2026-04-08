@@ -12,6 +12,8 @@ import { resumeClosingTimers } from '../services/ticket/ticketService.js';
 import { startStatusUpdater } from '../services/serverStatus/serverStatusService.js';
 import { startActionProcessor } from '../services/actionProcessor.js';
 import { startScheduler as startConfigGuardian } from '../services/configGuardian/configGuardianScheduler.js';
+import { recoverActiveSessions } from '../services/activity/voiceTracker.js';
+import { startScheduler as startActivityScheduler } from '../services/activity/activityScheduler.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'bot' });
@@ -43,6 +45,8 @@ export default {
       await startStatusUpdater(client);
       startActionProcessor(client);
       await startConfigGuardian(client);
+      await recoverActiveSessions(client);
+      startActivityScheduler();
     } catch (err) {
       log.error({ err }, 'Failed to start background services');
     }
