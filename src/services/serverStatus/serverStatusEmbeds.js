@@ -65,7 +65,7 @@ function getTeamFaction(layerObj, teamIndex, players) {
   return getFactionFromPlayers(players, teamIndex + 1);
 }
 
-function getMatchupString(layerObj, players) {
+function getMatchupTeams(layerObj, players) {
   const hasLayerTeams = layerObj?.teams?.length >= 2;
   const faction1 = hasLayerTeams ? null : getFactionFromPlayers(players, 1);
   const faction2 = hasLayerTeams ? null : getFactionFromPlayers(players, 2);
@@ -79,11 +79,11 @@ function getMatchupString(layerObj, players) {
       if (short && full) return `**${short}**\n${full}`;
       return full || short || 'Unknown';
     };
-    return `${fmt(t1)}\nvs\n${fmt(t2)}`;
+    return { team1: fmt(t1), team2: fmt(t2) };
   }
 
   if (faction1 || faction2) {
-    return `**${faction1 || 'Team 1'}**\nvs\n**${faction2 || 'Team 2'}**`;
+    return { team1: `**${faction1 || 'Team 1'}**`, team2: `**${faction2 || 'Team 2'}**` };
   }
 
   return null;
@@ -130,9 +130,13 @@ export function buildServerStatusEmbed(state, seedThreshold = 40, rbSteamIds = n
   });
 
   // Matchup
-  const matchup = getMatchupString(state.currentLayerObj, state.players);
+  const matchup = getMatchupTeams(state.currentLayerObj, state.players);
   if (matchup) {
-    embed.addFields({ name: 'Matchup', value: matchup, inline: false });
+    embed.addFields(
+      { name: '\u200b', value: matchup.team1, inline: true },
+      { name: 'Matchup', value: 'vs', inline: true },
+      { name: '\u200b', value: matchup.team2, inline: true },
+    );
   }
 
   // Server version
