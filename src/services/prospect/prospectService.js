@@ -6,6 +6,9 @@ import { findBotMessageByCustomId } from '../../utils/messageSearch.js';
 import { buildProspectInfoEmbed, buildForumIntroEmbed, buildProspectComponents, buildProspectAcceptedComponents, buildAcceptedAnnouncementEmbed } from './prospectEmbeds.js';
 import * as bm from '../battlemetricsService.js';
 import * as whitelistService from '../whitelistService.js';
+import { getPlaytime, getConnectionStats } from '../playtimeService.js';
+import { getPlayerSeedStats, getSeedStreak } from '../seedTracker/seedTrackerService.js';
+import { getActivitySummary } from '../activity/activityService.js';
 import { query, transaction } from '../../database/connection.js';
 import { assignTeamRole, removeTeamRole } from './teamRoleService.js';
 import config from '../../config.js';
@@ -113,6 +116,98 @@ function appendCblToMessage(message, steamId) {
   });
 }
 
+// ── Game + Discord Stats ──
+
+function formatDuration(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function pct(part, total) {
+  if (total === 0) return '0%';
+  return `${Math.round((part / total) * 100)}%`;
+}
+
+function appendStatsToMessage(message, steamId, userId) {
+  if (!steamId || steamId.toUpperCase() === 'Q') return;
+
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - 90);
+  const start = startDate.toISOString().slice(0, 10);
+  const now = new Date().toISOString().slice(0, 10);
+
+  Promise.all([
+    getConnectionStats(steamId, start).catch(() => null),
+    getPlaytime(steamId, start).catch(() => null),
+    getPlayerSeedStats(steamId, 30).catch(() => null),
+    getSeedStreak(steamId).catch(() => 0),
+    getActivitySummary(userId, start, now).catch(() => null),
+  ]).then(([connStats, playtime, seedStats, seedStreak, activity]) => {
+    const embed = message.embeds[0];
+    if (!embed) return;
+
+    const updated = EmbedBuilder.from(embed);
+    const fields = [];
+
+    // Game Activity
+    if (connStats || playtime) {
+      const lines = [];
+      if (playtime) lines.push(`Playtime: **${playtime.playtimeHours}h**`);
+      if (connStats) {
+        lines.push(`Connections: **${connStats.connections}**`);
+        if (connStats.avgSessionHours > 0) lines.push(`Avg Session: **${connStats.avgSessionHours}h**`);
+        if (connStats.firstSeen) lines.push(`First Seen: <t:${Math.floor(new Date(connStats.firstSeen).getTime() / 1000)}:d>`);
+        if (connStats.lastSeen) lines.push(`Last Seen: <t:${Math.floor(new Date(connStats.lastSeen).getTime() / 1000)}:R>`);
+      }
+      fields.push({ name: 'Game Activity (90d)', value: lines.join('\n'), inline: true });
+    }
+
+    // Seeding
+    if (seedStats || playtime) {
+      const lines = [];
+      if (playtime) lines.push(`Seed Hours: **${playtime.seedHours}h**`);
+      if (seedStats) {
+        lines.push(`Seed Days: **${seedStats.uniqueDays}** (30d)`);
+        if (seedStreak > 0) lines.push(`Streak: **${seedStreak}** day(s)`);
+        if (seedStats.avgQuality != null) lines.push(`Quality: **${seedStats.avgQuality.toFixed(1)}**/10`);
+        if (seedStats.lastSeedDate) lines.push(`Last Seed: <t:${Math.floor(new Date(seedStats.lastSeedDate).getTime() / 1000)}:d>`);
+      }
+      fields.push({ name: 'Seeding (30d)', value: lines.join('\n'), inline: true });
+    }
+
+    // Discord Activity
+    if (activity) {
+      const { voice, messages, reactions } = activity;
+      const lines = [];
+      if (voice.totalSeconds > 0) {
+        const activeSeconds = Math.max(0, voice.totalSeconds - voice.mutedSeconds - voice.deafenedSeconds);
+        lines.push(`Voice: **${formatDuration(voice.totalSeconds)}** (${pct(activeSeconds, voice.totalSeconds)} active)`);
+        if (voice.mutedSeconds > 0) lines.push(`Muted: ${pct(voice.mutedSeconds, voice.totalSeconds)} | Deafened: ${pct(voice.deafenedSeconds, voice.totalSeconds)}`);
+      } else {
+        lines.push('Voice: **0h**');
+      }
+      lines.push(`Messages: **${messages.totalMessages}**`);
+      if (messages.topChannels.length > 0) {
+        const top = messages.topChannels.slice(0, 3).map((c) => `<#${c.id}>`).join(', ');
+        lines.push(`Active in: ${top}`);
+      }
+      if (reactions.totalReactions > 0) lines.push(`Reactions: **${reactions.totalReactions}**`);
+      fields.push({ name: 'Discord Activity (90d)', value: lines.join('\n'), inline: true });
+    }
+
+    if (fields.length > 0) {
+      updated.addFields(fields);
+      message.edit({ embeds: [updated] }).catch((err) =>
+        log.warn({ err }, 'Failed to append stats to prospect embed')
+      );
+    }
+  }).catch((err) => {
+    log.warn({ err, steamId }, 'appendStatsToMessage failed');
+  });
+}
+
 // ── DB Accessors ──
 
 export async function getOpenProspectByUser(userId) {
@@ -213,6 +308,7 @@ export async function createProspect(userId, guild, formData) {
 
   const topMsg = await channel.send({ embeds: [infoEmbed], components });
   appendCblToMessage(topMsg, prospect.steam_id);
+  appendStatsToMessage(topMsg, prospect.steam_id, prospect.user_id);
 
   if (mentorRoleId) {
     await channel.send(`<@&${mentorRoleId}> New prospect application!`);
@@ -257,6 +353,7 @@ export async function claimProspect(prospect, mentorId, guild) {
     if (topMsg) {
       await topMsg.edit({ embeds: [infoEmbed], components });
       appendCblToMessage(topMsg, updated.steam_id);
+      appendStatsToMessage(topMsg, updated.steam_id, updated.user_id);
     }
 
     const notifEmbed = createEmbed('Prospect')
@@ -317,6 +414,7 @@ export async function unclaimProspect(prospect, actorId, guild) {
     if (topMsg) {
       await topMsg.edit({ embeds: [infoEmbed], components });
       appendCblToMessage(topMsg, updated.steam_id);
+      appendStatsToMessage(topMsg, updated.steam_id, updated.user_id);
     }
 
     const actor = await guild.members.fetch(actorId).catch(() => null);
@@ -371,6 +469,7 @@ export async function acceptProspect(prospect, acceptedById, guild) {
     if (topMsg) {
       await topMsg.edit({ embeds: [infoEmbed], components });
       appendCblToMessage(topMsg, updated.steam_id);
+      appendStatsToMessage(topMsg, updated.steam_id, updated.user_id);
     }
 
     const notifEmbed = createEmbed('Prospect')
@@ -591,6 +690,7 @@ async function refreshStaffEmbed(prospect, guild) {
   if (topMsg) {
     await topMsg.edit({ embeds: [infoEmbed], components });
     appendCblToMessage(topMsg, updated.steam_id);
+    appendStatsToMessage(topMsg, updated.steam_id, updated.user_id);
   }
 }
 
