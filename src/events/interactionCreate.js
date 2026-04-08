@@ -6,6 +6,7 @@ import * as prospectModals from '../handlers/prospectModals.js';
 import * as seedingButtons from '../handlers/seedingButtons.js';
 import * as seedTrackerButtons from '../handlers/seedTrackerButtons.js';
 import * as verifyButtons from '../handlers/verifyButtons.js';
+import * as activityButtons from '../handlers/activityButtons.js';
 import { errorEmbed } from '../utils/embed.js';
 import logger from '../logger.js';
 
@@ -107,6 +108,9 @@ export default {
       }
       if (!handler && interaction.customId.startsWith('verify_answer_')) {
         handler = verifyButtons.handleAnswer;
+      }
+      if (!handler && interaction.customId.startsWith('activity_tab:')) {
+        handler = activityButtons.handleTabSwitch;
       }
       if (handler) {
         log.info({ userId: interaction.user.id, userTag: interaction.user.tag, customId: interaction.customId, channelId: interaction.channel?.id }, 'Button pressed');

@@ -111,3 +111,38 @@ export async function getActivitySummary(userId, startDate, endDate) {
 
   return { voice, messages, reactions };
 }
+
+export async function getDailyVoiceBreakdown(userId, startDate, endDate) {
+  const rows = await query(
+    `SELECT DATE(joined_at) AS day, COALESCE(SUM(duration_seconds), 0) AS seconds
+     FROM voice_sessions
+     WHERE user_id = ? AND joined_at >= ? AND joined_at <= ? AND left_at IS NOT NULL
+     GROUP BY DATE(joined_at)
+     ORDER BY day`,
+    [userId, startDate, endDate]
+  );
+  return rows.map((r) => ({ date: r.day, seconds: Number(r.seconds) }));
+}
+
+export async function getDailyMessageBreakdown(userId, startDate, endDate) {
+  const rows = await query(
+    `SELECT message_date AS day, SUM(message_count) AS count
+     FROM message_activity_daily
+     WHERE user_id = ? AND message_date >= ? AND message_date <= ?
+     GROUP BY message_date
+     ORDER BY day`,
+    [userId, startDate, endDate]
+  );
+  return rows.map((r) => ({ date: r.day, count: Number(r.count) }));
+}
+
+export async function getAfkVoiceSeconds(userId, startDate, endDate, afkChannelId) {
+  if (!afkChannelId) return 0;
+  const rows = await query(
+    `SELECT COALESCE(SUM(duration_seconds), 0) AS seconds
+     FROM voice_sessions
+     WHERE user_id = ? AND channel_id = ? AND joined_at >= ? AND joined_at <= ? AND left_at IS NOT NULL`,
+    [userId, afkChannelId, startDate, endDate]
+  );
+  return Number(rows[0].seconds);
+}

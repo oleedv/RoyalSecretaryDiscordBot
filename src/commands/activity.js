@@ -1,7 +1,7 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { getActivitySummary } from '../services/activity/activityService.js';
 import { getActiveSession } from '../services/activity/voiceTracker.js';
-import { buildActivityEmbed } from '../services/activity/activityEmbeds.js';
+import { buildOverviewPage } from '../services/activity/activityEmbeds.js';
 import { errorEmbed } from '../utils/embed.js';
 import config from '../config.js';
 import logger from '../logger.js';
@@ -52,9 +52,9 @@ export default {
       const activeSession = getActiveSession(targetUser.id);
 
       const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
-      const embed = buildActivityEmbed(member, summary, activeSession, days);
+      const { embed, components } = buildOverviewPage(member, summary, activeSession, days, targetUser.id);
 
-      await interaction.editReply({ embeds: [embed] });
+      await interaction.editReply({ embeds: [embed], components });
     } catch (err) {
       log.error({ err, userId: targetUser.id }, 'Activity command failed');
       await interaction.editReply({ embeds: [errorEmbed('Failed to load activity data.')] });
