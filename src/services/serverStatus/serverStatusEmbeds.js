@@ -55,22 +55,38 @@ function formatPlayerList(players, rbSteamIds) {
   return joined;
 }
 
-function getTeamFaction(layerObj, teamIndex) {
-  if (!layerObj?.teams?.[teamIndex]) return null;
-  return layerObj.teams[teamIndex].faction;
+function getFactionFromPlayers(players, teamID) {
+  const player = players.find((p) => p.teamID === teamID && p.squad?.teamName);
+  return player?.squad?.teamName || null;
 }
 
-function getMatchupString(layerObj) {
-  if (!layerObj?.teams || layerObj.teams.length < 2) return null;
-  const t1 = layerObj.teams[0];
-  const t2 = layerObj.teams[1];
-  const fmt = (t) => {
-    const short = t.shortName;
-    const full = t.name || t.faction;
-    if (short && full) return `**${short}**\n${full}`;
-    return full || short || 'Unknown';
-  };
-  return `${fmt(t1)}\nvs\n${fmt(t2)}`;
+function getTeamFaction(layerObj, teamIndex, players) {
+  if (layerObj?.teams?.[teamIndex]) return layerObj.teams[teamIndex].faction;
+  return getFactionFromPlayers(players, teamIndex + 1);
+}
+
+function getMatchupString(layerObj, players) {
+  const hasLayerTeams = layerObj?.teams?.length >= 2;
+  const faction1 = hasLayerTeams ? null : getFactionFromPlayers(players, 1);
+  const faction2 = hasLayerTeams ? null : getFactionFromPlayers(players, 2);
+
+  if (hasLayerTeams) {
+    const t1 = layerObj.teams[0];
+    const t2 = layerObj.teams[1];
+    const fmt = (t) => {
+      const short = t.shortName;
+      const full = t.name || t.faction;
+      if (short && full) return `**${short}**\n${full}`;
+      return full || short || 'Unknown';
+    };
+    return `${fmt(t1)}\nvs\n${fmt(t2)}`;
+  }
+
+  if (faction1 || faction2) {
+    return `**${faction1 || 'Team 1'}**\nvs\n**${faction2 || 'Team 2'}**`;
+  }
+
+  return null;
 }
 
 function getLayerImageUrl(layerObj, layerName) {
@@ -114,7 +130,7 @@ export function buildServerStatusEmbed(state, seedThreshold = 40, rbSteamIds = n
   });
 
   // Matchup
-  const matchup = getMatchupString(state.currentLayerObj);
+  const matchup = getMatchupString(state.currentLayerObj, state.players);
   if (matchup) {
     embed.addFields({ name: 'Matchup', value: matchup, inline: false });
   }
@@ -128,8 +144,8 @@ export function buildServerStatusEmbed(state, seedThreshold = 40, rbSteamIds = n
   // Team player lists
   const team1Players = state.players.filter((p) => p.teamID === 1);
   const team2Players = state.players.filter((p) => p.teamID === 2);
-  const faction1 = getTeamFaction(state.currentLayerObj, 0) || 'Team 1';
-  const faction2 = getTeamFaction(state.currentLayerObj, 1) || 'Team 2';
+  const faction1 = getTeamFaction(state.currentLayerObj, 0, state.players) || 'Team 1';
+  const faction2 = getTeamFaction(state.currentLayerObj, 1, state.players) || 'Team 2';
 
   embed.addFields(
     {
