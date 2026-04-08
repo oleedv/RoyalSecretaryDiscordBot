@@ -38,6 +38,10 @@ const config = Object.freeze({
   },
   squadjs: parseSquadJsServers(process.env.SQUADJS_SERVERS),
   ...settings,
+  steam: {
+    ...settings.steam,
+    apiKey: process.env.STEAM_API_KEY || null,
+  },
   // Merge env vars with settings.battlemetrics (explicit key overrides spread above)
   battlemetrics: {
     token: process.env.BM_TOKEN,

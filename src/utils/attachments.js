@@ -1,3 +1,47 @@
+import sharp from 'sharp'
+
+const MAX_IMAGE_DIMENSION = 1024
+const IMAGE_FETCH_TIMEOUT = 8000
+
+/**
+ * Fetch image attachments, resize, and return as base64-encoded PNG.
+ * Failed fetches are silently skipped (Promise.allSettled).
+ */
+export async function fetchImagesAsBase64(attachments, maxImages = 10) {
+  if (!attachments || !Array.isArray(attachments) || attachments.length === 0) return []
+
+  const imageAttachments = attachments
+    .filter((a) => a.contentType?.startsWith('image/'))
+    .slice(0, maxImages)
+
+  if (imageAttachments.length === 0) return []
+
+  const results = await Promise.allSettled(
+    imageAttachments.map(async (att) => {
+      const res = await fetch(att.url, {
+        signal: AbortSignal.timeout(IMAGE_FETCH_TIMEOUT),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+      const buffer = Buffer.from(await res.arrayBuffer())
+      const resized = await sharp(buffer)
+        .resize(MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION, {
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .png()
+        .toBuffer()
+
+      return {
+        media_type: 'image/png',
+        data: resized.toString('base64'),
+      }
+    })
+  )
+
+  return results.filter((r) => r.status === 'fulfilled').map((r) => r.value)
+}
+
 /**
  * Serialize attachments for DB storage.
  */

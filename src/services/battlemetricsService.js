@@ -132,6 +132,91 @@ export async function removeFlag(steamId, flagId) {
   }
 }
 
+export async function getPlayerBans(steamId) {
+  if (!isConfigured()) return null;
+  try {
+    const result = await playerSearch(steamId);
+    if (!result) return null;
+    const { playerId } = result;
+    log.info({ steamId, playerId }, 'BM: fetching player bans');
+    const url = `${BASE_URL}/bans?filter[player]=${playerId}&include=server&page[size]=40`;
+    const res = await fetch(url, { headers: headers(), signal: AbortSignal.timeout(15000) });
+    if (!res.ok) {
+      log.warn({ steamId, status: res.status }, 'BM: player bans returned non-OK status');
+      return null;
+    }
+    const json = await res.json();
+
+    const servers = new Map();
+    for (const inc of json?.included ?? []) {
+      if (inc.type === 'server') {
+        servers.set(inc.id, inc.attributes?.name || 'Unknown Server');
+      }
+    }
+
+    const activeBans = [];
+    let expiredBanCount = 0;
+
+    for (const ban of json?.data ?? []) {
+      const attrs = ban.attributes || {};
+      const expires = attrs.expires;
+      const isExpired = expires && new Date(expires) < new Date();
+
+      if (isExpired) {
+        expiredBanCount++;
+        continue;
+      }
+
+      const serverId = ban.relationships?.server?.data?.id;
+      activeBans.push({
+        reason: attrs.reason || 'No reason',
+        created: attrs.timestamp || null,
+        expires: expires || null,
+        permanent: !expires,
+        serverName: serverId ? (servers.get(serverId) || 'Unknown Server') : 'All Servers',
+      });
+    }
+
+    activeBans.sort((a, b) => new Date(b.created) - new Date(a.created));
+
+    return { activeBans, expiredBanCount };
+  } catch (err) {
+    log.warn({ err, steamId }, 'BM: player bans fetch failed');
+    return null;
+  }
+}
+
+export async function getPlayerNotes(steamId) {
+  if (!isConfigured()) return null;
+  try {
+    const result = await playerSearch(steamId);
+    if (!result) return null;
+    const { playerId } = result;
+    log.info({ steamId, playerId }, 'BM: fetching player notes');
+    const url = `${BASE_URL}/players/${playerId}?include=playerNote`;
+    const res = await fetch(url, { headers: headers(), signal: AbortSignal.timeout(15000) });
+    if (!res.ok) {
+      log.warn({ steamId, status: res.status }, 'BM: player notes returned non-OK status');
+      return null;
+    }
+    const json = await res.json();
+    const notes = [];
+    for (const item of json?.included ?? []) {
+      if (item.type === 'playerNote') {
+        notes.push({
+          note: item.attributes?.note || '',
+          createdAt: item.attributes?.createdAt || null,
+        });
+      }
+    }
+    notes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return notes;
+  } catch (err) {
+    log.warn({ err, steamId }, 'BM: player notes fetch failed');
+    return null;
+  }
+}
+
 export async function resolveAndGetStats(steamId, startDate, endDate) {
   if (!isConfigured()) return null;
   try {
