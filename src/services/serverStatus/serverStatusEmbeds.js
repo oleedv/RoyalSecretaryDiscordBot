@@ -122,12 +122,20 @@ export function buildServerStatusEmbed(state, seedThreshold = 40, rbSteamIds = n
     { name: '\u200b', value: status.text, inline: false },
   );
 
-  // Layer
-  embed.addFields({
-    name: 'Layer',
-    value: state.currentLayer || 'Unknown',
-    inline: false,
-  });
+  // Layer + Server version
+  if (state.gameVersion) {
+    const version = state.gameVersion.replace(/^v/, '').split('.').slice(0, 3).join('.');
+    embed.addFields(
+      { name: 'Layer', value: state.currentLayer || 'Unknown', inline: true },
+      { name: 'Server version', value: `v${version}`, inline: true },
+    );
+  } else {
+    embed.addFields({
+      name: 'Layer',
+      value: state.currentLayer || 'Unknown',
+      inline: false,
+    });
+  }
 
   // Matchup
   const matchup = getMatchupTeams(state.currentLayerObj, state.players);
@@ -137,12 +145,6 @@ export function buildServerStatusEmbed(state, seedThreshold = 40, rbSteamIds = n
       { name: 'Matchup', value: 'vs', inline: true },
       { name: '\u200b', value: matchup.team2, inline: true },
     );
-  }
-
-  // Server version
-  if (state.gameVersion) {
-    const version = state.gameVersion.replace(/^v/, '').split('.').slice(0, 3).join('.');
-    embed.addFields({ name: 'Server version', value: `v${version}`, inline: false });
   }
 
   // Team player lists
