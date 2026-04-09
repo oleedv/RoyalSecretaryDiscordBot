@@ -118,10 +118,12 @@ export function buildServerStatusEmbed(state, seedThreshold = 40, rbSteamIds = n
   // Layer + Server version
   if (state.gameVersion) {
     const version = state.gameVersion.replace(/^v/, '').split('.').slice(0, 3).join('.');
-    embed.addFields(
-      { name: 'Layer', value: state.currentLayer || 'Unknown', inline: true },
-      { name: 'Server version', value: `v${version}`, inline: true },
-    );
+    const layer = state.currentLayer || 'Unknown';
+    embed.addFields({
+      name: 'Layer',
+      value: `${layer} \u2022 v${version}`,
+      inline: false,
+    });
   } else {
     embed.addFields({
       name: 'Layer',
