@@ -1,4 +1,4 @@
-import { getProspectsNeedingVote } from './prospectService.js';
+import { getProspectsNeedingVote, isTestSteamId, getProspectDates } from './prospectService.js';
 import { postVote } from './prospectVoting.js';
 import { getPlaytime } from '../playtimeService.js';
 import { createEmbed } from '../../utils/embed.js';
@@ -9,6 +9,9 @@ const log = logger.child({ module: 'prospectScheduler' });
 
 let intervalId = null;
 let isRunning = false;
+
+/** Track prospect IDs that have already been warned about low playtime */
+const lowPlaytimeWarned = new Set();
 
 export function startScheduler(client) {
   if (intervalId) {
@@ -36,17 +39,15 @@ async function runVoteCheck(client) {
 
     for (const prospect of prospects) {
       try {
-        if (prospect.steam_id && prospect.steam_id.toUpperCase() !== 'Q') {
-          const stats = await getPlaytime(prospect.steam_id, prospect.created_at).catch(() => null);
+        if (!isTestSteamId(prospect.steam_id)) {
+          const stats = await getPlaytime(prospect.steam_id, prospect.period_started_at || prospect.created_at).catch(() => null);
           if (stats && stats.playtimeHours < 16) {
             log.info({ prospectId: prospect.id, playtimeHours: stats.playtimeHours }, 'Skipping vote - prospect has < 16h playtime');
 
-            const { periodDays } = config.prospects;
-            const extra = prospect.extra_days || 0;
-            const endDate = new Date(prospect.created_at);
-            endDate.setDate(endDate.getDate() + periodDays + extra);
+            const { periodEnd } = getProspectDates(prospect);
 
-            if (new Date() >= endDate) {
+            if (new Date() >= periodEnd && !lowPlaytimeWarned.has(prospect.id)) {
+              lowPlaytimeWarned.add(prospect.id);
               const guild = await client.guilds.fetch(config.guild.id).catch(() => null);
               const staffChannel = guild ? await guild.channels.fetch(prospect.channel_id).catch(() => null) : null;
               if (staffChannel) {
@@ -61,6 +62,9 @@ async function runVoteCheck(client) {
               }
             }
             continue;
+          } else {
+            // Playtime threshold met - clear any previous warning tracking
+            lowPlaytimeWarned.delete(prospect.id);
           }
         }
         await postVote(prospect, client);
@@ -73,6 +77,10 @@ async function runVoteCheck(client) {
   } finally {
     isRunning = false;
   }
+}
+
+export function isSchedulerActive() {
+  return intervalId !== null;
 }
 
 export function stopScheduler() {

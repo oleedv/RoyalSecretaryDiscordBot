@@ -1,15 +1,8 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { createEmbed } from '../../utils/embed.js';
+import { formatDuration } from '../../utils/formatters.js';
 
 // ── Helpers ──
-
-function formatDuration(seconds) {
-  if (seconds < 60) return `${seconds}s`;
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-}
 
 function pct(part, total) {
   if (total === 0) return '0%';

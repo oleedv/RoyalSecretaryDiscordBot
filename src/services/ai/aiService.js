@@ -1,4 +1,3 @@
-import Anthropic from '@anthropic-ai/sdk'
 import { readFileSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
@@ -10,6 +9,8 @@ import { fetchCblData } from '../cblService.js'
 import { getSteamProfile, getSteamBans } from '../steamService.js'
 import { getPlayerBans, getPlayerNotes } from '../battlemetricsService.js'
 import { fetchImagesAsBase64 } from '../../utils/attachments.js'
+import { getAnthropicClient, isAnthropicAvailable } from './anthropicClient.js'
+import { formatDate } from '../../utils/formatters.js'
 
 const log = logger.child({ module: 'ai' })
 
@@ -33,22 +34,8 @@ const serverRules = loadDataFile('rules.txt')
 const owiCodeOfConduct = loadDataFile('owi-code-of-conduct.txt')
 const owiServerLicensing = loadDataFile('owi-server-licensing.txt')
 
-// ── Anthropic client (lazy init) ──
-let client = null
-
-function getClient() {
-  if (!config.anthropic.apiKey) {
-    throw new Error('ANTHROPIC_API_KEY is not configured')
-  }
-  if (!client) {
-    client = new Anthropic({ apiKey: config.anthropic.apiKey })
-    log.info('Anthropic client initialized')
-  }
-  return client
-}
-
 export function isAvailable() {
-  return !!config.anthropic.apiKey
+  return isAnthropicAvailable()
 }
 
 // ── DB queries ──
@@ -116,10 +103,6 @@ const TIER_LABELS = {
   admin_officer: 'Admin Officer',
   comp_team: 'Comp Team',
   whitelist: 'Whitelist',
-}
-
-function formatDate(d) {
-  return new Date(d).toISOString().slice(0, 10)
 }
 
 function buildHistorySection(history) {
@@ -331,7 +314,7 @@ function parseAIResponse(text) {
 // ── Main function ──
 
 export async function generateTicketSuggestion(ticket) {
-  const anthropic = getClient()
+  const anthropic = getAnthropicClient()
   const steamId = await getStoredSteamId(ticket.user_id)
 
   const [messages, userHistory, similarCases, cblData, steamProfile, steamBans, bmBans, bmNotes] = await Promise.all([

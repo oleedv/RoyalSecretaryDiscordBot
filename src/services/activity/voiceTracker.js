@@ -236,11 +236,19 @@ export async function recoverActiveSessions(client) {
     log.error({ err }, 'Failed to close orphaned voice sessions');
   }
 
-  // Scan voice channels for currently connected members
+  // Scan voice states for currently connected members
   try {
     const { default: config } = await import('../../config.js');
     const guild = await client.guilds.fetch(config.guild.id);
-    await guild.members.fetch();
+
+    // Only fetch members currently in voice channels instead of the entire guild
+    const voiceUserIds = [...guild.voiceStates.cache.values()]
+      .filter(vs => vs.channelId)
+      .map(vs => vs.id);
+
+    if (voiceUserIds.length > 0) {
+      await guild.members.fetch({ user: voiceUserIds });
+    }
 
     let recovered = 0;
     for (const [, channel] of guild.channels.cache) {

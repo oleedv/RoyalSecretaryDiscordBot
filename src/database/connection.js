@@ -28,6 +28,7 @@ function createPoolForDb(name, database) {
 export function createPools() {
   const { databases } = config.database;
   for (const [name, database] of Object.entries(databases)) {
+    if (!database) { log.warn(`Skipping pool "${name}" - no database name configured`); continue; }
     createPoolForDb(name, database);
   }
 }

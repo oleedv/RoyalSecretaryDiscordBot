@@ -1,5 +1,6 @@
 import tinygradient from 'tinygradient';
 import { createEmbed } from '../../utils/embed.js';
+import { getLayerImageUrl } from '../seeding/seedingEmbeds.js';
 import config from '../../config.js';
 
 const gradient = tinygradient([
@@ -89,14 +90,6 @@ function getMatchupTeams(layerObj, players) {
   return null;
 }
 
-function getLayerImageUrl(layerObj, layerName) {
-  const BASE = 'https://raw.githubusercontent.com/Squad-Wiki/squad-wiki-pipeline-map-data/master/completed_output/_Current%20Version/images';
-  if (layerObj?.layerid) return `${BASE}/${layerObj.layerid}.jpg`;
-  // Fallback: construct from layer name string (e.g. "BlackCoast Seed v1" -> "BlackCoast_Seed_v1")
-  if (layerName) return `${BASE}/${layerName.replace(/\s+/g, '_')}.jpg`;
-  return null;
-}
-
 export function buildServerStatusEmbed(state, seedThreshold = 40, rbSteamIds = new Set()) {
   const totalSlots = state.publicSlots + state.reserveSlots;
   const color = getStatusColor(state.playerCount, totalSlots);
@@ -122,12 +115,20 @@ export function buildServerStatusEmbed(state, seedThreshold = 40, rbSteamIds = n
     { name: '\u200b', value: status.text, inline: false },
   );
 
-  // Layer
-  embed.addFields({
-    name: 'Layer',
-    value: state.currentLayer || 'Unknown',
-    inline: false,
-  });
+  // Layer + Server version
+  if (state.gameVersion) {
+    const version = state.gameVersion.replace(/^v/, '').split('.').slice(0, 3).join('.');
+    embed.addFields(
+      { name: 'Layer', value: state.currentLayer || 'Unknown', inline: true },
+      { name: 'Server version', value: `v${version}`, inline: true },
+    );
+  } else {
+    embed.addFields({
+      name: 'Layer',
+      value: state.currentLayer || 'Unknown',
+      inline: false,
+    });
+  }
 
   // Matchup
   const matchup = getMatchupTeams(state.currentLayerObj, state.players);
@@ -137,12 +138,6 @@ export function buildServerStatusEmbed(state, seedThreshold = 40, rbSteamIds = n
       { name: 'Matchup', value: 'vs', inline: true },
       { name: '\u200b', value: matchup.team2, inline: true },
     );
-  }
-
-  // Server version
-  if (state.gameVersion) {
-    const version = state.gameVersion.replace(/^v/, '').split('.').slice(0, 3).join('.');
-    embed.addFields({ name: 'Server version', value: `v${version}`, inline: false });
   }
 
   // Team player lists

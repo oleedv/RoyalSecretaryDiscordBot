@@ -8,7 +8,7 @@ import { connect as connectSquadJS } from '../services/seeding/seedingSocket.js'
 import { startScheduler as startSeedingScheduler } from '../services/seeding/seedingScheduler.js';
 import { startHeartbeat } from '../services/admin/statusHeartbeat.js';
 import { startScheduler as startSeedTrackerScheduler } from '../services/seedTracker/seedTrackerScheduler.js';
-import { resumeClosingTimers } from '../services/ticket/ticketService.js';
+import { resumeClosingTimers, restoreAnonymousModes } from '../services/ticket/ticketService.js';
 import { startStatusUpdater } from '../services/serverStatus/serverStatusService.js';
 import { startActionProcessor } from '../services/actionProcessor.js';
 import { startScheduler as startConfigGuardian } from '../services/configGuardian/configGuardianScheduler.js';
@@ -18,6 +18,10 @@ import logger from '../logger.js';
 
 const log = logger.child({ module: 'bot' });
 
+async function safeInit(label, fn) {
+  try { await fn() } catch (err) { log.error({ err }, `Failed to init: ${label}`) }
+}
+
 export default {
   name: Events.ClientReady,
   once: true,
@@ -26,29 +30,22 @@ export default {
     log.info(`Logged in as ${client.user.tag}`);
     log.info(`Serving ${client.guilds.cache.size} guild(s)`);
 
-    try {
-      await ensureTicketPanel(client);
-      await ensureProspectPanel(client);
-      await ensureVerifyPanel(client);
-      await ensurePurgedPanel(client);
-      await resumeClosingTimers(client);
-    } catch (err) {
-      log.error({ err }, 'Failed to initialize panels or timers');
-    }
+    await safeInit('ticketPanel', () => ensureTicketPanel(client));
+    await safeInit('prospectPanel', () => ensureProspectPanel(client));
+    await safeInit('verifyPanel', () => ensureVerifyPanel(client));
+    await safeInit('purgedPanel', () => ensurePurgedPanel(client));
+    await safeInit('closingTimers', () => resumeClosingTimers(client));
+    await safeInit('anonymousModes', () => restoreAnonymousModes());
 
-    try {
-      startScheduler(client);
-      connectSquadJS(client);
-      startSeedingScheduler(client);
-      startSeedTrackerScheduler(client);
-      await startHeartbeat(client);
-      await startStatusUpdater(client);
-      startActionProcessor(client);
-      await startConfigGuardian(client);
-      await recoverActiveSessions(client);
-      startActivityScheduler();
-    } catch (err) {
-      log.error({ err }, 'Failed to start background services');
-    }
+    await safeInit('prospectScheduler', () => startScheduler(client));
+    await safeInit('squadJSSocket', () => connectSquadJS(client));
+    await safeInit('seedingScheduler', () => startSeedingScheduler(client));
+    await safeInit('seedTrackerScheduler', () => startSeedTrackerScheduler(client));
+    await safeInit('heartbeat', () => startHeartbeat(client));
+    await safeInit('statusUpdater', () => startStatusUpdater(client));
+    await safeInit('actionProcessor', () => startActionProcessor(client));
+    await safeInit('configGuardian', () => startConfigGuardian(client));
+    await safeInit('voiceRecovery', () => recoverActiveSessions(client));
+    await safeInit('activityScheduler', () => startActivityScheduler());
   },
 };

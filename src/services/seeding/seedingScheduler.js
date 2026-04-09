@@ -9,39 +9,44 @@ import {
   buildSeedingCallEmbed, buildSeedingCompletionEmbed,
   buildSeedingPanelMessage, getLayerImageUrl,
 } from './seedingEmbeds.js';
+import { createScheduler } from '../../utils/scheduler.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
 
 const log = logger.child({ module: 'seedingScheduler' });
 
-let dailyCheckInterval = null;
-let monitorInterval = null;
 let lastResetDate = null;
 let lastPanelConfig = null;
 
+const checkMs = config.seeding?.schedulerCheckMs || 60000;
+
+const dailyCheckScheduler = createScheduler({
+  name: 'seedingDailyCheck',
+  intervalMs: checkMs,
+  tick: checkDailyCall,
+});
+
+const monitorScheduler = createScheduler({
+  name: 'seedingMonitor',
+  intervalMs: checkMs,
+  tick: updateSeedingState,
+});
+
 export function isSchedulerActive() {
-  return !!dailyCheckInterval;
+  return dailyCheckScheduler.isActive();
 }
 
 export async function startScheduler(client) {
   log.info('Starting seeding scheduler');
-
   await expireOldSessions();
   await ensureSeedingPanel(client);
-
-  const checkMs = config.seeding?.schedulerCheckMs || 60000;
-
-  dailyCheckInterval = setInterval(() => checkDailyCall(client), checkMs);
-  monitorInterval = setInterval(() => updateSeedingState(client), checkMs);
-
-  // Run initial checks
-  checkDailyCall(client);
-  updateSeedingState(client);
+  dailyCheckScheduler.start(client);
+  monitorScheduler.start(client);
 }
 
 export function stopScheduler() {
-  if (dailyCheckInterval) { clearInterval(dailyCheckInterval); dailyCheckInterval = null; }
-  if (monitorInterval) { clearInterval(monitorInterval); monitorInterval = null; }
+  dailyCheckScheduler.stop();
+  monitorScheduler.stop();
   log.info('Seeding scheduler stopped');
 }
 
@@ -178,9 +183,7 @@ async function ensureSeedingPanel(client) {
     let seederCount = null;
     if (cfg.role_id && channel.guild) {
       try {
-        await channel.guild.members.fetch();
-        const role = await channel.guild.roles.fetch(cfg.role_id);
-        seederCount = role?.members?.size ?? null;
+        seederCount = channel.guild.roles.cache.get(cfg.role_id)?.members?.size ?? null;
       } catch { /* role may not exist */ }
     }
 
@@ -210,9 +213,7 @@ async function refreshSeedingPanel(client, cfg) {
     let seederCount = null;
     if (cfg.role_id && channel.guild) {
       try {
-        await channel.guild.members.fetch();
-        const role = await channel.guild.roles.fetch(cfg.role_id);
-        seederCount = role?.members?.size ?? null;
+        seederCount = channel.guild.roles.cache.get(cfg.role_id)?.members?.size ?? null;
       } catch { /* role may not exist */ }
     }
 

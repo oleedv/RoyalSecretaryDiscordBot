@@ -1,5 +1,6 @@
 import { createEmbed } from '../../utils/embed.js';
 import { buildVoteEmbed, buildVoteComponents, buildVoteAnnouncementEmbed, buildEndVoteComponents } from './prospectEmbeds.js';
+import { isTestSteamId } from './prospectService.js';
 import { query } from '../../database/connection.js';
 import { getPlaytime } from '../playtimeService.js';
 import * as whitelistService from '../whitelistService.js';
@@ -50,8 +51,8 @@ export async function postVote(prospect, client) {
   if (!thread) return;
 
   let playtimeStats = null;
-  if (prospect.steam_id && prospect.steam_id.toUpperCase() !== 'Q') {
-    playtimeStats = await getPlaytime(prospect.steam_id, prospect.created_at).catch(() => null);
+  if (!isTestSteamId(prospect.steam_id)) {
+    playtimeStats = await getPlaytime(prospect.steam_id, prospect.period_started_at || prospect.created_at).catch(() => null);
   }
 
   const voteEmbed = buildVoteEmbed(prospect, playtimeStats);
@@ -68,7 +69,7 @@ export async function postVote(prospect, client) {
     }
   }
 
-  if (prospect.steam_id && prospect.steam_id.toUpperCase() !== 'Q') {
+  if (!isTestSteamId(prospect.steam_id)) {
     whitelistService.createEntry(prospect.steam_id, prospect.alias, 'RB', 'Prospect', client.user.id)
       .catch((err) => log.warn({ err }, 'Failed to create prospect whitelist entry'));
   }

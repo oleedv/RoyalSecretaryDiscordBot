@@ -1,6 +1,5 @@
 import { query } from '../database/connection.js'
-import { getProspectByChannel } from './prospect/prospectService.js'
-import { getTicketByChannel, getTicketByChannelStatus, beginCloseGracePeriod, escalateTicket, reopenTicket, forceCloseTicket } from './ticket/ticketService.js'
+import { beginCloseGracePeriod, escalateTicket, reopenTicket, forceCloseTicket } from './ticket/ticketService.js'
 import { reassignMentor } from './prospect/teamRoleService.js'
 import config from '../config.js'
 import logger from '../logger.js'
@@ -132,7 +131,8 @@ async function handleReopenTicket(ticketId, actorId) {
   const ticket = rows[0]
   if (!ticket) throw new Error(`Closing ticket ${ticketId} not found`)
 
-  await reopenTicket(ticket, actorId)
+  const result = await reopenTicket(ticket, actorId)
+  if (result.error) throw new Error(result.error)
 }
 
 async function handleForceCloseTicket(ticketId, guild) {

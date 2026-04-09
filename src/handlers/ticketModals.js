@@ -39,32 +39,36 @@ async function validateMembership(interaction, tier) {
   return null;
 }
 
-async function createWithSteamInput(interaction, tierOverride) {
+async function createTicketFromModal(interaction, { tierOverride, useStoredSteam = false } = {}) {
   const tier = tierOverride ?? extractTier(interaction);
   const memberError = await validateMembership(interaction, tier);
   if (memberError) {
     return interaction.reply({ embeds: [errorEmbed(memberError)], flags: ['Ephemeral'] });
   }
 
-  const steamInput = interaction.fields.getTextInputValue('ticket_steam_id').trim();
-  const reason = interaction.fields.getTextInputValue('ticket_reason').trim();
-
-  const steamValidation = validateSteamInput(steamInput);
-  if (!steamValidation.valid) {
-    return interaction.reply({
-      embeds: [errorEmbed(`**Steam ID**: ${steamValidation.reason}`)],
-      flags: ['Ephemeral'],
-    });
+  let steamId;
+  if (useStoredSteam) {
+    await interaction.deferReply({ flags: ['Ephemeral'] });
+    steamId = await getStoredSteamId(interaction.user.id);
+    if (!steamId) {
+      return interaction.editReply({ embeds: [errorEmbed('Could not retrieve your stored Steam ID. Please try again.')] });
+    }
+  } else {
+    const steamInput = interaction.fields.getTextInputValue('ticket_steam_id').trim();
+    const steamValidation = validateSteamInput(steamInput);
+    if (!steamValidation.valid) {
+      return interaction.reply({
+        embeds: [errorEmbed(`**Steam ID**: ${steamValidation.reason}`)],
+        flags: ['Ephemeral'],
+      });
+    }
+    steamId = steamValidation.steamId;
+    await interaction.deferReply({ flags: ['Ephemeral'] });
   }
 
-  await interaction.deferReply({ flags: ['Ephemeral'] });
-
+  const reason = interaction.fields.getTextInputValue('ticket_reason').trim();
   const guild = interaction.guild ?? await interaction.client.guilds.fetch(config.guild.id);
-  const result = await createTicket(interaction.user.id, guild, {
-    steamId: steamValidation.steamId,
-    reason,
-    tier,
-  });
+  const result = await createTicket(interaction.user.id, guild, { steamId, reason, tier });
   if (result.error) {
     return interaction.editReply({ embeds: [errorEmbed(result.error)] });
   }
@@ -78,60 +82,25 @@ async function createWithSteamInput(interaction, tierOverride) {
     embeds: [successEmbed(`Ticket created! Check your DMs. Channel: <#${result.channel.id}>`)],
   });
 
-  linkSteamId(interaction.user.id, steamValidation.steamId, interaction.user.username);
+  if (!useStoredSteam) {
+    linkSteamId(interaction.user.id, steamId, interaction.user.username);
+  }
+
   log.info({ userId: interaction.user.id, channelId: result.channel.id, tier }, 'Ticket created via modal');
 }
 
-async function createWithStoredSteam(interaction, tierOverride) {
-  const tier = tierOverride ?? extractTier(interaction);
-  const memberError = await validateMembership(interaction, tier);
-  if (memberError) {
-    return interaction.reply({ embeds: [errorEmbed(memberError)], flags: ['Ephemeral'] });
-  }
-
-  const reason = interaction.fields.getTextInputValue('ticket_reason').trim();
-
-  await interaction.deferReply({ flags: ['Ephemeral'] });
-
-  const steamId = await getStoredSteamId(interaction.user.id);
-  if (!steamId) {
-    return interaction.editReply({ embeds: [errorEmbed('Could not retrieve your stored Steam ID. Please try again.')] });
-  }
-
-  const guild = interaction.guild ?? await interaction.client.guilds.fetch(config.guild.id);
-  const result = await createTicket(interaction.user.id, guild, {
-    steamId,
-    reason,
-    tier,
-  });
-  if (result.error) {
-    return interaction.editReply({ embeds: [errorEmbed(result.error)] });
-  }
-
-  const user = await interaction.client.users.fetch(interaction.user.id).catch(() => null);
-  if (user) {
-    await user.send({ embeds: [infoEmbed('Your ticket has been created. A staff member will be with you shortly.\n\nFeel free to send any additional details, screenshots, or information here while you wait - it helps us resolve your issue faster.')] }).catch(() => null);
-  }
-
-  await interaction.editReply({
-    embeds: [successEmbed(`Ticket created! Check your DMs. Channel: <#${result.channel.id}>`)],
-  });
-
-  log.info({ userId: interaction.user.id, channelId: result.channel.id, tier }, 'Ticket created via quick modal');
-}
-
 export async function handleCreateModal(interaction) {
-  return createWithSteamInput(interaction);
+  return createTicketFromModal(interaction);
 }
 
 export async function handleCreateModalQuick(interaction) {
-  return createWithStoredSteam(interaction);
+  return createTicketFromModal(interaction, { useStoredSteam: true });
 }
 
 export async function handlePurgedModal(interaction) {
-  return createWithSteamInput(interaction, 'community_officer');
+  return createTicketFromModal(interaction, { tierOverride: 'community_officer' });
 }
 
 export async function handlePurgedModalQuick(interaction) {
-  return createWithStoredSteam(interaction, 'community_officer');
+  return createTicketFromModal(interaction, { tierOverride: 'community_officer', useStoredSteam: true });
 }

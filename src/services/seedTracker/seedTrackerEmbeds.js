@@ -1,4 +1,5 @@
 import { createEmbed } from '../../utils/embed.js';
+import { formatDuration } from '../../utils/formatters.js';
 
 const COLOR_SUCCESS = 0x57f287;
 const COLOR_INFO = 0x5865f2;
@@ -8,13 +9,6 @@ function buildProgressBar(current, total, barLength = 20) {
   const filled = Math.min(Math.round((current / total) * barLength), barLength);
   const empty = barLength - filled;
   return `[${'#'.repeat(filled)}${'-'.repeat(empty)}] ${current}/${total} days`;
-}
-
-function formatDuration(totalSeconds) {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  return `${minutes}m`;
 }
 
 function formatQuality(avgQuality) {

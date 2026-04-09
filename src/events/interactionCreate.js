@@ -12,6 +12,13 @@ import logger from '../logger.js';
 
 const log = logger.child({ module: 'interactions' });
 
+async function safeReply(interaction, payload) {
+  try {
+    if (interaction.replied || interaction.deferred) await interaction.followUp(payload);
+    else await interaction.reply(payload);
+  } catch {}
+}
+
 // Rate limiting: per-user cooldown for button/modal interactions
 const cooldowns = new Map();
 const COOLDOWN_MS = 2000;
@@ -95,12 +102,15 @@ export default {
     }
 
     if (interaction.isButton()) {
-      const now = Date.now();
-      const last = cooldowns.get(interaction.user.id) || 0;
-      if (now - last < COOLDOWN_MS) {
-        return interaction.reply({ content: 'Please wait before clicking again.', flags: ['Ephemeral'] }).catch(() => {});
+      const skipCooldown = interaction.customId.startsWith('verify_answer_');
+      if (!skipCooldown) {
+        const now = Date.now();
+        const last = cooldowns.get(interaction.user.id) || 0;
+        if (now - last < COOLDOWN_MS) {
+          return interaction.reply({ content: 'Please wait before clicking again.', flags: ['Ephemeral'] }).catch(() => {});
+        }
+        cooldowns.set(interaction.user.id, now);
       }
-      cooldowns.set(interaction.user.id, now);
 
       let handler = buttonHandlers[interaction.customId];
       if (!handler && (interaction.customId.startsWith('logs_prev:') || interaction.customId.startsWith('logs_next:'))) {
@@ -118,14 +128,7 @@ export default {
           await handler(interaction);
         } catch (err) {
           log.error({ err, customId: interaction.customId }, 'Button interaction failed');
-          try {
-            const reply = { embeds: [errorEmbed('Something went wrong.')], flags: ['Ephemeral'] };
-            if (interaction.replied || interaction.deferred) {
-              await interaction.followUp(reply);
-            } else {
-              await interaction.reply(reply);
-            }
-          } catch { /* interaction expired or channel gone - nothing we can do */ }
+          await safeReply(interaction, { embeds: [errorEmbed('Something went wrong.')], flags: ['Ephemeral'] });
         }
       }
       return;
@@ -142,14 +145,7 @@ export default {
           await handler(interaction);
         } catch (err) {
           log.error({ err, customId: interaction.customId }, 'Modal interaction failed');
-          try {
-            const reply = { embeds: [errorEmbed('Something went wrong.')], flags: ['Ephemeral'] };
-            if (interaction.replied || interaction.deferred) {
-              await interaction.followUp(reply);
-            } else {
-              await interaction.reply(reply);
-            }
-          } catch { /* interaction expired or channel gone - nothing we can do */ }
+          await safeReply(interaction, { embeds: [errorEmbed('Something went wrong.')], flags: ['Ephemeral'] });
         }
       }
     }
@@ -178,13 +174,6 @@ async function handleCommand(interaction) {
   } catch (err) {
     log.error({ err, command: interaction.commandName }, 'Command execution failed');
 
-    try {
-      const reply = { embeds: [errorEmbed('There was an error executing this command.')], flags: ['Ephemeral'] };
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(reply);
-      } else {
-        await interaction.reply(reply);
-      }
-    } catch { /* interaction expired or channel gone - nothing we can do */ }
+    await safeReply(interaction, { embeds: [errorEmbed('There was an error executing this command.')], flags: ['Ephemeral'] });
   }
 }

@@ -42,8 +42,8 @@ export async function trySendWithFiles(target, options) {
     return { msg, tooLarge: false };
   } catch (err) {
     if (err.code === 40005) {
-      delete options.files;
-      const msg = await target.send(options);
+      const { files, ...rest } = options;
+      const msg = await target.send(rest);
       return { msg, tooLarge: true };
     }
     throw err;

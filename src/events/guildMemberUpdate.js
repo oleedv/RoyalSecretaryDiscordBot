@@ -10,7 +10,7 @@ export default {
   name: Events.GuildMemberUpdate,
 
   async execute(oldMember, newMember) {
-    const mentorRoleId = config.prospects.mentorRoleId
+    const mentorRoleId = config.prospects?.mentorRoleId
     if (!mentorRoleId) return
 
     const hadRole = oldMember.roles.cache.has(mentorRoleId)

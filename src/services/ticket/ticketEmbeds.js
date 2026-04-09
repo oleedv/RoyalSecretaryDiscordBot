@@ -1,7 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { createEmbed } from '../../utils/embed.js';
 
-const TIER_LABELS = {
+export const TIER_LABELS = {
   normal: 'Normal',
   community_officer: 'Community Officer',
   admin_officer: 'Admin Officer',
@@ -9,7 +9,7 @@ const TIER_LABELS = {
   whitelist: 'Whitelist',
 };
 
-const TIER_COLORS = {
+export const TIER_COLORS = {
   normal: 0x5865f2,
   community_officer: 0xfee75c,
   admin_officer: 0xed4245,

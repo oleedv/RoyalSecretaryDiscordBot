@@ -1,12 +1,8 @@
-import crypto from 'node:crypto';
 import { query } from '../database/connection.js';
+import { generateId } from '../utils/id.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'userService' });
-
-function generateCuid() {
-  return 'c' + crypto.randomBytes(12).toString('hex');
-}
 
 export async function getStoredSteamId(discordId) {
   try {
@@ -35,7 +31,7 @@ export async function linkSteamId(discordId, steamId, discordName) {
       `INSERT INTO User (id, discordId, discordName, steamId, updatedAt)
        VALUES (?, ?, ?, ?, NOW())
        ON DUPLICATE KEY UPDATE steamId = IF(steamId IS NULL, VALUES(steamId), steamId), updatedAt = NOW()`,
-      [generateCuid(), discordId, discordName || discordId, steamId],
+      [generateId(), discordId, discordName || discordId, steamId],
       'website'
     );
   } catch (err) {

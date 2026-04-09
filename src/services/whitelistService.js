@@ -1,12 +1,8 @@
-import crypto from 'node:crypto';
 import { query, getPool } from '../database/connection.js';
+import { generateId } from '../utils/id.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'whitelist' });
-
-function generateId() {
-  return 'c' + crypto.randomBytes(12).toString('hex');
-}
 
 export function isConfigured() {
   try {
@@ -84,18 +80,18 @@ export async function upsertSeederEntry(steamId, name, expiresAt) {
     );
 
     if (existing.length > 0) {
-      const entry = existing[0];
-      // If they have a non-Seeder active whitelist, skip
-      if (entry.role !== 'Seeder' && (!entry.expiresAt || new Date(entry.expiresAt) > new Date())) {
-        return null;
-      }
-      // Update existing entry
+      // If they have any active non-Seeder whitelist entry, skip
+      const hasActiveNonSeeder = existing.some(e => e.role !== 'Seeder' && (!e.expiresAt || new Date(e.expiresAt) > new Date()));
+      if (hasActiveNonSeeder) return null;
+
+      // Find an existing Seeder entry to update, or use the first entry
+      const seederEntry = existing.find(e => e.role === 'Seeder') || existing[0];
       await query(
         'UPDATE WhitelistEntry SET role = ?, name = ?, expiresAt = ?, addedBy = ? WHERE id = ?',
-        ['Seeder', name, expiresAt, 'SeedTracker', entry.id],
+        ['Seeder', name, expiresAt, 'SeedTracker', seederEntry.id],
         'website'
       );
-      return { id: entry.id, steamId, role: 'Seeder', expiresAt };
+      return { id: seederEntry.id, steamId, role: 'Seeder', expiresAt };
     }
 
     // Create new entry

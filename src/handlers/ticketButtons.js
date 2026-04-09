@@ -12,11 +12,11 @@ import {
   getAllClosedTicketsByUser,
   isAnonymousMode,
   setAnonymousMode,
+  rebuildTicketInfoEmbed,
 } from '../services/ticket/ticketService.js';
-import { buildTicketInfoEmbed, buildTicketComponents } from '../services/ticket/ticketEmbeds.js';
+import { buildTicketComponents } from '../services/ticket/ticketEmbeds.js';
 import { errorEmbed, infoEmbed } from '../utils/embed.js';
 import { requireRole } from '../utils/permissions.js';
-import { findBotMessageByCustomId } from '../utils/messageSearch.js';
 import { isAvailable, generateTicketSuggestion, ALLOWED_USER_ID } from '../services/ai/aiService.js';
 import { buildSuggestionEmbed } from '../services/ai/aiEmbeds.js';
 import { buildLogsPage } from './ticketMessages.js';
@@ -130,24 +130,14 @@ export async function handleReopen(interaction) {
   const ticket = await getTicketByChannelStatus(interaction.channel.id, 'closing');
   if (!ticket) return interaction.editReply({ embeds: [errorEmbed('No closing ticket found for this channel.')] });
 
-  await reopenTicket(ticket, interaction.user.id);
+  const reopenResult = await reopenTicket(ticket, interaction.user.id);
+  if (reopenResult.error) return interaction.editReply({ embeds: [errorEmbed(reopenResult.error)] });
 
   // Delete the "Ticket Closed" message that had the Reopen button
   await interaction.message.delete().catch(() => null);
 
-  // Delete the old disabled info embed
-  const oldInfoMsg = await findBotMessageByCustomId(interaction.channel, interaction.client.user.id, ['ticket_close']);
-  if (oldInfoMsg) await oldInfoMsg.delete().catch(() => null);
-
-  // Send fresh info embed with active buttons
-  const member = await interaction.guild.members.fetch(ticket.user_id).catch(() => null);
-  const userTag = member?.user.tag || ticket.user_id;
-  const steamId = await getStoredSteamId(ticket.user_id);
-  const previousTickets = await getClosedTicketsByUser(ticket.user_id, ticket.tier);
-  const embed = buildTicketInfoEmbed(userTag, ticket.user_id, ticket.uuid, ticket.tier, previousTickets.length, { steamId, reason: ticket.reason });
-  const components = buildTicketComponents(ticket.tier);
-
-  await interaction.channel.send({ embeds: [embed], components });
+  // Rebuild the info embed with active buttons
+  await rebuildTicketInfoEmbed(ticket, interaction.channel, interaction.client);
 
   // DM the user
   const user = await interaction.client.users.fetch(ticket.user_id).catch(() => null);
@@ -204,9 +194,9 @@ export async function handleAnonymousToggle(interaction) {
   const ticket = await getTicketByChannel(interaction.channel.id);
   if (!ticket) return;
 
-  const current = isAnonymousMode(interaction.channel.id);
+  const current = await isAnonymousMode(interaction.channel.id);
   const newMode = !current;
-  setAnonymousMode(interaction.channel.id, newMode);
+  await setAnonymousMode(interaction.channel.id, newMode);
 
   const components = buildTicketComponents(ticket.tier, newMode);
   await interaction.message.edit({ components });

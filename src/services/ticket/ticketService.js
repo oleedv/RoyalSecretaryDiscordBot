@@ -3,7 +3,7 @@ import { ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'disco
 import { createEmbed, infoEmbed } from '../../utils/embed.js';
 import { buildPrivateChannelPermissions } from '../../utils/permissions.js';
 import { findBotMessageByCustomId } from '../../utils/messageSearch.js';
-import { buildTicketInfoEmbed, buildTicketComponents, TIER_CHANNEL_PREFIX } from './ticketEmbeds.js';
+import { buildTicketInfoEmbed, buildTicketComponents, TIER_CHANNEL_PREFIX, TIER_LABELS, TIER_COLORS } from './ticketEmbeds.js';
 import { query } from '../../database/connection.js';
 import { getStoredSteamId } from '../userService.js';
 import config from '../../config.js';
@@ -19,13 +19,42 @@ const closingTimers = new Map();
 // In-memory store for anonymous mode toggle (channelId → boolean)
 const anonymousModes = new Map();
 
-export function isAnonymousMode(channelId) {
-  return anonymousModes.get(channelId) || false;
+export async function isAnonymousMode(channelId) {
+  const cached = anonymousModes.get(channelId);
+  if (cached !== undefined) return cached;
+
+  const rows = await query(
+    'SELECT anonymous_mode FROM tickets WHERE channel_id = ? AND status = ?',
+    [channelId, 'open']
+  );
+  const value = rows[0]?.anonymous_mode === 1;
+  anonymousModes.set(channelId, value);
+  return value;
 }
 
-export function setAnonymousMode(channelId, enabled) {
+export async function setAnonymousMode(channelId, enabled) {
   if (enabled) anonymousModes.set(channelId, true);
-  else anonymousModes.delete(channelId);
+  else anonymousModes.set(channelId, false);
+
+  await query(
+    'UPDATE tickets SET anonymous_mode = ? WHERE channel_id = ? AND status = ?',
+    [enabled ? 1 : 0, channelId, 'open']
+  );
+}
+
+/**
+ * Find the info embed message for a ticket channel.
+ * Tries findBotMessageByCustomId first, falls back to stored info_message_id.
+ */
+export async function findTicketInfoMessage(channel, botUserId, ticket) {
+  const customIds = ['ticket_close', 'ticket_escalate_co', 'ticket_escalate_admin', 'ticket_escalate_comp', 'ticket_escalate_wl', 'ticket_escalate_normal'];
+  const msg = await findBotMessageByCustomId(channel, botUserId, customIds);
+  if (msg) return msg;
+
+  if (ticket?.info_message_id) {
+    return channel.messages.fetch(ticket.info_message_id).catch(() => null);
+  }
+  return null;
 }
 
 async function deleteLogsEmbeds(channel, botId) {
@@ -215,7 +244,8 @@ async function _createTicket(userId, guild, { steamId, reason, tier = 'normal' }
   const embed = buildTicketInfoEmbed(userTag, userId, uuid, tier, previousTickets.length, { steamId, reason });
   const components = buildTicketComponents(tier);
 
-  await channel.send({ embeds: [embed], components });
+  const infoMsg = await channel.send({ embeds: [embed], components });
+  await query('UPDATE tickets SET info_message_id = ? WHERE id = ?', [infoMsg.id, ticket.id]);
 
   // Ping staff roles so they get a notification
   const staffPing = tierRoles.map((r) => `<@&${r}>`).join(' ');
@@ -280,37 +310,23 @@ export async function escalateTicket(ticket, tier, channel, actorId = null) {
   const steamId = await getStoredSteamId(ticket.user_id);
   const previousTickets = await getClosedTicketsByUser(ticket.user_id, tier);
   const infoEmbed = buildTicketInfoEmbed(userTag, ticket.user_id, ticket.uuid, tier, previousTickets.length, { steamId, reason: ticket.reason });
-  const components = buildTicketComponents(tier, isAnonymousMode(channel.id));
+  const components = buildTicketComponents(tier, await isAnonymousMode(channel.id));
 
-  const topMsg = await findBotMessageByCustomId(channel, channel.client.user.id, ['ticket_close', 'ticket_escalate_co', 'ticket_escalate_admin', 'ticket_escalate_comp', 'ticket_escalate_wl', 'ticket_escalate_normal']);
+  const topMsg = await findTicketInfoMessage(channel, channel.client.user.id, { ...ticket, tier });
   if (topMsg) {
     await topMsg.edit({ embeds: [infoEmbed], components });
   }
 
-  const tierLabels = {
-    normal: 'Normal',
-    community_officer: 'Community Officer',
-    admin_officer: 'Admin Officer',
-    comp_team: 'Comp Team',
-    whitelist: 'Whitelist',
-  };
-  const tierColors = {
-    normal: 0x5865f2,
-    community_officer: 0xfee75c,
-    admin_officer: 0xed4245,
-    comp_team: 0x57f287,
-    whitelist: 0x3498db,
-  };
   // Remove any !logs embeds from the previous team
   await deleteLogsEmbeds(channel, channel.client.user.id);
 
-  const tierLabel = tierLabels[tier] || tier;
+  const tierLabel = TIER_LABELS[tier] || tier;
   const actor = actorId ? await channel.guild.members.fetch(actorId).catch(() => null) : null;
   const actorName = actor?.displayName || 'Unknown';
   const notifEmbed = createEmbed('Ticket')
     .setTitle('Ticket Transferred')
     .setDescription(`This ticket has been transferred to **${tierLabel}** by **${actorName}**.`)
-    .setColor(tierColors[tier] || 0x5865f2);
+    .setColor(TIER_COLORS[tier] || 0x5865f2);
 
   await channel.send({ embeds: [notifEmbed] });
 
@@ -335,7 +351,7 @@ export async function beginCloseGracePeriod(ticket, closedById, channel, client)
   );
 
   // Disable existing buttons on the info embed
-  const topMsg = await findBotMessageByCustomId(channel, client.user.id, ['ticket_close', 'ticket_escalate_normal', 'ticket_escalate_co', 'ticket_escalate_admin', 'ticket_escalate_comp', 'ticket_escalate_wl']);
+  const topMsg = await findTicketInfoMessage(channel, client.user.id, ticket);
   if (topMsg) {
     const disabledComponents = topMsg.components.map((row) => {
       const newRow = ActionRowBuilder.from(row);
@@ -422,6 +438,12 @@ export async function forceCloseTicket(ticket, channel) {
 }
 
 export async function reopenTicket(ticket, reopenedById) {
+  const result = await query(
+    'UPDATE tickets SET status = ?, closed_at = NULL, closed_by = NULL WHERE id = ? AND status = ?',
+    ['open', ticket.id, 'closing']
+  );
+  if (result.affectedRows === 0) return { error: 'Ticket already reopened or closed.' };
+
   const timer = closingTimers.get(ticket.channel_id);
   if (timer) {
     clearTimeout(timer);
@@ -429,16 +451,49 @@ export async function reopenTicket(ticket, reopenedById) {
   }
 
   await query(
-    'UPDATE tickets SET status = ?, closed_at = NULL, closed_by = NULL WHERE id = ?',
-    ['open', ticket.id]
-  );
-
-  await query(
     'INSERT INTO ticket_events (ticket_id, event_type, actor_id) VALUES (?, ?, ?)',
     [ticket.id, 'reopened', reopenedById]
   );
 
   log.info({ ticketId: ticket.id, reopenedBy: reopenedById }, 'Ticket reopened');
+  return {};
+}
+
+/**
+ * Rebuild the ticket info embed after a reopen. Cleans up stale closing messages
+ * and sends a fresh info embed with active buttons.
+ */
+export async function rebuildTicketInfoEmbed(ticket, channel, client) {
+  // Clean up stale messages from the closing state
+  const closedMsg = await findBotMessageByCustomId(channel, client.user.id, ['ticket_reopen']);
+  if (closedMsg) await closedMsg.delete().catch(() => null);
+  const oldInfoMsg = await findTicketInfoMessage(channel, client.user.id, ticket);
+  if (oldInfoMsg) await oldInfoMsg.delete().catch(() => null);
+
+  // Send fresh info embed with active buttons
+  const member = await channel.guild.members.fetch(ticket.user_id).catch(() => null);
+  const userTag = member?.user.tag || ticket.user_id;
+  const steamId = await getStoredSteamId(ticket.user_id);
+  const previousTickets = await getClosedTicketsByUser(ticket.user_id, ticket.tier);
+  const embed = buildTicketInfoEmbed(userTag, ticket.user_id, ticket.uuid, ticket.tier, previousTickets.length, { steamId, reason: ticket.reason });
+  const components = buildTicketComponents(ticket.tier);
+
+  const infoMsg = await channel.send({ embeds: [embed], components });
+  await query('UPDATE tickets SET info_message_id = ? WHERE id = ?', [infoMsg.id, ticket.id]);
+}
+
+/**
+ * Restore anonymous mode state from DB for all open tickets after a bot restart.
+ * Call this from the ready event handler.
+ */
+export async function restoreAnonymousModes() {
+  const rows = await query('SELECT channel_id FROM tickets WHERE anonymous_mode = 1 AND status = ?', ['open']);
+  for (const row of rows) {
+    anonymousModes.set(row.channel_id, true);
+  }
+  if (rows.length > 0) {
+    log.info({ count: rows.length }, 'Restored anonymous modes from DB');
+  }
 }
 
 /**
