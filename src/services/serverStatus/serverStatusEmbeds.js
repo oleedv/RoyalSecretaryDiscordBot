@@ -1,5 +1,6 @@
 import tinygradient from 'tinygradient';
 import { createEmbed } from '../../utils/embed.js';
+import { getLayerImageUrl } from '../seeding/seedingEmbeds.js';
 import config from '../../config.js';
 
 const gradient = tinygradient([
@@ -86,14 +87,6 @@ function getMatchupTeams(layerObj, players) {
     return { team1: `**${faction1 || 'Team 1'}**`, team2: `**${faction2 || 'Team 2'}**` };
   }
 
-  return null;
-}
-
-function getLayerImageUrl(layerObj, layerName) {
-  const BASE = 'https://raw.githubusercontent.com/Squad-Wiki/squad-wiki-pipeline-map-data/master/completed_output/_Current%20Version/images';
-  if (layerObj?.layerid) return `${BASE}/${layerObj.layerid}.jpg`;
-  // Fallback: construct from layer name string (e.g. "BlackCoast Seed v1" -> "BlackCoast_Seed_v1")
-  if (layerName) return `${BASE}/${layerName.replace(/\s+/g, '_')}.jpg`;
   return null;
 }
 

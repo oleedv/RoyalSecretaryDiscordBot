@@ -18,6 +18,32 @@ import logger from '../../logger.js';
 
 const log = logger.child({ module: 'prospects' });
 
+/**
+ * Check if a Steam ID is the test/placeholder value "Q".
+ */
+export function isTestSteamId(id) {
+  return !id || id.toUpperCase() === 'Q';
+}
+
+/**
+ * Calculate period end date, vote date, and paused state for a prospect.
+ * Uses period_started_at if set, otherwise falls back to created_at.
+ */
+export function getProspectDates(prospect) {
+  const { periodDays, voteDaysBefore } = config.prospects;
+  const extra = prospect.extra_days || 0;
+  const totalPeriod = periodDays + extra;
+  const daysUntilVote = (periodDays - voteDaysBefore) + extra;
+
+  const baseDate = new Date(prospect.period_started_at || prospect.created_at);
+  const periodEnd = new Date(baseDate);
+  periodEnd.setDate(periodEnd.getDate() + totalPeriod);
+  const voteDate = new Date(baseDate);
+  voteDate.setDate(voteDate.getDate() + daysUntilVote);
+
+  return { periodEnd, voteDate, isPaused: !!prospect.paused_at };
+}
+
 function formatCblEmbed(cblData) {
   const riskRating = cblData?.riskRating ?? 0;
   const repPoints = cblData?.reputationPoints ?? 0;
@@ -83,7 +109,7 @@ function formatBmBans(bmBans) {
 }
 
 function appendAllStatsToMessage(message, steamId, userId, prospect) {
-  if (!steamId || steamId.toUpperCase() === 'Q') return;
+  if (isTestSteamId(steamId)) return;
 
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - 90);
@@ -238,7 +264,7 @@ export async function getProspectsNeedingVote() {
   const { periodDays, voteDaysBefore } = config.prospects;
   const daysUntilVote = periodDays - voteDaysBefore;
   return await query(
-    'SELECT * FROM prospects WHERE status = ? AND forum_thread_id IS NOT NULL AND vote_posted_at IS NULL AND paused_at IS NULL AND TIMESTAMPDIFF(DAY, created_at, NOW()) >= (? + COALESCE(extra_days, 0))',
+    'SELECT * FROM prospects WHERE status = ? AND forum_thread_id IS NOT NULL AND vote_posted_at IS NULL AND paused_at IS NULL AND TIMESTAMPDIFF(DAY, COALESCE(period_started_at, created_at), NOW()) >= (? + COALESCE(extra_days, 0))',
     ['open', daysUntilVote]
   );
 }
@@ -358,7 +384,7 @@ export async function claimProspect(prospect, mentorId, guild) {
     await user.send({ embeds: [dmEmbed] }).catch(() => null);
   }
 
-  if (prospect.steam_id && prospect.steam_id.toUpperCase() !== 'Q') {
+  if (!isTestSteamId(prospect.steam_id)) {
     bm.addFlag(prospect.steam_id, config.battlemetrics.prospectFlagId)
       .catch((err) => log.warn({ err }, 'Failed to add BM prospect flag'));
   }
@@ -433,7 +459,7 @@ export async function acceptProspect(prospect, acceptedById, guild) {
   }
 
   await query(
-    'UPDATE prospects SET forum_thread_id = ?, created_at = NOW() WHERE id = ?',
+    'UPDATE prospects SET forum_thread_id = ?, period_started_at = NOW() WHERE id = ?',
     [forumThreadId, prospect.id]
   );
 
@@ -556,7 +582,7 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
     }
   }
 
-  if (prospect.steam_id && prospect.steam_id.toUpperCase() !== 'Q') {
+  if (!isTestSteamId(prospect.steam_id)) {
     bm.removeFlag(prospect.steam_id, config.battlemetrics.prospectFlagId)
       .catch((err) => log.warn({ err }, 'Failed to remove BM prospect flag'));
     if (outcome === 'accepted') {
@@ -656,7 +682,7 @@ export async function extendProspect(prospect, days, actorId, guild) {
   await refreshForumEmbed(prospect, guild);
 }
 
-async function refreshStaffEmbed(prospect, guild) {
+export async function refreshStaffEmbed(prospect, guild) {
   const staffChannel = await guild.channels.fetch(prospect.channel_id).catch(() => null);
   if (!staffChannel) return;
 
@@ -694,7 +720,7 @@ async function refreshForumEmbed(prospect, guild) {
   if (!starterMessage) return;
 
   const member = await guild.members.fetch(updated.user_id).catch(() => null);
-  const introEmbed = buildForumIntroEmbed(member, updated, updated.created_at);
+  const introEmbed = buildForumIntroEmbed(member, updated);
   await starterMessage.edit({ embeds: [introEmbed] }).catch((err) =>
     log.warn({ err, threadId: updated.forum_thread_id }, 'Failed to update forum intro embed')
   );

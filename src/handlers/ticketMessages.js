@@ -4,6 +4,7 @@ import { formatForDb, applyAttachments } from '../utils/attachments.js';
 import { parseTextCommand } from '../utils/commands.js';
 import { trySendWithFiles } from '../utils/discord.js';
 import { getTicketByChannel, saveMessage, beginCloseGracePeriod, getClosedTicketsByUser, isAnonymousMode } from '../services/ticket/ticketService.js';
+import { hasAnyRole } from '../utils/permissions.js';
 import { isAvailable, generateTicketSuggestion, ALLOWED_USER_ID } from '../services/ai/aiService.js';
 import { buildSuggestionEmbed } from '../services/ai/aiEmbeds.js';
 import { detectSteamIds, buildSteamEmbed, buildVanityEmbed } from '../services/steamService.js';
@@ -13,6 +14,11 @@ import logger from '../logger.js';
 const fetchGuild = (client) => client.guilds.fetch(config.guild.id);
 
 const log = logger.child({ module: 'ticketMessages' });
+
+const allTicketStaffRoles = () => {
+  const r = config.tickets.roles || {};
+  return [...(r.normal || []), ...(r.communityOfficer || []), ...(r.adminOfficer || []), ...(r.compTeam || []), ...(r.whitelist || [])];
+};
 
 async function sendStaffReply(message, ticket, replyContent, anonymous) {
   if (!replyContent && message.attachments.size === 0) {
@@ -79,6 +85,7 @@ export async function handleGuild(message) {
   const cmd = parseTextCommand(message.content);
 
   if (cmd?.type === 'close') {
+    if (!hasAnyRole(message.member, allTicketStaffRoles())) return true;
     await beginCloseGracePeriod(ticket, message.author.id, message.channel, message.client);
     await message.delete().catch(() => null);
     log.info({ ticketId: ticket.id, closedBy: message.author.id }, 'Ticket closed via !close');
@@ -90,7 +97,8 @@ export async function handleGuild(message) {
     if (previous.length === 0) {
       await message.channel.send('This user has no previous tickets.');
     } else {
-      const { embed, components } = buildLogsPage(previous, 1, ticket.user_id, ticket.tier);
+      const page = Math.max(1, parseInt(cmd.content, 10) || 1);
+      const { embed, components } = buildLogsPage(previous, page, ticket.user_id, ticket.tier);
       await message.channel.send({ embeds: [embed], components });
     }
     await message.delete().catch(() => null);
@@ -98,12 +106,14 @@ export async function handleGuild(message) {
   }
 
   if (cmd?.type === 'reply') {
-    const anonymous = isAnonymousMode(message.channel.id);
+    if (!hasAnyRole(message.member, allTicketStaffRoles())) return true;
+    const anonymous = await isAnonymousMode(message.channel.id);
     await sendStaffReply(message, ticket, cmd.content, anonymous);
     return true;
   }
 
   if (cmd?.type === 'anonymous_reply') {
+    if (!hasAnyRole(message.member, allTicketStaffRoles())) return true;
     await sendStaffReply(message, ticket, cmd.content, true);
     return true;
   }
@@ -139,7 +149,7 @@ export async function handleGuild(message) {
 }
 
 const LOGS_PAGE_SIZE = 10;
-const TIER_SHORT = { normal: 'Normal', community_officer: 'Community', admin_officer: 'Admin', legacy: 'Legacy' };
+const TIER_SHORT = { normal: 'Normal', community_officer: 'Community', admin_officer: 'Admin', comp_team: 'Comp', whitelist: 'WL', legacy: 'Legacy' };
 
 export function buildLogsPage(tickets, page, userId, tier) {
   const totalPages = Math.ceil(tickets.length / LOGS_PAGE_SIZE);

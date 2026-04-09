@@ -6,6 +6,7 @@ const log = logger.child({ module: 'seedingSocket' });
 
 const connections = new Map(); // name -> { socket, state }
 let discordClient = null;
+let watchdogInterval = null;
 
 const KNOWN_EVENTS = [
   'UPDATED_A2S_INFORMATION', 'UPDATED_PLAYER_INFORMATION',
@@ -191,7 +192,7 @@ export function connect(client) {
 
   // Watchdog: detect zombie connections every 60s
   let watchdogTicks = 0;
-  setInterval(() => {
+  watchdogInterval = setInterval(() => {
     const now = Date.now();
     watchdogTicks++;
 
@@ -223,6 +224,7 @@ export function connect(client) {
 }
 
 export function disconnect() {
+  if (watchdogInterval) { clearInterval(watchdogInterval); watchdogInterval = null; }
   for (const [name, conn] of connections) {
     if (conn.socket) {
       conn.socket.removeAllListeners();

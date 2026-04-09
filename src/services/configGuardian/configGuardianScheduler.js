@@ -1,4 +1,5 @@
 import logger from '../../logger.js';
+import { createScheduler } from '../../utils/scheduler.js';
 import { ConfigGuardian } from './configGuardianService.js';
 import { runBackup } from './configGuardianBackup.js';
 import config from '../../config.js';
@@ -6,8 +7,8 @@ import config from '../../config.js';
 const log = logger.child({ module: 'configGuardian' });
 
 let guardian = null;
-let pollIntervalId = null;
 let backupIntervalId = null;
+let lastBackupDate = null;
 
 function getRepoUrl() {
   if (process.env.GIT_REPO_URL) return process.env.GIT_REPO_URL;
@@ -50,10 +51,19 @@ async function poll(client) {
 
 async function dailyBackup() {
   if (!guardian) return;
+  const today = new Date().toISOString().slice(0, 10);
+  if (lastBackupDate === today) return;
+  lastBackupDate = today;
   const repoUrl = getRepoUrl();
   if (!repoUrl) return;
   await runBackup(guardian, repoUrl);
 }
+
+const pollScheduler = createScheduler({
+  name: 'configGuardianPoll',
+  intervalMs: 60_000,
+  tick: poll,
+});
 
 export async function startScheduler(client) {
   const sftpHost = process.env.SFTP_HOST;
@@ -78,7 +88,7 @@ export async function startScheduler(client) {
       path: sftpPath,
     });
     await guardian.init();
-    pollIntervalId = setInterval(() => poll(client), 60_000);
+    pollScheduler.start(client);
     backupIntervalId = setInterval(() => {
       const now = new Date();
       if (now.getUTCHours() === 2 && now.getUTCMinutes() === 45) dailyBackup();
@@ -90,7 +100,7 @@ export async function startScheduler(client) {
 }
 
 export function stopScheduler() {
-  if (pollIntervalId) { clearInterval(pollIntervalId); pollIntervalId = null; }
+  pollScheduler.stop();
   if (backupIntervalId) { clearInterval(backupIntervalId); backupIntervalId = null; }
   guardian = null;
 }

@@ -252,16 +252,20 @@ export async function handleEndVote(interaction) {
 
   const counts = await getVoteCounts(prospect.id);
 
+  const MIN_VOTES = config.prospects?.minYesVotes ?? 10;
+  const MIN_RATE = config.prospects?.minYesRate ?? 0.80;
+
+  // Design: "unsure" votes are intentionally excluded from the pass/fail ratio -- only yes/no determine outcome
   const totalVotes = counts.yes + counts.no;
   const yesRate = totalVotes > 0 ? counts.yes / totalVotes : 0;
-  const meetsMinimum = counts.yes >= 10;
-  const meetsRate = yesRate >= 0.80;
+  const meetsMinimum = counts.yes >= MIN_VOTES;
+  const meetsRate = yesRate >= MIN_RATE;
   const outcome = (meetsMinimum && meetsRate) ? 'accepted' : 'denied';
 
   if (outcome === 'denied' && (!meetsMinimum || !meetsRate)) {
     const warnings = [];
-    if (!meetsMinimum) warnings.push(`${counts.yes}/10 minimum yes votes`);
-    if (!meetsRate) warnings.push(`${Math.round(yesRate * 100)}% of 80% required yes rate`);
+    if (!meetsMinimum) warnings.push(`${counts.yes}/${MIN_VOTES} minimum yes votes`);
+    if (!meetsRate) warnings.push(`${Math.round(yesRate * 100)}% of ${Math.round(MIN_RATE * 100)}% required yes rate`);
     await interaction.channel.send({
       embeds: [infoEmbed(`Thresholds not met: ${warnings.join(', ')}. Prospect will be **denied**.`)],
     }).catch(() => null);

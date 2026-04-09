@@ -1,13 +1,13 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { createEmbed } from '../../utils/embed.js';
+import { isTestSteamId, getProspectDates } from './prospectService.js';
 import config from '../../config.js';
 
 export function buildProspectInfoEmbed(member, prospect, forumUrl) {
   const userTag = member?.user.tag || prospect.user_id;
-  const { periodDays, voteDaysBefore } = config.prospects;
 
   const steamId = prospect.steam_id;
-  const steamLinks = steamId && steamId.toUpperCase() !== 'Q'
+  const steamLinks = !isTestSteamId(steamId)
     ? [
         `[steamid.io](https://steamid.io/lookup/${steamId})`,
         `[BattleMetrics](https://www.battlemetrics.com/rcon/players?filter[search]=${steamId})`,
@@ -37,18 +37,14 @@ export function buildProspectInfoEmbed(member, prospect, forumUrl) {
   }
 
   if (prospect.forum_thread_id) {
+    const { periodEnd, voteDate, isPaused } = getProspectDates(prospect);
     const extra = prospect.extra_days || 0;
-    const totalPeriod = periodDays + extra;
-    const daysUntilVote = (periodDays - voteDaysBefore) + extra;
+    const pausedSuffix = isPaused ? ' (PAUSED)' : '';
 
-    const endDate = new Date(prospect.created_at);
-    endDate.setDate(endDate.getDate() + totalPeriod);
-    const endDateStr = `<t:${Math.floor(endDate.getTime() / 1000)}:D>`;
+    const endDateStr = `<t:${Math.floor(periodEnd.getTime() / 1000)}:D>${pausedSuffix}`;
     embed.addFields({ name: 'Period Ends', value: endDateStr, inline: true });
 
-    const voteDate = new Date(prospect.created_at);
-    voteDate.setDate(voteDate.getDate() + daysUntilVote);
-    const voteDateStr = `<t:${Math.floor(voteDate.getTime() / 1000)}:D>`;
+    const voteDateStr = `<t:${Math.floor(voteDate.getTime() / 1000)}:D>${pausedSuffix}`;
     embed.addFields({ name: 'Vote Date', value: voteDateStr, inline: true });
 
     if (extra > 0) {
@@ -67,18 +63,10 @@ export function buildProspectInfoEmbed(member, prospect, forumUrl) {
   return embed;
 }
 
-export function buildForumIntroEmbed(member, prospect, baseDate = new Date()) {
+export function buildForumIntroEmbed(member, prospect) {
   const userTag = member?.user.tag || 'Unknown';
-  const { periodDays, voteDaysBefore } = config.prospects;
-  const extra = prospect.extra_days || 0;
-  const totalPeriod = periodDays + extra;
-  const daysUntilVote = (periodDays - voteDaysBefore) + extra;
-
-  const start = new Date(baseDate);
-  const endDate = new Date(start);
-  endDate.setDate(endDate.getDate() + totalPeriod);
-  const voteDate = new Date(start);
-  voteDate.setDate(voteDate.getDate() + daysUntilVote);
+  const { periodEnd, voteDate, isPaused } = getProspectDates(prospect);
+  const pausedSuffix = isPaused ? ' (PAUSED)' : '';
 
   return createEmbed('Prospect')
     .setTitle(`${prospect.alias} - Prospect Application`)
@@ -93,8 +81,8 @@ export function buildForumIntroEmbed(member, prospect, baseDate = new Date()) {
       { name: 'Active Hours (UTC)', value: prospect.active_hours, inline: true },
       { name: 'Competitive Interest', value: prospect.competitive, inline: true },
       { name: 'Steam ID', value: prospect.steam_id, inline: true },
-      { name: 'Period Ends', value: `<t:${Math.floor(endDate.getTime() / 1000)}:D>`, inline: true },
-      { name: 'Vote Date', value: `<t:${Math.floor(voteDate.getTime() / 1000)}:D>`, inline: true },
+      { name: 'Period Ends', value: `<t:${Math.floor(periodEnd.getTime() / 1000)}:D>${pausedSuffix}`, inline: true },
+      { name: 'Vote Date', value: `<t:${Math.floor(voteDate.getTime() / 1000)}:D>${pausedSuffix}`, inline: true },
     )
     .setColor(0x57f287)
     .setThumbnail(member?.user.displayAvatarURL() || null);
@@ -199,13 +187,9 @@ export function buildAcceptedAnnouncementEmbed(member, prospect) {
 }
 
 export function buildVoteEmbed(prospect, playtimeStats = null) {
-  const { periodDays } = config.prospects;
+  const { periodEnd } = getProspectDates(prospect);
   const extra = prospect.extra_days || 0;
-  const totalPeriod = periodDays + extra;
-
-  const endDate = new Date(prospect.created_at);
-  endDate.setDate(endDate.getDate() + totalPeriod);
-  const endDateStr = `<t:${Math.floor(endDate.getTime() / 1000)}:D>`;
+  const endDateStr = `<t:${Math.floor(periodEnd.getTime() / 1000)}:D>`;
 
   const embed = createEmbed('Prospect')
     .setTitle(`Vote - ${prospect.alias}`)

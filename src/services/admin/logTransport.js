@@ -72,7 +72,7 @@ export const dbLogStream = new Writable({
   },
 });
 
-export function flushLogs() {
-  if (timer) { clearTimeout(timer); timer = null; }
-  return flush();
+export async function flushLogs() {
+  if (timer) { clearTimeout(timer); timer = null }
+  while (buffer.length > 0) await flush()
 }

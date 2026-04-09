@@ -5,21 +5,23 @@ import {
   buildVerifyFailEmbed,
   buildVerifyCooldownEmbed,
 } from '../services/verify/verifyEmbeds.js';
+import { CooldownManager } from '../utils/cooldown.js';
 import config from '../config.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'verifyButtons' });
 
 // --- Cooldown ---
-const cooldowns = new Map();
-const COOLDOWN_MS = 30_000;
+const cooldowns = new CooldownManager(30_000);
 
+// --- Pending verifications (server-side answer tracking) ---
+const pendingVerifications = new Map();
 setInterval(() => {
   const now = Date.now();
-  for (const [id, ts] of cooldowns) {
-    if (now - ts > COOLDOWN_MS) cooldowns.delete(id);
+  for (const [id, entry] of pendingVerifications) {
+    if (now > entry.expiresAt) pendingVerifications.delete(id);
   }
-}, 5 * 60 * 1000).unref();
+}, 5 * 60_000).unref();
 
 // --- Math challenge generator ---
 function generateChallenge() {
@@ -86,25 +88,23 @@ export async function handleStart(interaction) {
     });
   }
 
-  const lastWrong = cooldowns.get(interaction.user.id);
-  if (lastWrong) {
-    const remaining = Math.ceil((COOLDOWN_MS - (Date.now() - lastWrong)) / 1000);
-    if (remaining > 0) {
-      await sendLog(interaction, buildVerifyCooldownEmbed(interaction.user, remaining));
-      return interaction.reply({
-        embeds: [errorEmbed(`Please wait ${remaining} seconds before trying again.`)],
-        flags: ['Ephemeral'],
-      });
-    }
-    cooldowns.delete(interaction.user.id);
+  const remaining = cooldowns.check(interaction.user.id);
+  if (remaining > 0) {
+    const secs = Math.ceil(remaining / 1000);
+    await sendLog(interaction, buildVerifyCooldownEmbed(interaction.user, secs));
+    return interaction.reply({
+      embeds: [errorEmbed(`Please wait ${secs} seconds before trying again.`)],
+      flags: ['Ephemeral'],
+    });
   }
 
   const { question, choices, correctIndex } = generateChallenge();
+  pendingVerifications.set(interaction.user.id, { correctIndex, expiresAt: Date.now() + 120_000 });
 
   const row = new ActionRowBuilder().addComponents(
     choices.map((choice, i) =>
       new ButtonBuilder()
-        .setCustomId(`verify_answer_${i}_${correctIndex}`)
+        .setCustomId(`verify_answer_${i}`)
         .setLabel(String(choice))
         .setStyle(ButtonStyle.Secondary)
     )
@@ -136,7 +136,18 @@ export async function handleAnswer(interaction) {
 
   const parts = interaction.customId.split('_');
   const clicked = parseInt(parts[2], 10);
-  const correct = parseInt(parts[3], 10);
+  const entry = pendingVerifications.get(interaction.user.id);
+
+  if (!entry) {
+    return interaction.update({
+      embeds: [errorEmbed('Challenge expired. Please click **Verify** to try again.')],
+      components: [],
+      content: '',
+    });
+  }
+
+  const correct = entry.correctIndex;
+  pendingVerifications.delete(interaction.user.id);
 
   // Extract the question and answers from the message
   const question = interaction.message.content?.replace(/\*/g, '') || 'Unknown';
@@ -155,7 +166,7 @@ export async function handleAnswer(interaction) {
     });
   }
 
-  cooldowns.set(interaction.user.id, Date.now());
+  cooldowns.set(interaction.user.id);
   log.info({ userId: interaction.user.id }, 'Verification failed - wrong answer');
   await sendLog(interaction, buildVerifyFailEmbed(interaction.user, question, userAnswer, correctAnswer));
   return interaction.update({

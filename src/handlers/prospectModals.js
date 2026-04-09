@@ -207,6 +207,7 @@ export async function handleExtendModal(interaction) {
 }
 
 export async function handleVoteNoModal(interaction) {
+  if (await requireRole(interaction, staffRoles())) return;
   await interaction.deferUpdate();
   const prospectId = parseInt(interaction.customId.split(':')[1], 10);
   if (isNaN(prospectId)) return;

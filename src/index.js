@@ -13,8 +13,11 @@ import { stopScheduler as stopConfigGuardian } from './services/configGuardian/c
 import { finalizeAllSessions } from './services/activity/voiceTracker.js';
 import { stopScheduler as stopActivityScheduler } from './services/activity/activityScheduler.js';
 import { flushLogs } from './services/admin/logTransport.js';
+import { stopActionProcessor } from './services/actionProcessor.js';
 
 const log = logger.child({ module: 'main' });
+
+let shuttingDown = false;
 
 async function main() {
   log.info(`Starting ${config.bot.name} v${config.bot.version}`);
@@ -35,6 +38,8 @@ async function main() {
   await client.login(config.discord.token);
 
   const shutdown = async (signal) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     log.info(`Received ${signal}, shutting down gracefully...`);
     stopScheduler();
     stopSeedingScheduler();
@@ -43,6 +48,7 @@ async function main() {
     stopStatusUpdater();
     stopConfigGuardian();
     stopActivityScheduler();
+    stopActionProcessor();
     await finalizeAllSessions();
     await stopHeartbeat();
     await flushLogs();

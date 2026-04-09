@@ -3,7 +3,7 @@
  */
 export async function findBotMessageByCustomId(channel, botUserId, customIds) {
   const ids = Array.isArray(customIds) ? customIds : [customIds];
-  const messages = await channel.messages.fetch({ limit: 20 });
+  const messages = await channel.messages.fetch({ limit: 100 });
   return messages.find(
     (m) =>
       m.author.id === botUserId &&

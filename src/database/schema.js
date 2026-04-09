@@ -22,9 +22,12 @@ export async function initSchema() {
   `);
 
   // Ticket table migrations
-  await query(`ALTER TABLE tickets MODIFY COLUMN status ENUM('open', 'closing', 'closed') DEFAULT 'open'`);
+  // MODIFY COLUMN has no IF NOT EXISTS in MariaDB — .catch() keeps re-runs safe
+  await query(`ALTER TABLE tickets MODIFY COLUMN status ENUM('open', 'closing', 'closed') DEFAULT 'open'`).catch(e => log.warn({ err: e.message }, 'tickets.status MODIFY skipped'));
   await query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS reason TEXT NULL`);
-  await query(`ALTER TABLE tickets MODIFY COLUMN tier ENUM('normal','community_officer','admin_officer','comp_team','whitelist') DEFAULT 'normal'`);
+  await query(`ALTER TABLE tickets MODIFY COLUMN tier ENUM('normal','community_officer','admin_officer','comp_team','whitelist') DEFAULT 'normal'`).catch(e => log.warn({ err: e.message }, 'tickets.tier MODIFY skipped'));
+  await query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS anonymous_mode TINYINT(1) DEFAULT 0`);
+  await query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS info_message_id VARCHAR(20)`);
 
   await query(`
     CREATE TABLE IF NOT EXISTS ticket_messages (
@@ -58,7 +61,7 @@ export async function initSchema() {
     )
   `);
 
-  await query(`ALTER TABLE ticket_events MODIFY COLUMN event_type ENUM('created', 'escalated', 'closed', 'reopened') NOT NULL`);
+  await query(`ALTER TABLE ticket_events MODIFY COLUMN event_type ENUM('created', 'escalated', 'closed', 'reopened') NOT NULL`).catch(e => log.warn({ err: e.message }, 'ticket_events.event_type MODIFY skipped'));
 
   await query(`
     CREATE TABLE IF NOT EXISTS ticket_timeouts (
@@ -172,7 +175,8 @@ export async function initSchema() {
   // Prospect table migrations
   await query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS extra_days INT DEFAULT 0`);
   await query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS paused_at TIMESTAMP NULL`);
-  await query(`ALTER TABLE prospect_events MODIFY COLUMN event_type ENUM('created', 'vote_started', 'accepted', 'denied', 'closed', 'paused', 'unpaused', 'extended', 'unclaimed') NOT NULL`);
+  await query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS period_started_at TIMESTAMP NULL`);
+  await query(`ALTER TABLE prospect_events MODIFY COLUMN event_type ENUM('created', 'vote_started', 'accepted', 'denied', 'closed', 'paused', 'unpaused', 'extended', 'unclaimed') NOT NULL`).catch(e => log.warn({ err: e.message }, 'prospect_events.event_type MODIFY skipped'));
   await query(`ALTER TABLE prospect_votes ADD COLUMN IF NOT EXISTS reason TEXT NULL`);
 
   // ── Seeding tables ──
@@ -306,12 +310,13 @@ export async function initSchema() {
   `);
 
   // Prospect event migration — add mentor_reassigned
-  await query(`ALTER TABLE prospect_events MODIFY COLUMN event_type ENUM('created','vote_started','accepted','denied','closed','paused','unpaused','extended','unclaimed','mentor_reassigned') NOT NULL`);
+  // MODIFY COLUMN has no IF NOT EXISTS in MariaDB — .catch() keeps re-runs safe
+  await query(`ALTER TABLE prospect_events MODIFY COLUMN event_type ENUM('created','vote_started','accepted','denied','closed','paused','unpaused','extended','unclaimed','mentor_reassigned') NOT NULL`).catch(e => log.warn({ err: e.message }, 'prospect_events.event_type MODIFY skipped'));
 
   // Widen actor_id to accommodate Prisma CUIDs (25 chars) from web app
-  await query(`ALTER TABLE pending_actions MODIFY COLUMN actor_id VARCHAR(30) NOT NULL`);
-  await query(`ALTER TABLE ticket_events MODIFY COLUMN actor_id VARCHAR(30) NOT NULL`);
-  await query(`ALTER TABLE prospect_events MODIFY COLUMN actor_id VARCHAR(30) NOT NULL`);
+  await query(`ALTER TABLE pending_actions MODIFY COLUMN actor_id VARCHAR(30) NOT NULL`).catch(e => log.warn({ err: e.message }, 'pending_actions.actor_id MODIFY skipped'));
+  await query(`ALTER TABLE ticket_events MODIFY COLUMN actor_id VARCHAR(30) NOT NULL`).catch(e => log.warn({ err: e.message }, 'ticket_events.actor_id MODIFY skipped'));
+  await query(`ALTER TABLE prospect_events MODIFY COLUMN actor_id VARCHAR(30) NOT NULL`).catch(e => log.warn({ err: e.message }, 'prospect_events.actor_id MODIFY skipped'));
 
   // ── Performance indexes ──
 

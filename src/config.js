@@ -44,9 +44,9 @@ const config = Object.freeze({
   },
   // Merge env vars with settings.battlemetrics (explicit key overrides spread above)
   battlemetrics: {
-    token: process.env.BM_TOKEN,
-    serverId: process.env.BM_SERVER_ID,
     ...settings.battlemetrics,
+    token: process.env.BM_TOKEN || settings.battlemetrics?.token,
+    serverId: process.env.BM_SERVER_ID || settings.battlemetrics?.serverId,
   },
 });
 

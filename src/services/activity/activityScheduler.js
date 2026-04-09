@@ -1,6 +1,7 @@
 import { flushActiveSessions } from './voiceTracker.js';
 import { query } from '../../database/connection.js';
 import logger from '../../logger.js';
+import { createScheduler } from '../../utils/scheduler.js';
 
 const log = logger.child({ module: 'activityScheduler' });
 
@@ -8,26 +9,18 @@ const FLUSH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const CLEANUP_CHECK_MS = 60 * 60 * 1000; // 1 hour
 const RETENTION_DAYS = 365;
 
-let flushIntervalId = null;
 let cleanupIntervalId = null;
 let lastCleanupDate = null;
 
-export function startScheduler() {
-  if (flushIntervalId) {
-    log.warn('Activity scheduler already running');
-    return;
-  }
-
-  log.info('Starting activity scheduler (5m flush, daily cleanup)');
-
-  flushIntervalId = setInterval(() => {
-    flushActiveSessions().catch((err) => {
-      log.error({ err }, 'Periodic voice session flush failed');
-    });
-  }, FLUSH_INTERVAL_MS);
-
-  cleanupIntervalId = setInterval(() => runCleanup(), CLEANUP_CHECK_MS);
+async function flushTick() {
+  await flushActiveSessions();
 }
+
+const flushScheduler = createScheduler({
+  name: 'activityScheduler',
+  intervalMs: FLUSH_INTERVAL_MS,
+  tick: flushTick,
+});
 
 async function runCleanup() {
   const today = new Date().toISOString().slice(0, 10);
@@ -58,11 +51,13 @@ async function runCleanup() {
   }
 }
 
+export function startScheduler() {
+  flushScheduler.start();
+  cleanupIntervalId = setInterval(() => runCleanup(), CLEANUP_CHECK_MS);
+}
+
 export function stopScheduler() {
-  if (flushIntervalId) {
-    clearInterval(flushIntervalId);
-    flushIntervalId = null;
-  }
+  flushScheduler.stop();
   if (cleanupIntervalId) {
     clearInterval(cleanupIntervalId);
     cleanupIntervalId = null;

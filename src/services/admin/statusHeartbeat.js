@@ -1,6 +1,7 @@
 import { query } from '../../database/connection.js';
 import { isConnected as isSquadJsConnected } from '../seeding/seedingSocket.js';
 import { isSchedulerActive as isSeedingActive } from '../seeding/seedingScheduler.js';
+import { isSchedulerActive as isProspectActive } from '../prospect/prospectScheduler.js';
 import logger from '../../logger.js';
 
 const log = logger.child({ module: 'statusHeartbeat' });
@@ -63,7 +64,7 @@ async function writeBeat(client) {
       db_connected = ?,
       squadjs_connected = ?,
       seeding_scheduler_active = ?,
-      prospect_scheduler_active = 0,
+      prospect_scheduler_active = ?,
       started_at = COALESCE(started_at, ?)
     WHERE id = 1`,
     [
@@ -74,6 +75,7 @@ async function writeBeat(client) {
       dbConnected,
       isSquadJsConnected() ? 1 : 0,
       isSeedingActive() ? 1 : 0,
+      isProspectActive() ? 1 : 0,
       botStartedAt,
     ]
   );

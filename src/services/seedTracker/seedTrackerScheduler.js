@@ -1,54 +1,44 @@
 import config from '../../config.js';
 import logger from '../../logger.js';
+import { createScheduler } from '../../utils/scheduler.js';
 import { getTopSeeders, getPlayerSeedStats } from './seedTrackerService.js';
 import { buildLeaderboardEmbed, buildExpiryWarningEmbed } from './seedTrackerEmbeds.js';
 import { query } from '../../database/connection.js';
 
 const log = logger.child({ module: 'seedTrackerScheduler' });
 
-let intervalId = null;
 let lastLeaderboardMonth = null;
 let lastExpiryCheckDate = null;
 
-export function startScheduler(client) {
-  if (intervalId) return;
-  // Check every hour for leaderboard/expiry
-  intervalId = setInterval(() => tick(client), 3600000);
-  log.info('Seed tracker scheduler started');
-}
-
-export function stopScheduler() {
-  if (intervalId) {
-    clearInterval(intervalId);
-    intervalId = null;
-    log.info('Seed tracker scheduler stopped');
-  }
-}
-
 async function tick(client) {
-  try {
-    const seedTracker = config.seedTracker;
-    if (!seedTracker) return;
+  const seedTracker = config.seedTracker;
+  if (!seedTracker) return;
 
-    const now = new Date();
-    const currentMonth = `${now.getFullYear()}-${now.getMonth()}`;
-    const currentDate = now.toISOString().slice(0, 10);
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${now.getMonth()}`;
+  const currentDate = now.toISOString().slice(0, 10);
 
-    // Monthly leaderboard: post on the 1st of each month
-    if (now.getDate() === 1 && lastLeaderboardMonth !== currentMonth) {
-      lastLeaderboardMonth = currentMonth;
-      await postLeaderboard(client, seedTracker);
-    }
+  // Monthly leaderboard: post on the 1st of each month
+  if (now.getDate() === 1 && lastLeaderboardMonth !== currentMonth) {
+    lastLeaderboardMonth = currentMonth;
+    await postLeaderboard(client, seedTracker);
+  }
 
-    // Daily expiry check
-    if (lastExpiryCheckDate !== currentDate) {
-      lastExpiryCheckDate = currentDate;
-      await checkExpiringWhitelists(client, seedTracker);
-    }
-  } catch (err) {
-    log.error({ err }, 'Seed tracker scheduler tick failed');
+  // Daily expiry check
+  if (lastExpiryCheckDate !== currentDate) {
+    lastExpiryCheckDate = currentDate;
+    await checkExpiringWhitelists(client, seedTracker);
   }
 }
+
+const scheduler = createScheduler({
+  name: 'seedTrackerScheduler',
+  intervalMs: 3600000,
+  tick,
+});
+
+export function startScheduler(client) { scheduler.start(client); }
+export function stopScheduler() { scheduler.stop(); }
 
 async function postLeaderboard(client, seedTracker) {
   const channelId = seedTracker.leaderboardChannelId;

@@ -48,5 +48,6 @@ export async function handleTabSwitch(interaction) {
     await interaction.editReply({ embeds: [result.embed], components: result.components });
   } catch (err) {
     log.error({ err, userId, tab }, 'Activity tab switch failed');
+    await interaction.editReply({ content: 'Failed to load activity data.' }).catch(() => {});
   }
 }

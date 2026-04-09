@@ -1,7 +1,6 @@
 import { query } from '../../database/connection.js'
 import { createEmbed } from '../../utils/embed.js'
-import { buildProspectInfoEmbed, buildProspectComponents, buildProspectAcceptedComponents } from './prospectEmbeds.js'
-import { findBotMessageByCustomId } from '../../utils/messageSearch.js'
+import { refreshStaffEmbed } from './prospectService.js'
 import logger from '../../logger.js'
 
 const log = logger.child({ module: 'teamRole' })
@@ -169,22 +168,3 @@ export async function reassignMentor(prospect, newMentorId, actorId, guild) {
   log.info({ prospectId: prospect.id, oldMentorId, newMentorId, actorId }, 'Mentor reassigned')
 }
 
-async function refreshStaffEmbed(prospect, guild) {
-  const staffChannel = await guild.channels.fetch(prospect.channel_id).catch(() => null)
-  if (!staffChannel) return
-
-  const updated = (await query('SELECT * FROM prospects WHERE id = ?', [prospect.id]))[0]
-  const member = await guild.members.fetch(updated.user_id).catch(() => null)
-  const forumUrl = updated.forum_thread_id
-    ? `https://discord.com/channels/${guild.id}/${updated.forum_thread_id}`
-    : null
-  const infoEmbed = buildProspectInfoEmbed(member, updated, forumUrl)
-  const components = updated.forum_thread_id
-    ? buildProspectAcceptedComponents(updated)
-    : buildProspectComponents(updated)
-
-  const topMsg = await findBotMessageByCustomId(staffChannel, guild.client.user.id, ['prospect_claim', 'prospect_accept', 'prospect_deny'])
-  if (topMsg) {
-    await topMsg.edit({ embeds: [infoEmbed], components })
-  }
-}

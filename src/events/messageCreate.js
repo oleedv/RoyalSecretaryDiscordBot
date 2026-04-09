@@ -1,8 +1,5 @@
 import { Events, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
-import { getOpenTicketByUser, getClosingTicketByUser, reopenTicket, getClosedTicketsByUser } from '../services/ticket/ticketService.js';
-import { buildTicketInfoEmbed, buildTicketComponents } from '../services/ticket/ticketEmbeds.js';
-import { getStoredSteamId } from '../services/userService.js';
-import { findBotMessageByCustomId } from '../utils/messageSearch.js';
+import { getOpenTicketByUser, getClosingTicketByUser, reopenTicket, rebuildTicketInfoEmbed } from '../services/ticket/ticketService.js';
 import { getOpenProspectByUser, getProspectByUserWithChannel } from '../services/prospect/prospectService.js';
 import * as ticketMessages from '../handlers/ticketMessages.js';
 import * as prospectMessages from '../handlers/prospectMessages.js';
@@ -38,7 +35,7 @@ export default {
     } catch (err) {
       log.error({ err, userId: message.author?.id, channelId: message.channel?.id }, 'Error handling message');
       if (!message.guild) {
-        message.reply({ embeds: [errorEmbed('Something went wrong. Please try again later, or contact <@195412349153312768> Ole if this keeps happening.')] }).catch(() => {});
+        message.reply({ embeds: [errorEmbed('Something went wrong. Please try again later, or contact a server administrator if this keeps happening.')] }).catch(() => {});
       }
     }
   },
@@ -56,26 +53,18 @@ async function handleDM(message) {
   // Check for a ticket in the closing grace period - auto-reopen on user reply
   const closingTicket = await getClosingTicketByUser(message.author.id);
   if (closingTicket) {
-    await reopenTicket(closingTicket, message.author.id);
+    const reopenResult = await reopenTicket(closingTicket, message.author.id);
+    if (reopenResult.error) {
+      log.warn({ userId: message.author.id, ticketId: closingTicket.id }, 'Ticket reopen race: already reopened or closed');
+      await message.reply('This ticket is no longer available. Please open a new ticket if you need help.').catch(() => {});
+      return;
+    }
 
     const guild = await message.client.guilds.fetch(config.guild.id).catch(() => null);
     if (guild) {
       const channel = await guild.channels.fetch(closingTicket.channel_id).catch(() => null);
       if (channel) {
-        // Clean up stale messages from the closing state
-        const closedMsg = await findBotMessageByCustomId(channel, message.client.user.id, ['ticket_reopen']);
-        if (closedMsg) await closedMsg.delete().catch(() => null);
-        const oldInfoMsg = await findBotMessageByCustomId(channel, message.client.user.id, ['ticket_close']);
-        if (oldInfoMsg) await oldInfoMsg.delete().catch(() => null);
-
-        // Send fresh info embed with active buttons
-        const member = await guild.members.fetch(closingTicket.user_id).catch(() => null);
-        const userTag = member?.user.tag || closingTicket.user_id;
-        const steamId = await getStoredSteamId(closingTicket.user_id);
-        const previousTickets = await getClosedTicketsByUser(closingTicket.user_id, closingTicket.tier);
-        const embed = buildTicketInfoEmbed(userTag, closingTicket.user_id, closingTicket.uuid, closingTicket.tier, previousTickets.length, { steamId, reason: closingTicket.reason });
-        const components = buildTicketComponents(closingTicket.tier);
-        await channel.send({ embeds: [embed], components });
+        await rebuildTicketInfoEmbed(closingTicket, channel, message.client);
 
         await channel.send({
           embeds: [infoEmbed(`<@${message.author.id}> replied and this ticket has been reopened.`)],

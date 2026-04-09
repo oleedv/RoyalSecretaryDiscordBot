@@ -29,7 +29,7 @@ export async function getSteamProfile(steamId) {
       accountCreated: player.timecreated ? new Date(player.timecreated * 1000).toISOString().slice(0, 10) : null,
     };
   } catch (err) {
-    log.warn({ err, steamId }, 'Steam: profile fetch failed');
+    log.warn({ err: err.message, steamId }, 'Steam: profile fetch failed');
     return null;
   }
 }
@@ -55,7 +55,7 @@ export async function getSteamBans(steamId) {
       economyBan: player.EconomyBan || 'none',
     };
   } catch (err) {
-    log.warn({ err, steamId }, 'Steam: bans fetch failed');
+    log.warn({ err: err.message, steamId }, 'Steam: bans fetch failed');
     return null;
   }
 }
@@ -74,8 +74,8 @@ export function validateSteamInput(input) {
 
   const trimmed = input.trim();
 
-  // Allow "Q" as a special-case valid input
-  if (trimmed.toUpperCase() === 'Q') return { valid: true, steamId: trimmed };
+  // Allow "Q" as a special-case valid input (non-production only)
+  if (trimmed.toUpperCase() === 'Q' && process.env.NODE_ENV !== 'production') return { valid: true, steamId: trimmed };
 
   // Try extracting from profile URL
   const profileMatch = trimmed.match(/steamcommunity\.com\/profiles\/(7656119\d{10})/);

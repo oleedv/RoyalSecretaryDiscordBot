@@ -1,3 +1,4 @@
+import { findBotMessageByCustomId } from './messageSearch.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'panelManager' });
@@ -23,14 +24,7 @@ export async function ensurePanel(client, channelId, customId, buildMessage, lab
     return;
   }
 
-  const messages = await channel.messages.fetch({ limit: 50 });
-  const existingPanel = messages.find(
-    (msg) =>
-      msg.author.id === client.user.id &&
-      msg.components.some((row) =>
-        row.components.some((c) => c.customId === customId)
-      )
-  );
+  const existingPanel = await findBotMessageByCustomId(channel, client.user.id, customId);
 
   const payload = buildMessage();
 
