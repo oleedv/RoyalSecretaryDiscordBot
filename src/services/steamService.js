@@ -113,7 +113,7 @@ export function buildSteamEmbed(steamId) {
       {
         name: 'Links',
         value: [
-          `[steamid.io](https://steamid.io/lookup/${steamId})`,
+          `[steamid.com](https://www.steamid.com/lookup/${steamId})`,
           `[BattleMetrics](https://www.battlemetrics.com/rcon/players?filter[search]=${steamId})`,
           `[CBL](https://communitybanlist.com/search/${steamId})`,
         ].join(' | '),
@@ -130,7 +130,7 @@ export function buildVanityEmbed(vanityUrl) {
       {
         name: 'Links',
         value: [
-          `[steamid.io](https://steamid.io/lookup/${vanityUrl})`,
+          `[steamid.com](https://www.steamid.com/lookup/${vanityUrl})`,
           `[CBL](https://communitybanlist.com/search/${vanityUrl})`,
         ].join(' | '),
       }

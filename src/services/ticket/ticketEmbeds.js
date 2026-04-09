@@ -40,7 +40,7 @@ export function buildTicketInfoEmbed(userTag, userId, uuid, tier, previousCount 
       name: 'Steam ID',
       value: [
         `[${steamId}](https://steamcommunity.com/profiles/${steamId})`,
-        `[steamid.io](https://steamid.io/lookup/${steamId})`,
+        `[steamid.com](https://www.steamid.com/lookup/${steamId})`,
         `[BattleMetrics](https://www.battlemetrics.com/rcon/players?filter[search]=${steamId})`,
         `[CBL](https://communitybanlist.com/search/${steamId})`,
       ].join(' | '),

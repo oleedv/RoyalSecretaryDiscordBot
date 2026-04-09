@@ -7,6 +7,7 @@ import { buildProspectInfoEmbed, buildForumIntroEmbed, buildProspectComponents, 
 import * as bm from '../battlemetricsService.js';
 import * as whitelistService from '../whitelistService.js';
 import { fetchCblData } from '../cblService.js';
+import { getSteamBans } from '../steamService.js';
 import { getPlaytime, getConnectionStats } from '../playtimeService.js';
 import { getPlayerSeedStats, getSeedStreak } from '../seedTracker/seedTrackerService.js';
 import { getActivitySummary } from '../activity/activityService.js';
@@ -124,7 +125,8 @@ function appendAllStatsToMessage(message, steamId, userId, prospect) {
     getActivitySummary(userId, start, now).catch(() => null),
     fetchCblData(steamId).catch(() => null),
     bm.getPlayerBans(steamId).catch(() => null),
-  ]).then(async ([connStats, playtime, seedStats, seedStreak, activity, cblData, bmBans]) => {
+    getSteamBans(steamId).catch(() => null),
+  ]).then(async ([connStats, playtime, seedStats, seedStreak, activity, cblData, bmBans, steamBans]) => {
     const embed = message.embeds[0];
     if (!embed) return;
 
@@ -188,6 +190,29 @@ function appendAllStatsToMessage(message, steamId, userId, prospect) {
       fields.push({ name: 'BattleMetrics Bans', value: bmText.length > 1024 ? bmText.slice(0, 1021) + '...' : bmText });
     }
 
+    // Steam Bans (VAC / Game Bans)
+    if (steamBans) {
+      const lines = [];
+      if (steamBans.vacBanned) {
+        lines.push(`VAC Banned: **Yes** (${steamBans.numberOfVacBans} ban${steamBans.numberOfVacBans !== 1 ? 's' : ''})`);
+      } else {
+        lines.push('VAC Banned: **No**');
+      }
+      if (steamBans.numberOfGameBans > 0) {
+        lines.push(`Game Bans: **${steamBans.numberOfGameBans}**`);
+      }
+      if (steamBans.daysSinceLastBan > 0 && (steamBans.vacBanned || steamBans.numberOfGameBans > 0)) {
+        lines.push(`Days Since Last Ban: **${steamBans.daysSinceLastBan}**`);
+      }
+      if (steamBans.communityBanned) {
+        lines.push('Community Banned: **Yes**');
+      }
+      if (steamBans.economyBan && steamBans.economyBan !== 'none') {
+        lines.push(`Economy Ban: **${steamBans.economyBan}**`);
+      }
+      fields.push({ name: 'Steam Bans', value: lines.join('\n'), inline: true });
+    }
+
     const embeds = [];
 
     if (fields.length > 0) {
@@ -199,7 +224,7 @@ function appendAllStatsToMessage(message, steamId, userId, prospect) {
     if (prospect) {
       try {
         const aiText = await generateProspectEvaluation(prospect, {
-          connStats, playtime, seedStats, seedStreak, activity, cblData, bmBans,
+          connStats, playtime, seedStats, seedStreak, activity, cblData, bmBans, steamBans,
         });
         if (aiText) {
           const truncated = aiText.length > 4096 ? aiText.slice(0, 4093) + '...' : aiText;
