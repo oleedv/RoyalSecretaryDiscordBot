@@ -9,7 +9,7 @@ export function buildProspectInfoEmbed(member, prospect, forumUrl) {
   const steamId = prospect.steam_id;
   const steamLinks = !isTestSteamId(steamId)
     ? [
-        `[steamid.io](https://steamid.io/lookup/${steamId})`,
+        `[steamid.com](https://www.steamid.com/lookup/${steamId})`,
         `[BattleMetrics](https://www.battlemetrics.com/rcon/players?filter[search]=${steamId})`,
         `[CBL](https://communitybanlist.com/search/${steamId})`,
       ].join(' | ')

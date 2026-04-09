@@ -35,7 +35,7 @@ function formatPlayerList(players, rbSteamIds) {
 
   const names = sorted.map((p) => {
     const name = p.name || 'Unknown';
-    return rbSteamIds.has(p.steamID) ? `**${name}**` : name;
+    return rbSteamIds.has(p.steamID) ? `· **${name}**` : `· ${name}`;
   });
 
   const joined = names.join('\n');

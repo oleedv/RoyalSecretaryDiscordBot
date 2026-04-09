@@ -37,6 +37,12 @@ export function buildPanelMessage() {
           'When creating a ticket you can choose which team to contact: **Normal**, **Community Officer**, or **Admin Officer**. ' +
           'CO and Admin Officer options are restricted to clan members.',
       },
+      {
+        name: 'Steam ID',
+        value:
+          'The first time you create a ticket, you will need to provide your **Steam64 ID**. ' +
+          'You can find it by entering your Steam profile name or URL at [steamid.io](https://steamid.io/).',
+      },
     );
 
   const row = new ActionRowBuilder().addComponents(

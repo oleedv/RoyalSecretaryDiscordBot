@@ -141,9 +141,9 @@ export async function handleDeny(interaction) {
     new ActionRowBuilder().addComponents(
       new TextInputBuilder()
         .setCustomId('deny_reason')
-        .setLabel('Reason for denial')
+        .setLabel('Reason (will be sent to the prospect)')
         .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder('Provide a reason for denying this prospect...')
+        .setPlaceholder('This message will be sent to the prospect via DM. Provide a clear reason for denying this prospect...')
         .setMinLength(5)
         .setRequired(true)
     )

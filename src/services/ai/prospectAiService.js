@@ -85,6 +85,19 @@ function buildStatsContext(stats) {
     }
   }
 
+  if (stats.steamBans) {
+    const sb = stats.steamBans
+    lines.push('STEAM BANS:')
+    lines.push(`  VAC Banned: ${sb.vacBanned ? 'Yes' : 'No'}`)
+    if (sb.numberOfVacBans > 0) lines.push(`  Number of VAC Bans: ${sb.numberOfVacBans}`)
+    if (sb.numberOfGameBans > 0) lines.push(`  Game Bans: ${sb.numberOfGameBans}`)
+    if (sb.daysSinceLastBan > 0 && (sb.vacBanned || sb.numberOfGameBans > 0)) {
+      lines.push(`  Days Since Last Ban: ${sb.daysSinceLastBan}`)
+    }
+    if (sb.communityBanned) lines.push(`  Community Banned: Yes`)
+    if (sb.economyBan && sb.economyBan !== 'none') lines.push(`  Economy Ban: ${sb.economyBan}`)
+  }
+
   return lines.join('\n')
 }
 

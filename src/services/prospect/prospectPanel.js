@@ -52,7 +52,7 @@ export function buildPanelMessage() {
         name: 'How to Apply',
         value:
           '1. Press the **Join RB** button below\n' +
-          '2. Have your 17-digit Steam ID ready ([SteamID.io](https://steamid.io/))\n' +
+          '2. Have your 17-digit Steam ID ready ([SteamID.com](https://www.steamid.com/))\n' +
           '3. Enter your Steam ID and submit the application form\n' +
           '4. A Mentor will claim your ticket and invite you for a chat',
       },
