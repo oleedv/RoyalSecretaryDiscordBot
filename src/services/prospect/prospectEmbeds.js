@@ -3,14 +3,14 @@ import { createEmbed } from '../../utils/embed.js';
 import { isTestSteamId, getProspectDates } from './prospectService.js';
 import config from '../../config.js';
 
-export function buildProspectInfoEmbed(member, prospect, forumUrl) {
+export function buildProspectInfoEmbed(member, prospect, forumUrl, bmPlayerId = null) {
   const userTag = member?.user.tag || prospect.user_id;
 
   const steamId = prospect.steam_id;
   const steamLinks = !isTestSteamId(steamId)
     ? [
-        `[steamid.com](https://www.steamid.com/lookup/${steamId})`,
-        `[BattleMetrics](https://www.battlemetrics.com/rcon/players?filter[search]=${steamId})`,
+        `[steamid.com](https://www.steamid.com/profiles/${steamId})`,
+        `[BattleMetrics](${bmPlayerId ? `https://www.battlemetrics.com/rcon/players/${bmPlayerId}` : `https://www.battlemetrics.com/rcon/players?filter[search]=${steamId}`})`,
         `[CBL](https://communitybanlist.com/search/${steamId})`,
       ].join(' | ')
     : steamId;

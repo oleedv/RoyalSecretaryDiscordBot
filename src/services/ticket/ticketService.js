@@ -6,6 +6,7 @@ import { findBotMessageByCustomId } from '../../utils/messageSearch.js';
 import { buildTicketInfoEmbed, buildTicketComponents, TIER_CHANNEL_PREFIX, TIER_LABELS, TIER_COLORS } from './ticketEmbeds.js';
 import { query } from '../../database/connection.js';
 import { getStoredSteamId } from '../userService.js';
+import { resolvePlayerId } from '../battlemetricsService.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
 
@@ -240,8 +241,11 @@ async function _createTicket(userId, guild, { steamId, reason, tier = 'normal' }
 
   const userTag = member?.user.tag || userId;
 
-  const previousTickets = await getClosedTicketsByUser(userId, tier);
-  const embed = buildTicketInfoEmbed(userTag, userId, uuid, tier, previousTickets.length, { steamId, reason });
+  const [previousTickets, bmPlayerId] = await Promise.all([
+    getClosedTicketsByUser(userId, tier),
+    steamId ? resolvePlayerId(steamId) : null,
+  ]);
+  const embed = buildTicketInfoEmbed(userTag, userId, uuid, tier, previousTickets.length, { steamId, reason, bmPlayerId });
   const components = buildTicketComponents(tier);
 
   const infoMsg = await channel.send({ embeds: [embed], components });
@@ -308,8 +312,11 @@ export async function escalateTicket(ticket, tier, channel, actorId = null) {
   const userTag = member?.user.tag || ticket.user_id;
 
   const steamId = await getStoredSteamId(ticket.user_id);
-  const previousTickets = await getClosedTicketsByUser(ticket.user_id, tier);
-  const infoEmbed = buildTicketInfoEmbed(userTag, ticket.user_id, ticket.uuid, tier, previousTickets.length, { steamId, reason: ticket.reason });
+  const [previousTickets, bmPlayerId] = await Promise.all([
+    getClosedTicketsByUser(ticket.user_id, tier),
+    steamId ? resolvePlayerId(steamId) : null,
+  ]);
+  const infoEmbed = buildTicketInfoEmbed(userTag, ticket.user_id, ticket.uuid, tier, previousTickets.length, { steamId, reason: ticket.reason, bmPlayerId });
   const components = buildTicketComponents(tier, await isAnonymousMode(channel.id));
 
   const topMsg = await findTicketInfoMessage(channel, channel.client.user.id, { ...ticket, tier });
@@ -474,8 +481,11 @@ export async function rebuildTicketInfoEmbed(ticket, channel, client) {
   const member = await channel.guild.members.fetch(ticket.user_id).catch(() => null);
   const userTag = member?.user.tag || ticket.user_id;
   const steamId = await getStoredSteamId(ticket.user_id);
-  const previousTickets = await getClosedTicketsByUser(ticket.user_id, ticket.tier);
-  const embed = buildTicketInfoEmbed(userTag, ticket.user_id, ticket.uuid, ticket.tier, previousTickets.length, { steamId, reason: ticket.reason });
+  const [previousTickets, bmPlayerId] = await Promise.all([
+    getClosedTicketsByUser(ticket.user_id, ticket.tier),
+    steamId ? resolvePlayerId(steamId) : null,
+  ]);
+  const embed = buildTicketInfoEmbed(userTag, ticket.user_id, ticket.uuid, ticket.tier, previousTickets.length, { steamId, reason: ticket.reason, bmPlayerId });
   const components = buildTicketComponents(ticket.tier);
 
   const infoMsg = await channel.send({ embeds: [embed], components });

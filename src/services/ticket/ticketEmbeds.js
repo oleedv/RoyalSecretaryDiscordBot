@@ -25,7 +25,7 @@ export const TIER_CHANNEL_PREFIX = {
   whitelist: 'WH-',
 };
 
-export function buildTicketInfoEmbed(userTag, userId, uuid, tier, previousCount = 0, { steamId, reason } = {}) {
+export function buildTicketInfoEmbed(userTag, userId, uuid, tier, previousCount = 0, { steamId, reason, bmPlayerId } = {}) {
   const embed = createEmbed('Ticket')
     .setTitle('Ticket')
     .setDescription(`Opened by **${userTag}** (<@${userId}>)`)
@@ -40,8 +40,8 @@ export function buildTicketInfoEmbed(userTag, userId, uuid, tier, previousCount 
       name: 'Steam ID',
       value: [
         `[${steamId}](https://steamcommunity.com/profiles/${steamId})`,
-        `[steamid.com](https://www.steamid.com/lookup/${steamId})`,
-        `[BattleMetrics](https://www.battlemetrics.com/rcon/players?filter[search]=${steamId})`,
+        `[steamid.com](https://www.steamid.com/profiles/${steamId})`,
+        `[BattleMetrics](${bmPlayerId ? `https://www.battlemetrics.com/rcon/players/${bmPlayerId}` : `https://www.battlemetrics.com/rcon/players?filter[search]=${steamId}`})`,
         `[CBL](https://communitybanlist.com/search/${steamId})`,
       ].join(' | '),
     });

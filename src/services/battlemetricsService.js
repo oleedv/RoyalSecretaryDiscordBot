@@ -1,9 +1,11 @@
 import config from '../config.js';
 import logger from '../logger.js';
+import { query } from '../database/connection.js';
 
 const log = logger.child({ module: 'battlemetrics' });
 
 const BASE_URL = 'https://api.battlemetrics.com';
+const playerIdCache = new Map();
 
 function headers() {
   return {
@@ -18,6 +20,24 @@ export function isConfigured() {
 
 export async function playerSearch(steamId) {
   if (!isConfigured()) return null;
+
+  // Tier 1: in-memory cache
+  const cached = playerIdCache.get(steamId);
+  if (cached) return cached;
+
+  // Tier 2: database cache
+  try {
+    const rows = await query('SELECT bm_player_id, bm_player_name FROM bm_players WHERE steam_id = ?', [steamId]);
+    if (rows.length > 0) {
+      const result = { playerId: rows[0].bm_player_id, playerName: rows[0].bm_player_name };
+      playerIdCache.set(steamId, result);
+      return result;
+    }
+  } catch (err) {
+    log.warn({ err, steamId }, 'BM: db cache lookup failed');
+  }
+
+  // Tier 3: BM API
   try {
     log.info({ steamId }, 'BM: searching player');
     const orgId = config.battlemetrics.organisationId;
@@ -33,11 +53,23 @@ export async function playerSearch(steamId) {
       log.warn({ steamId }, 'BM: no player found');
       return null;
     }
-    return { playerId: player.id, playerName: player.attributes.name };
+    const result = { playerId: player.id, playerName: player.attributes.name };
+    playerIdCache.set(steamId, result);
+    query(
+      'INSERT INTO bm_players (steam_id, bm_player_id, bm_player_name) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE bm_player_name = VALUES(bm_player_name)',
+      [steamId, result.playerId, result.playerName]
+    ).catch((err) => log.warn({ err, steamId }, 'BM: db cache write failed'));
+    return result;
   } catch (err) {
     log.warn({ err, steamId }, 'BM: player search failed');
     return null;
   }
+}
+
+export async function resolvePlayerId(steamId) {
+  if (!isConfigured()) return null;
+  const result = await playerSearch(steamId);
+  return result?.playerId ?? null;
 }
 
 export async function getTimePlayed(playerId, startDate, endDate) {
