@@ -342,7 +342,8 @@ export async function createProspect(userId, guild, formData) {
   }
 
   const member = await guild.members.fetch(userId).catch(() => null);
-  const infoEmbed = buildProspectInfoEmbed(member, prospect);
+  const bmPlayerId = !isTestSteamId(prospect.steam_id) ? await bm.resolvePlayerId(prospect.steam_id) : null;
+  const infoEmbed = buildProspectInfoEmbed(member, prospect, null, bmPlayerId);
   const components = buildProspectComponents(prospect);
 
   const topMsg = await channel.send({ embeds: [infoEmbed], components });
@@ -384,7 +385,8 @@ export async function claimProspect(prospect, mentorId, guild) {
   if (staffChannel) {
     const member = await guild.members.fetch(prospect.user_id).catch(() => null);
     const updated = (await query('SELECT * FROM prospects WHERE id = ?', [prospect.id]))[0];
-    const infoEmbed = buildProspectInfoEmbed(member, updated);
+    const bmPlayerId = !isTestSteamId(updated.steam_id) ? await bm.resolvePlayerId(updated.steam_id) : null;
+    const infoEmbed = buildProspectInfoEmbed(member, updated, null, bmPlayerId);
     const components = buildProspectComponents(updated);
 
     const topMsg = await findBotMessageByCustomId(staffChannel, guild.client.user.id, ['prospect_claim', 'prospect_accept', 'prospect_deny']);
@@ -444,7 +446,8 @@ export async function unclaimProspect(prospect, actorId, guild) {
   if (staffChannel) {
     const member = await guild.members.fetch(prospect.user_id).catch(() => null);
     const updated = (await query('SELECT * FROM prospects WHERE id = ?', [prospect.id]))[0];
-    const infoEmbed = buildProspectInfoEmbed(member, updated);
+    const bmPlayerId = !isTestSteamId(updated.steam_id) ? await bm.resolvePlayerId(updated.steam_id) : null;
+    const infoEmbed = buildProspectInfoEmbed(member, updated, null, bmPlayerId);
     const components = buildProspectComponents(updated);
 
     const topMsg = await findBotMessageByCustomId(staffChannel, guild.client.user.id, ['prospect_claim', 'prospect_accept', 'prospect_deny', 'prospect_unclaim']);
@@ -498,7 +501,8 @@ export async function acceptProspect(prospect, acceptedById, guild) {
     const forumUrl = forumThreadId ? `https://discord.com/channels/${guild.id}/${forumThreadId}` : null;
 
     const updated = (await query('SELECT * FROM prospects WHERE id = ?', [prospect.id]))[0];
-    const infoEmbed = buildProspectInfoEmbed(member, updated, forumUrl);
+    const bmPlayerId = !isTestSteamId(updated.steam_id) ? await bm.resolvePlayerId(updated.steam_id) : null;
+    const infoEmbed = buildProspectInfoEmbed(member, updated, forumUrl, bmPlayerId);
     const components = buildProspectAcceptedComponents(updated);
 
     const topMsg = await findBotMessageByCustomId(staffChannel, guild.client.user.id, ['prospect_accept', 'prospect_deny']);
@@ -716,7 +720,8 @@ export async function refreshStaffEmbed(prospect, guild) {
   const forumUrl = updated.forum_thread_id
     ? `https://discord.com/channels/${guild.id}/${updated.forum_thread_id}`
     : null;
-  const infoEmbed = buildProspectInfoEmbed(member, updated, forumUrl);
+  const bmPlayerId = !isTestSteamId(updated.steam_id) ? await bm.resolvePlayerId(updated.steam_id) : null;
+  const infoEmbed = buildProspectInfoEmbed(member, updated, forumUrl, bmPlayerId);
   const components = updated.forum_thread_id
     ? buildProspectAcceptedComponents(updated)
     : buildProspectComponents(updated);

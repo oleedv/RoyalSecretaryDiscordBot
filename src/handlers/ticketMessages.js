@@ -8,6 +8,7 @@ import { hasAnyRole } from '../utils/permissions.js';
 import { isAvailable, generateTicketSuggestion, ALLOWED_USER_ID } from '../services/ai/aiService.js';
 import { buildSuggestionEmbed } from '../services/ai/aiEmbeds.js';
 import { detectSteamIds, buildSteamEmbed, buildVanityEmbed } from '../services/steamService.js';
+import { resolvePlayerId } from '../services/battlemetricsService.js';
 import config from '../config.js';
 import logger from '../logger.js';
 
@@ -139,7 +140,8 @@ export async function handleGuild(message) {
   // SteamID detection on any message in a ticket channel
   const { steamIds, vanityUrls } = detectSteamIds(message.content.trim());
   for (const id of steamIds) {
-    await message.channel.send({ embeds: [buildSteamEmbed(id)] });
+    const bmPlayerId = await resolvePlayerId(id);
+    await message.channel.send({ embeds: [buildSteamEmbed(id, bmPlayerId)] });
   }
   for (const vanity of vanityUrls) {
     await message.channel.send({ embeds: [buildVanityEmbed(vanity)] });
@@ -226,7 +228,8 @@ export async function handleDM(message, ticket) {
 
   const { steamIds, vanityUrls } = detectSteamIds(message.content || '');
   for (const id of steamIds) {
-    await channel.send({ embeds: [buildSteamEmbed(id)] });
+    const bmPlayerId = await resolvePlayerId(id);
+    await channel.send({ embeds: [buildSteamEmbed(id, bmPlayerId)] });
   }
   for (const vanity of vanityUrls) {
     await channel.send({ embeds: [buildVanityEmbed(vanity)] });

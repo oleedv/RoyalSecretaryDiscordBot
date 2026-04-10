@@ -318,6 +318,17 @@ export async function initSchema() {
   await query(`ALTER TABLE ticket_events MODIFY COLUMN actor_id VARCHAR(30) NOT NULL`).catch(e => log.warn({ err: e.message }, 'ticket_events.actor_id MODIFY skipped'));
   await query(`ALTER TABLE prospect_events MODIFY COLUMN actor_id VARCHAR(30) NOT NULL`).catch(e => log.warn({ err: e.message }, 'prospect_events.actor_id MODIFY skipped'));
 
+  // ── BattleMetrics player ID cache (permanent mapping) ──
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS bm_players (
+      steam_id VARCHAR(20) NOT NULL PRIMARY KEY,
+      bm_player_id VARCHAR(20) NOT NULL,
+      bm_player_name VARCHAR(100),
+      cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // ── Performance indexes ──
 
   await query(`CREATE INDEX IF NOT EXISTS idx_tickets_user_status ON tickets (user_id, status)`);

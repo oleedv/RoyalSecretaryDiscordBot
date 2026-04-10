@@ -104,7 +104,7 @@ export function detectSteamIds(text) {
   return { steamIds: [...ids], vanityUrls };
 }
 
-export function buildSteamEmbed(steamId) {
+export function buildSteamEmbed(steamId, bmPlayerId = null) {
   return createEmbed('Ticket')
     .setTitle('Player Lookup')
     .setColor(0x1b2838)
@@ -113,8 +113,8 @@ export function buildSteamEmbed(steamId) {
       {
         name: 'Links',
         value: [
-          `[steamid.com](https://www.steamid.com/lookup/${steamId})`,
-          `[BattleMetrics](https://www.battlemetrics.com/rcon/players?filter[search]=${steamId})`,
+          `[steamid.com](https://www.steamid.com/profiles/${steamId})`,
+          `[BattleMetrics](${bmPlayerId ? `https://www.battlemetrics.com/rcon/players/${bmPlayerId}` : `https://www.battlemetrics.com/rcon/players?filter[search]=${steamId}`})`,
           `[CBL](https://communitybanlist.com/search/${steamId})`,
         ].join(' | '),
       }
@@ -130,7 +130,7 @@ export function buildVanityEmbed(vanityUrl) {
       {
         name: 'Links',
         value: [
-          `[steamid.com](https://www.steamid.com/lookup/${vanityUrl})`,
+          `[steamid.com](https://www.steamid.com/profiles/${vanityUrl})`,
           `[CBL](https://communitybanlist.com/search/${vanityUrl})`,
         ].join(' | '),
       }
