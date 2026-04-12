@@ -76,6 +76,7 @@ jobs:
             GIT_USER=${{ secrets.GIT_USER }}
             GIT_TOKEN=${{ secrets.GIT_TOKEN }}
             ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+            STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
             EOF
 
             docker compose -f docker-compose.prod.yml --env-file .env.prod pull royal-secretary-bot
