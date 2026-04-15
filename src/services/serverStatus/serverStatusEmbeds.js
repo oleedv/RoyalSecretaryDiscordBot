@@ -134,7 +134,7 @@ export function buildServerStatusEmbed(state, seedThreshold = 40, rbSteamIds = n
   if (serverStats.avgTps != null) {
     const tpsColor = getTpsColor(serverStats.avgTps);
     topFields.push({
-      name: 'TPS (1h avg)',
+      name: 'TPS (10m avg)',
       value: `${tpsColor} **${serverStats.avgTps}** (${serverStats.minTps}-${serverStats.maxTps})`,
       inline: true,
     });
