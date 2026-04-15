@@ -14,6 +14,20 @@ function getStatusColor(playerCount, totalSlots) {
   return parseInt(gradient.rgbAt(ratio).toHex(), 16);
 }
 
+function formatDuration(minutes) {
+  if (minutes == null || minutes < 0) return null;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function getTpsColor(avgTps) {
+  if (avgTps >= 45) return ':green_circle:';
+  if (avgTps >= 40) return ':yellow_circle:';
+  if (avgTps >= 35) return ':orange_circle:';
+  return ':red_circle:';
+}
+
 function getStatusIndicator(playerCount, seedThreshold, connected) {
   if (!connected) return { text: 'Disconnected from server', icon: ':black_circle:' };
   if (playerCount >= seedThreshold) return { text: 'LIVE', icon: ':green_circle:' };
@@ -90,7 +104,7 @@ function getMatchupTeams(layerObj, players) {
   return null;
 }
 
-export function buildServerStatusEmbed(state, seedThreshold = 40, rbSteamIds = new Set()) {
+export function buildServerStatusEmbed(state, seedThreshold = 40, rbSteamIds = new Set(), serverStats = {}) {
   const totalSlots = state.publicSlots + state.reserveSlots;
   const color = getStatusColor(state.playerCount, totalSlots);
   const status = getStatusIndicator(state.playerCount, seedThreshold, state.connected);
@@ -109,11 +123,32 @@ export function buildServerStatusEmbed(state, seedThreshold = 40, rbSteamIds = n
   let playerStr = `${state.playerCount}`;
   playerStr += ` / ${state.publicSlots || '?'}`;
 
-  embed.addFields(
+  const topFields = [
     { name: 'Players', value: playerStr, inline: true },
     { name: 'Queue', value: String(state.publicQueue + state.reserveQueue), inline: true },
-    { name: '\u200b', value: status.text, inline: false },
-  );
+  ];
+
+  const durationStr = formatDuration(serverStats.matchDurationMinutes);
+  if (durationStr) {
+    topFields.push({ name: 'Duration', value: durationStr, inline: true });
+  }
+
+  if (serverStats.avgTps != null) {
+    const tpsColor = getTpsColor(serverStats.avgTps);
+    topFields.push({
+      name: 'TPS (1h avg)',
+      value: `${tpsColor} **${serverStats.avgTps}** (${serverStats.minTps}-${serverStats.maxTps})`,
+      inline: true,
+    });
+  }
+
+  if (serverStats.newPlayers1h > 0) {
+    topFields.push({ name: 'New Players (1h)', value: `**${serverStats.newPlayers1h}**`, inline: true });
+  }
+
+  topFields.push({ name: '\u200b', value: status.text, inline: false });
+
+  embed.addFields(...topFields);
 
   // Layer + Server version
   if (state.gameVersion) {

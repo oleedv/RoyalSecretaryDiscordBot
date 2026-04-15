@@ -4,6 +4,7 @@ import { query } from '../../database/connection.js';
 import { getAllServerStates } from '../seeding/seedingSocket.js';
 import { getSeedingConfig } from '../seeding/seedingService.js';
 import { buildServerStatusEmbed } from './serverStatusEmbeds.js';
+import { getServerStats } from './serverStatusQueries.js';
 
 const log = logger.child({ module: 'serverStatus' });
 
@@ -59,7 +60,8 @@ async function ensureMessages(channel, client, serverStates, threshold) {
       statusMessages.push({ name, messageId: existing[i].id });
       log.info({ name, messageId: existing[i].id }, 'Found existing status message');
     } else {
-      const embed = buildServerStatusEmbed(state, threshold, rbSteamIds);
+      const serverStats = state.connected ? await getServerStats(name) : {};
+      const embed = buildServerStatusEmbed(state, threshold, rbSteamIds, serverStats);
       const msg = await channel.send({ embeds: [embed] });
       statusMessages.push({ name, messageId: msg.id });
       log.info({ name, messageId: msg.id }, 'Created new status message');
@@ -113,7 +115,8 @@ async function updateMessages(channel, client) {
       }
 
       try {
-        const embed = buildServerStatusEmbed(serverData.state, threshold, rbSteamIds);
+        const serverStats = serverData.state.connected ? await getServerStats(entry.name) : {};
+        const embed = buildServerStatusEmbed(serverData.state, threshold, rbSteamIds, serverStats);
 
         let msg = await channel.messages.fetch(entry.messageId).catch(() => null);
         if (msg) {
