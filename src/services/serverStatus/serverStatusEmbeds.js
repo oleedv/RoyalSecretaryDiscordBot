@@ -15,9 +15,11 @@ function getStatusColor(playerCount, totalSlots) {
 }
 
 function formatDuration(minutes) {
-  if (minutes == null || minutes < 0) return null;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
+  if (minutes == null) return null;
+  const mins = Number(minutes);
+  if (mins < 0) return null;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 

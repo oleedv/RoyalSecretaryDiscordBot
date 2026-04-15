@@ -55,7 +55,7 @@ async function fetchMatchDuration(serverId) {
     'squadjs'
   );
   return rows.length > 0 && rows[0].duration_minutes != null
-    ? rows[0].duration_minutes
+    ? Number(rows[0].duration_minutes)
     : null;
 }
 
