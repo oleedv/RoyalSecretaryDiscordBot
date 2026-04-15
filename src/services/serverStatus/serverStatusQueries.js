@@ -9,7 +9,8 @@ async function getServerId(serverName) {
   if (serverIdCache.has(serverName)) return serverIdCache.get(serverName);
 
   try {
-    const rows = await query(
+    // Try exact name match first
+    let rows = await query(
       'SELECT id FROM squadjs_servers WHERE name = ?',
       [serverName],
       'squadjs'
@@ -18,7 +19,24 @@ async function getServerId(serverName) {
       serverIdCache.set(serverName, rows[0].id);
       return rows[0].id;
     }
-    log.warn({ serverName }, 'No matching server found in squadjs_servers');
+
+    // Fallback: socket names (e.g. "production") won't match DB names
+    // (e.g. "RB | Royal Battalion [ENG] Battle server"). Use the server
+    // with the most recent active match instead.
+    rows = await query(
+      `SELECT s.id FROM squadjs_servers s
+       JOIN squadjs_matches m ON m.server_id = s.id
+       ORDER BY m.start_time DESC LIMIT 1`,
+      [],
+      'squadjs'
+    );
+    if (rows.length > 0) {
+      log.info({ serverName, resolvedId: rows[0].id }, 'Resolved server ID via latest match fallback');
+      serverIdCache.set(serverName, rows[0].id);
+      return rows[0].id;
+    }
+
+    log.warn({ serverName }, 'No servers found in squadjs_servers');
     return null;
   } catch (err) {
     log.warn({ err, serverName }, 'Failed to look up server ID');
