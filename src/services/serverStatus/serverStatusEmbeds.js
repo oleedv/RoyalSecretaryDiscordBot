@@ -14,13 +14,9 @@ function getStatusColor(playerCount, totalSlots) {
   return parseInt(gradient.rgbAt(ratio).toHex(), 16);
 }
 
-function formatDuration(minutes) {
-  if (minutes == null) return null;
-  const mins = Number(minutes);
-  if (mins < 0) return null;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+function formatMatchStart(unixTs) {
+  if (unixTs == null) return null;
+  return `<t:${unixTs}:R>`;
 }
 
 function getTpsColor(avgTps) {
@@ -130,9 +126,9 @@ export function buildServerStatusEmbed(state, seedThreshold = 40, rbSteamIds = n
     { name: 'Queue', value: String(state.publicQueue + state.reserveQueue), inline: true },
   ];
 
-  const durationStr = formatDuration(serverStats.matchDurationMinutes);
-  if (durationStr) {
-    topFields.push({ name: 'Duration', value: durationStr, inline: true });
+  const matchStartStr = formatMatchStart(serverStats.matchStartTime);
+  if (matchStartStr) {
+    topFields.push({ name: 'Match Started', value: matchStartStr, inline: true });
   }
 
   if (serverStats.avgTps != null) {
