@@ -66,7 +66,7 @@ async function fetchTps(serverId) {
             ROUND(MAX(tick_rate), 1) as max_tps
      FROM squadjs_tick_rates
      WHERE server_id = ?
-       AND time >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
+       AND time >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)
        AND tick_rate IS NOT NULL`,
     [serverId],
     'squadjs'
