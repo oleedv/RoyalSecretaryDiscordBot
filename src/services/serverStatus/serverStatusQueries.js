@@ -44,9 +44,9 @@ async function getServerId(serverName) {
   }
 }
 
-async function fetchMatchDuration(serverId) {
+async function fetchMatchStartTime(serverId) {
   const rows = await query(
-    `SELECT TIMESTAMPDIFF(MINUTE, start_time, NOW()) as duration_minutes
+    `SELECT UNIX_TIMESTAMP(start_time) as start_ts
      FROM squadjs_matches
      WHERE server_id = ? AND end_time IS NULL
      ORDER BY start_time DESC
@@ -54,8 +54,8 @@ async function fetchMatchDuration(serverId) {
     [serverId],
     'squadjs'
   );
-  return rows.length > 0 && rows[0].duration_minutes != null
-    ? Number(rows[0].duration_minutes)
+  return rows.length > 0 && rows[0].start_ts != null
+    ? Number(rows[0].start_ts)
     : null;
 }
 
@@ -83,11 +83,16 @@ async function fetchTps(serverId) {
 
 async function fetchNewPlayers(serverId) {
   const rows = await query(
-    `SELECT COUNT(DISTINCT player_id) as new_players
-     FROM squadjs_connections
-     WHERE server_id = ?
-       AND event_type = 'join'
-       AND time >= DATE_SUB(NOW(), INTERVAL 1 HOUR)`,
+    `SELECT COUNT(DISTINCT c.player_id) as new_players
+     FROM squadjs_connections c
+     WHERE c.server_id = ?
+       AND c.event_type = 'join'
+       AND c.time >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
+       AND NOT EXISTS (
+         SELECT 1 FROM squadjs_connections c2
+         WHERE c2.player_id = c.player_id AND c2.server_id = c.server_id
+           AND c2.time < DATE_SUB(NOW(), INTERVAL 1 HOUR)
+       )`,
     [serverId],
     'squadjs'
   );
@@ -101,9 +106,9 @@ export async function getServerStats(serverName) {
   if (serverId == null) return {};
 
   try {
-    const [matchDuration, tps, newPlayers] = await Promise.all([
-      fetchMatchDuration(serverId).catch((err) => {
-        log.warn({ err }, 'Failed to query match duration');
+    const [matchStartTime, tps, newPlayers] = await Promise.all([
+      fetchMatchStartTime(serverId).catch((err) => {
+        log.warn({ err }, 'Failed to query match start time');
         return null;
       }),
       fetchTps(serverId).catch((err) => {
@@ -117,7 +122,7 @@ export async function getServerStats(serverName) {
     ]);
 
     return {
-      matchDurationMinutes: matchDuration,
+      matchStartTime,
       avgTps: tps?.avgTps ?? null,
       minTps: tps?.minTps ?? null,
       maxTps: tps?.maxTps ?? null,
