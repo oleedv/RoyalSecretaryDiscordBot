@@ -14,6 +14,7 @@ import { finalizeAllSessions } from './services/activity/voiceTracker.js';
 import { stopScheduler as stopActivityScheduler } from './services/activity/activityScheduler.js';
 import { flushLogs } from './services/admin/logTransport.js';
 import { stopActionProcessor } from './services/actionProcessor.js';
+import { stopCleanupScheduler as stopTempVoiceCleanup } from './services/tempvoice/tempvoiceManager.js';
 
 const log = logger.child({ module: 'main' });
 
@@ -49,6 +50,7 @@ async function main() {
     stopConfigGuardian();
     stopActivityScheduler();
     stopActionProcessor();
+    stopTempVoiceCleanup();
     await finalizeAllSessions();
     await stopHeartbeat();
     await flushLogs();

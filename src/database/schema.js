@@ -381,5 +381,33 @@ export async function initSchema() {
     )
   `);
 
+  // ── TempVoice tables ──
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS temp_voice_config (
+      id INT PRIMARY KEY DEFAULT 1,
+      trigger_channel_id VARCHAR(20),
+      category_id VARCHAR(20),
+      log_channel_id VARCHAR(20),
+      max_channels_per_user INT DEFAULT 3,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CHECK (id = 1)
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS temp_channels (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      channel_id VARCHAR(20) NOT NULL UNIQUE,
+      owner_id VARCHAR(20) NOT NULL,
+      guild_id VARCHAR(20) NOT NULL,
+      panel_message_id VARCHAR(20),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_tc_owner (owner_id),
+      INDEX idx_tc_guild (guild_id)
+    )
+  `);
+
   log.info('Database schema initialized');
 }
