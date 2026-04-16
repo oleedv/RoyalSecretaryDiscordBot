@@ -80,11 +80,11 @@ export function buildOverviewPage(member, summary, activeSession, days, userId) 
 
   // Top channels compact (3 each)
   if (voice.topChannels.length > 0) {
-    const top3 = voice.topChannels.slice(0, 3).map((c) => `<#${c.id}> ${formatDuration(c.seconds)}`).join('\n');
+    const top3 = voice.topChannels.slice(0, 3).map((c) => `${c.name} (<#${c.id}>) ${formatDuration(c.seconds)}`).join('\n');
     embed.addFields({ name: 'Top Voice Channels', value: top3, inline: true });
   }
   if (messages.topChannels.length > 0) {
-    const top3 = messages.topChannels.slice(0, 3).map((c) => `<#${c.id}> ${c.count}`).join('\n');
+    const top3 = messages.topChannels.slice(0, 3).map((c) => `${c.name} (<#${c.id}>) ${c.count}`).join('\n');
     embed.addFields({ name: 'Top Message Channels', value: top3, inline: true });
   }
 
@@ -145,7 +145,7 @@ export function buildVoicePage(member, voiceStats, dailyVoice, activeSession, af
 
   // Top channels
   if (voiceStats.topChannels.length > 0) {
-    const list = voiceStats.topChannels.map((c) => `<#${c.id}> - ${formatDuration(c.seconds)}`).join('\n');
+    const list = voiceStats.topChannels.map((c) => `${c.name} (<#${c.id}>) - ${formatDuration(c.seconds)}`).join('\n');
     embed.addFields({ name: 'Top Channels', value: list });
   }
 
@@ -180,7 +180,7 @@ export function buildMessagesPage(member, messageStats, dailyMessages, reactionS
 
   // Top channels
   if (messageStats.topChannels.length > 0) {
-    const list = messageStats.topChannels.map((c) => `<#${c.id}> - ${c.count} msgs`).join('\n');
+    const list = messageStats.topChannels.map((c) => `${c.name} (<#${c.id}>) - ${c.count} msgs`).join('\n');
     embed.addFields({ name: 'Top Channels', value: list });
   }
 

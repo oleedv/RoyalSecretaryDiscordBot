@@ -416,7 +416,7 @@ export function startCleanupScheduler(client) {
   setTimeout(tick, 30_000);
   cleanupInterval = setInterval(tick, 60 * 60 * 1000);
   cleanupInterval.unref();
-  log.info('RoyalVoice cleanup scheduler started');
+  log.info('RB Voice cleanup scheduler started');
 }
 
 export function stopCleanupScheduler() {
@@ -438,9 +438,9 @@ async function logEvent(guild, title, description) {
 
     const embed = new EmbedBuilder()
       .setColor(0x5865f2)
-      .setTitle(`RoyalVoice -- ${title}`)
+      .setTitle(`RB Voice -- ${title}`)
       .setDescription(description)
-      .setFooter({ text: 'Royal Battalion -- RoyalVoice' })
+      .setFooter({ text: 'Royal Battalion -- RB Voice' })
       .setTimestamp();
 
     await logChannel.send({ embeds: [embed] });

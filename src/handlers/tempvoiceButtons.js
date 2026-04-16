@@ -385,7 +385,7 @@ export async function handleInvite(interaction) {
     const collected = await reply.awaitMessageComponent({ componentType: ComponentType.UserSelect, time: COLLECTOR_TIMEOUT });
     const targetId = collected.values[0];
 
-    const invite = await vc.createInvite({ maxAge: 86400, maxUses: 1, reason: 'RoyalVoice invite' });
+    const invite = await vc.createInvite({ maxAge: 86400, maxUses: 1, reason: 'RB Voice invite' });
     const targetUser = await interaction.client.users.fetch(targetId).catch(() => null);
 
     if (targetUser) {
