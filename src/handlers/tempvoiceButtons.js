@@ -121,7 +121,7 @@ export async function handlePrivacy(interaction) {
     );
 
   const row = new ActionRowBuilder().addComponents(menu);
-  const reply = await interaction.reply({ content: 'Select a privacy setting:', components: [row], flags: ['Ephemeral'] });
+  const reply = await interaction.reply({ content: 'Select a privacy setting:', components: [row], flags: ['Ephemeral'], fetchReply: true });
 
   try {
     const collected = await reply.awaitMessageComponent({ componentType: ComponentType.StringSelect, time: COLLECTOR_TIMEOUT });
@@ -218,7 +218,7 @@ export async function handleRegion(interaction) {
 
   let reply;
   try {
-    reply = await interaction.reply({ content: 'Select a voice region:', components: [row], flags: ['Ephemeral'] });
+    reply = await interaction.reply({ content: 'Select a voice region:', components: [row], flags: ['Ephemeral'], fetchReply: true });
     log.info({ channelId: vc.id }, 'Region select menu sent');
   } catch (err) {
     log.error({ err, channelId: vc.id }, 'Failed to send region select menu');
@@ -253,7 +253,7 @@ export async function handleTrust(interaction) {
 
   const menu = new UserSelectMenuBuilder().setCustomId('tv_trust_select').setPlaceholder('Select a user to trust...');
   const row = new ActionRowBuilder().addComponents(menu);
-  const reply = await interaction.reply({ content: 'Select a user to grant access:', components: [row], flags: ['Ephemeral'] });
+  const reply = await interaction.reply({ content: 'Select a user to grant access:', components: [row], flags: ['Ephemeral'], fetchReply: true });
 
   try {
     const collected = await reply.awaitMessageComponent({ componentType: ComponentType.UserSelect, time: COLLECTOR_TIMEOUT });
@@ -277,7 +277,7 @@ export async function handleUntrust(interaction) {
 
   const menu = new UserSelectMenuBuilder().setCustomId('tv_untrust_select').setPlaceholder('Select a user to untrust...');
   const row = new ActionRowBuilder().addComponents(menu);
-  const reply = await interaction.reply({ content: 'Select a user to revoke access:', components: [row], flags: ['Ephemeral'] });
+  const reply = await interaction.reply({ content: 'Select a user to revoke access:', components: [row], flags: ['Ephemeral'], fetchReply: true });
 
   try {
     const collected = await reply.awaitMessageComponent({ componentType: ComponentType.UserSelect, time: COLLECTOR_TIMEOUT });
@@ -301,7 +301,7 @@ export async function handleBlock(interaction) {
 
   const menu = new UserSelectMenuBuilder().setCustomId('tv_block_select').setPlaceholder('Select a user to block...');
   const row = new ActionRowBuilder().addComponents(menu);
-  const reply = await interaction.reply({ content: 'Select a user to block:', components: [row], flags: ['Ephemeral'] });
+  const reply = await interaction.reply({ content: 'Select a user to block:', components: [row], flags: ['Ephemeral'], fetchReply: true });
 
   try {
     const collected = await reply.awaitMessageComponent({ componentType: ComponentType.UserSelect, time: COLLECTOR_TIMEOUT });
@@ -337,7 +337,7 @@ export async function handleUnblock(interaction) {
 
   const menu = new UserSelectMenuBuilder().setCustomId('tv_unblock_select').setPlaceholder('Select a user to unblock...');
   const row = new ActionRowBuilder().addComponents(menu);
-  const reply = await interaction.reply({ content: 'Select a user to unblock:', components: [row], flags: ['Ephemeral'] });
+  const reply = await interaction.reply({ content: 'Select a user to unblock:', components: [row], flags: ['Ephemeral'], fetchReply: true });
 
   try {
     const collected = await reply.awaitMessageComponent({ componentType: ComponentType.UserSelect, time: COLLECTOR_TIMEOUT });
@@ -373,7 +373,7 @@ export async function handleBitrate(interaction) {
     .addOptions(options);
 
   const row = new ActionRowBuilder().addComponents(menu);
-  const reply = await interaction.reply({ content: 'Select a bitrate:', components: [row], flags: ['Ephemeral'] });
+  const reply = await interaction.reply({ content: 'Select a bitrate:', components: [row], flags: ['Ephemeral'], fetchReply: true });
 
   try {
     const collected = await reply.awaitMessageComponent({ componentType: ComponentType.StringSelect, time: COLLECTOR_TIMEOUT });
@@ -395,7 +395,7 @@ export async function handleInvite(interaction) {
 
   const menu = new UserSelectMenuBuilder().setCustomId('tv_invite_select').setPlaceholder('Select a user to invite...');
   const row = new ActionRowBuilder().addComponents(menu);
-  const reply = await interaction.reply({ content: 'Select a user to invite:', components: [row], flags: ['Ephemeral'] });
+  const reply = await interaction.reply({ content: 'Select a user to invite:', components: [row], flags: ['Ephemeral'], fetchReply: true });
 
   try {
     const collected = await reply.awaitMessageComponent({ componentType: ComponentType.UserSelect, time: COLLECTOR_TIMEOUT });
@@ -437,7 +437,7 @@ export async function handleKick(interaction) {
     .addOptions(options.slice(0, 25));
 
   const row = new ActionRowBuilder().addComponents(menu);
-  const reply = await interaction.reply({ content: 'Select a user to kick:', components: [row], flags: ['Ephemeral'] });
+  const reply = await interaction.reply({ content: 'Select a user to kick:', components: [row], flags: ['Ephemeral'], fetchReply: true });
 
   try {
     const collected = await reply.awaitMessageComponent({ componentType: ComponentType.StringSelect, time: COLLECTOR_TIMEOUT });
@@ -485,7 +485,7 @@ export async function handleTransfer(interaction) {
 
   const menu = new UserSelectMenuBuilder().setCustomId('tv_transfer_select').setPlaceholder('Select the new owner...');
   const row = new ActionRowBuilder().addComponents(menu);
-  const reply = await interaction.reply({ content: 'Select a user to transfer ownership to:', components: [row], flags: ['Ephemeral'] });
+  const reply = await interaction.reply({ content: 'Select a user to transfer ownership to:', components: [row], flags: ['Ephemeral'], fetchReply: true });
 
   try {
     const collected = await reply.awaitMessageComponent({ componentType: ComponentType.UserSelect, time: COLLECTOR_TIMEOUT });
