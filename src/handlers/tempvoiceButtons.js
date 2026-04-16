@@ -215,19 +215,30 @@ export async function handleRegion(interaction) {
     .addOptions(regions);
 
   const row = new ActionRowBuilder().addComponents(menu);
-  const reply = await interaction.reply({ content: 'Select a voice region:', components: [row], flags: ['Ephemeral'] });
+
+  let reply;
+  try {
+    reply = await interaction.reply({ content: 'Select a voice region:', components: [row], flags: ['Ephemeral'] });
+    log.info({ channelId: vc.id }, 'Region select menu sent');
+  } catch (err) {
+    log.error({ err, channelId: vc.id }, 'Failed to send region select menu');
+    return;
+  }
 
   try {
     const collected = await reply.awaitMessageComponent({ componentType: ComponentType.StringSelect, time: COLLECTOR_TIMEOUT });
     const region = collected.values[0];
+    log.info({ region, channelId: vc.id }, 'Region selected');
     try {
       await vc.setRTCRegion(region === 'auto' ? null : region);
       await collected.update({ content: `Voice region set to **${region}**.`, components: [] });
+      log.info({ region, channelId: vc.id }, 'Region set successfully');
     } catch (err) {
       log.error({ err, region, channelId: vc.id }, 'Failed to set voice region');
       await collected.update({ content: `Failed to set region to **${region}**.`, components: [] });
     }
-  } catch {
+  } catch (err) {
+    log.warn({ err: err?.message, channelId: vc.id }, 'Region collector ended');
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);
   }
 }
