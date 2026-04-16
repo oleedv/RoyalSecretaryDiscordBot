@@ -69,3 +69,55 @@ export async function getInactiveChannels(hoursThreshold) {
     [hoursThreshold],
   );
 }
+
+// ── User presets ──
+
+export async function getPreset(userId, guildId) {
+  const rows = await query(
+    'SELECT * FROM temp_voice_presets WHERE user_id = ? AND guild_id = ?',
+    [userId, guildId],
+  );
+  return rows[0] || null;
+}
+
+export async function savePreset(userId, guildId, settings) {
+  await query(
+    `INSERT INTO temp_voice_presets (user_id, guild_id, channel_name, bitrate, region, user_limit, is_locked, is_invisible, is_chat_closed, is_dnd)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       channel_name = VALUES(channel_name),
+       bitrate = VALUES(bitrate),
+       region = VALUES(region),
+       user_limit = VALUES(user_limit),
+       is_locked = VALUES(is_locked),
+       is_invisible = VALUES(is_invisible),
+       is_chat_closed = VALUES(is_chat_closed),
+       is_dnd = VALUES(is_dnd)`,
+    [
+      userId, guildId,
+      settings.channel_name ?? null,
+      settings.bitrate ?? null,
+      settings.region ?? null,
+      settings.user_limit ?? null,
+      settings.is_locked ? 1 : 0,
+      settings.is_invisible ? 1 : 0,
+      settings.is_chat_closed ? 1 : 0,
+      settings.is_dnd ? 1 : 0,
+    ],
+  );
+}
+
+const PRESET_FIELDS = new Set([
+  'channel_name', 'bitrate', 'region', 'user_limit',
+  'is_locked', 'is_invisible', 'is_chat_closed', 'is_dnd',
+]);
+
+export async function updatePresetField(userId, guildId, field, value) {
+  if (!PRESET_FIELDS.has(field)) throw new Error(`Invalid preset field: ${field}`);
+  await query(
+    `INSERT INTO temp_voice_presets (user_id, guild_id, ${field})
+     VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE ${field} = VALUES(${field})`,
+    [userId, guildId, value],
+  );
+}

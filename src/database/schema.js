@@ -409,5 +409,22 @@ export async function initSchema() {
     )
   `);
 
+  await query(`
+    CREATE TABLE IF NOT EXISTS temp_voice_presets (
+      user_id VARCHAR(20) NOT NULL,
+      guild_id VARCHAR(20) NOT NULL,
+      channel_name VARCHAR(100) NULL,
+      bitrate INT NULL,
+      region VARCHAR(20) NULL,
+      user_limit INT NULL,
+      is_locked TINYINT(1) DEFAULT 0,
+      is_invisible TINYINT(1) DEFAULT 0,
+      is_chat_closed TINYINT(1) DEFAULT 0,
+      is_dnd TINYINT(1) DEFAULT 0,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, guild_id)
+    )
+  `);
+
   log.info('Database schema initialized');
 }

@@ -7,7 +7,7 @@ import {
   isTrackedChannel, isOwner, getOwner, checkRateLimit,
   transferOwnership, claimChannel, deleteChannelByInteraction, logEvent,
 } from '../services/tempvoice/tempvoiceManager.js';
-import { touchActivity } from '../services/tempvoice/tempvoiceService.js';
+import { touchActivity, updatePresetField } from '../services/tempvoice/tempvoiceService.js';
 import { errorEmbed, successEmbed } from '../utils/embed.js';
 import logger from '../logger.js';
 
@@ -131,26 +131,33 @@ export async function handlePrivacy(interaction) {
     switch (value) {
       case 'lock':
         await vc.permissionOverwrites.edit(guildId, { Connect: false });
+        if (isOwner(vc.id, interaction.user.id)) await updatePresetField(interaction.user.id, guildId, 'is_locked', 1).catch(() => null);
         break;
       case 'unlock':
         await vc.permissionOverwrites.edit(guildId, { Connect: true });
+        if (isOwner(vc.id, interaction.user.id)) await updatePresetField(interaction.user.id, guildId, 'is_locked', 0).catch(() => null);
         break;
       case 'invisible':
         await vc.permissionOverwrites.edit(guildId, { ViewChannel: false });
+        if (isOwner(vc.id, interaction.user.id)) await updatePresetField(interaction.user.id, guildId, 'is_invisible', 1).catch(() => null);
         break;
       case 'visible':
         await vc.permissionOverwrites.edit(guildId, { ViewChannel: true });
+        if (isOwner(vc.id, interaction.user.id)) await updatePresetField(interaction.user.id, guildId, 'is_invisible', 0).catch(() => null);
         break;
       case 'closechat':
         await vc.permissionOverwrites.edit(guildId, { SendMessages: false });
+        if (isOwner(vc.id, interaction.user.id)) await updatePresetField(interaction.user.id, guildId, 'is_chat_closed', 1).catch(() => null);
         break;
       case 'openchat':
         await vc.permissionOverwrites.edit(guildId, { SendMessages: true });
+        if (isOwner(vc.id, interaction.user.id)) await updatePresetField(interaction.user.id, guildId, 'is_chat_closed', 0).catch(() => null);
         break;
     }
 
     await collected.update({ content: `Privacy set to **${value}**.`, components: [] });
     await logEvent(interaction.guild, 'Privacy Changed', `<@${interaction.user.id}> set **${vc.name}** privacy to **${value}**`);
+    touchActivity(vc.id).catch(() => null);
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);
   }
@@ -179,8 +186,10 @@ export async function handleDnd(interaction) {
 
   await vc.permissionOverwrites.edit(guildId, perms);
   const state = isDndActive ? 'disabled' : 'enabled';
+  if (isOwner(vc.id, interaction.user.id)) await updatePresetField(interaction.user.id, guildId, 'is_dnd', isDndActive ? 0 : 1).catch(() => null);
   await interaction.reply({ embeds: [successEmbed(`DND mode **${state}**.`)], flags: ['Ephemeral'] });
   await logEvent(interaction.guild, 'DND Toggled', `<@${interaction.user.id}> ${state} DND mode in **${vc.name}**`);
+  touchActivity(vc.id).catch(() => null);
 }
 
 // ── Region (select menu) ──
@@ -231,8 +240,10 @@ export async function handleRegion(interaction) {
     log.info({ region, channelId: vc.id }, 'Region selected');
     try {
       await vc.setRTCRegion(region === 'auto' ? null : region);
+      if (isOwner(vc.id, interaction.user.id)) await updatePresetField(interaction.user.id, interaction.guild.id, 'region', region).catch(() => null);
       await collected.update({ content: `Voice region set to **${region}**.`, components: [] });
       log.info({ region, channelId: vc.id }, 'Region set successfully');
+      touchActivity(vc.id).catch(() => null);
     } catch (err) {
       log.error({ err, region, channelId: vc.id }, 'Failed to set voice region');
       await collected.update({ content: `Failed to set region to **${region}**.`, components: [] });
@@ -262,6 +273,7 @@ export async function handleTrust(interaction) {
     await vc.permissionOverwrites.edit(targetId, { ViewChannel: true, Connect: true, SendMessages: true });
     await collected.update({ content: `<@${targetId}> is now trusted.`, components: [] });
     await logEvent(interaction.guild, 'User Trusted', `<@${interaction.user.id}> trusted <@${targetId}> in **${vc.name}**`);
+    touchActivity(vc.id).catch(() => null);
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);
   }
@@ -286,6 +298,7 @@ export async function handleUntrust(interaction) {
     await vc.permissionOverwrites.delete(targetId).catch(() => null);
     await collected.update({ content: `<@${targetId}> is no longer trusted.`, components: [] });
     await logEvent(interaction.guild, 'User Untrusted', `<@${interaction.user.id}> untrusted <@${targetId}> in **${vc.name}**`);
+    touchActivity(vc.id).catch(() => null);
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);
   }
@@ -322,6 +335,7 @@ export async function handleBlock(interaction) {
 
     await collected.update({ content: `<@${targetId}> has been blocked.`, components: [] });
     await logEvent(interaction.guild, 'User Blocked', `<@${interaction.user.id}> blocked <@${targetId}> in **${vc.name}**`);
+    touchActivity(vc.id).catch(() => null);
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);
   }
@@ -346,6 +360,7 @@ export async function handleUnblock(interaction) {
     await vc.permissionOverwrites.delete(targetId).catch(() => null);
     await collected.update({ content: `<@${targetId}> has been unblocked.`, components: [] });
     await logEvent(interaction.guild, 'User Unblocked', `<@${interaction.user.id}> unblocked <@${targetId}> in **${vc.name}**`);
+    touchActivity(vc.id).catch(() => null);
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);
   }
@@ -367,6 +382,12 @@ export async function handleBitrate(interaction) {
     { label: '96 kbps', value: '96000' },
   ];
 
+  // Boost tier unlocks higher bitrates
+  const tier = interaction.guild.premiumTier;
+  if (tier >= 1) options.push({ label: '128 kbps', value: '128000' });
+  if (tier >= 2) options.push({ label: '256 kbps', value: '256000' });
+  if (tier >= 3) options.push({ label: '384 kbps', value: '384000' });
+
   const menu = new StringSelectMenuBuilder()
     .setCustomId('tv_bitrate_select')
     .setPlaceholder('Choose audio bitrate...')
@@ -379,7 +400,9 @@ export async function handleBitrate(interaction) {
     const collected = await reply.awaitMessageComponent({ componentType: ComponentType.StringSelect, time: COLLECTOR_TIMEOUT });
     const bitrate = parseInt(collected.values[0], 10);
     await vc.setBitrate(bitrate);
+    if (isOwner(vc.id, interaction.user.id)) await updatePresetField(interaction.user.id, interaction.guild.id, 'bitrate', bitrate).catch(() => null);
     await collected.update({ content: `Bitrate set to **${bitrate / 1000} kbps**.`, components: [] });
+    touchActivity(vc.id).catch(() => null);
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);
   }
@@ -411,6 +434,7 @@ export async function handleInvite(interaction) {
     }
 
     await collected.update({ content: `Invite sent to <@${targetId}>.`, components: [] });
+    touchActivity(vc.id).catch(() => null);
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);
   }
@@ -450,6 +474,7 @@ export async function handleKick(interaction) {
 
     await collected.update({ content: `<@${targetId}> has been kicked.`, components: [] });
     await logEvent(interaction.guild, 'User Kicked', `<@${interaction.user.id}> kicked <@${targetId}> from **${vc.name}**`);
+    touchActivity(vc.id).catch(() => null);
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);
   }

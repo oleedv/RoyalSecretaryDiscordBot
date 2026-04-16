@@ -95,7 +95,41 @@ export async function handleJoinTrigger(member, guild) {
       return;
     }
 
-    const channelName = `${member.displayName}'s Channel`;
+    // Load user presets (null if never set)
+    const preset = await db.getPreset(userId, guild.id);
+
+    const channelName = preset?.channel_name || `${member.displayName}'s Channel`;
+
+    // Build @everyone permissions from preset flags
+    const everyoneAllow = [];
+    const everyoneDeny = [];
+
+    if (preset?.is_invisible) {
+      everyoneDeny.push(PermissionFlagsBits.ViewChannel);
+    } else {
+      everyoneAllow.push(PermissionFlagsBits.ViewChannel);
+    }
+
+    if (preset?.is_locked) {
+      everyoneDeny.push(PermissionFlagsBits.Connect);
+    } else {
+      everyoneAllow.push(PermissionFlagsBits.Connect);
+    }
+
+    if (preset?.is_chat_closed) {
+      everyoneDeny.push(PermissionFlagsBits.SendMessages);
+    }
+
+    if (preset?.is_dnd) {
+      everyoneDeny.push(
+        PermissionFlagsBits.Speak,
+        PermissionFlagsBits.Stream,
+        PermissionFlagsBits.UseVAD,
+        PermissionFlagsBits.PrioritySpeaker,
+        PermissionFlagsBits.UseSoundboard,
+        PermissionFlagsBits.UseEmbeddedActivities,
+      );
+    }
 
     const newChannel = await guild.channels.create({
       name: channelName,
@@ -104,7 +138,8 @@ export async function handleJoinTrigger(member, guild) {
       permissionOverwrites: [
         {
           id: guild.id,
-          allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect],
+          allow: everyoneAllow,
+          deny: everyoneDeny,
         },
         {
           id: guild.client.user.id,
@@ -129,6 +164,11 @@ export async function handleJoinTrigger(member, guild) {
         },
       ],
     });
+
+    // Apply preset bitrate/region/limit (best-effort, may fail if boost tier changed)
+    if (preset?.bitrate) await newChannel.setBitrate(preset.bitrate).catch(() => null);
+    if (preset?.region) await newChannel.setRTCRegion(preset.region === 'auto' ? null : preset.region).catch(() => null);
+    if (preset?.user_limit) await newChannel.setUserLimit(preset.user_limit).catch(() => null);
 
     // Move user into the new channel
     await member.voice.setChannel(newChannel).catch(() => null);
@@ -210,6 +250,23 @@ export async function deleteChannelByInteraction(channelId, guild, deletedByUser
 
   const actor = deletedByUserId || ownerId;
   await logEvent(guild, 'Channel Deleted', `**${name}** (owned by <@${ownerId}>) was deleted by <@${actor}>`);
+}
+
+export async function handleManualChannelDelete(channelId, guild) {
+  if (!activeChannels.has(channelId)) return;
+
+  const data = activeChannels.get(channelId);
+  const ownerId = data?.ownerId;
+  const name = data?.channelName || 'Unknown';
+
+  deletedChannels.add(channelId);
+  activeChannels.delete(channelId);
+  await db.deleteTempChannel(channelId);
+
+  log.info({ channelId, channelName: name, ownerId }, 'Temp channel deleted (manual)');
+  if (guild) {
+    await logEvent(guild, 'Channel Deleted', `**${name}** (owned by <@${ownerId}>) was manually deleted`);
+  }
 }
 
 // ── Ownership ──
@@ -356,6 +413,7 @@ export async function initFromDb(client) {
         ownerId: row.owner_id,
         guildId: row.guild_id,
         panelMessageId: row.panel_message_id,
+        channelName: channel.name,
       });
       recovered++;
     } catch (err) {

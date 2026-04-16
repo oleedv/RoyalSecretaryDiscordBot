@@ -1,4 +1,5 @@
 import { isTrackedChannel, isOwner, checkRateLimit, logEvent } from '../services/tempvoice/tempvoiceManager.js';
+import { touchActivity, updatePresetField } from '../services/tempvoice/tempvoiceService.js';
 import { getSafeChannelName } from '../services/tempvoice/contentFilter.js';
 import { errorEmbed, successEmbed } from '../utils/embed.js';
 import { PermissionFlagsBits } from 'discord.js';
@@ -25,8 +26,10 @@ export async function handleNameModal(interaction) {
   }
 
   await vc.setName(name);
+  if (isOwner(vc.id, interaction.user.id)) await updatePresetField(interaction.user.id, interaction.guild.id, 'channel_name', name).catch(() => null);
   await interaction.reply({ embeds: [successEmbed(`Channel renamed to **${name}**.`)], flags: ['Ephemeral'] });
   await logEvent(interaction.guild, 'Channel Renamed', `<@${interaction.user.id}> renamed channel to **${name}**`);
+  touchActivity(vc.id).catch(() => null);
 }
 
 export async function handleLimitModal(interaction) {
@@ -44,6 +47,8 @@ export async function handleLimitModal(interaction) {
   }
 
   await vc.setUserLimit(limit);
+  if (isOwner(vc.id, interaction.user.id)) await updatePresetField(interaction.user.id, interaction.guild.id, 'user_limit', limit).catch(() => null);
   const display = limit === 0 ? 'unlimited' : `${limit} users`;
   await interaction.reply({ embeds: [successEmbed(`User limit set to **${display}**.`)], flags: ['Ephemeral'] });
+  touchActivity(vc.id).catch(() => null);
 }
