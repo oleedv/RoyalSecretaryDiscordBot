@@ -31,27 +31,27 @@ export function buildControlPanelEmbed() {
 
 export function buildControlPanelComponents() {
   const row1 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('tv_name').setLabel('Name').setEmoji('\u270F\uFE0F').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('tv_limit').setLabel('Limit').setEmoji('\u{1F465}').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('tv_privacy').setLabel('Privacy').setEmoji('\u{1F512}').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('tv_dnd').setLabel('DND').setEmoji('\u{1F6D1}').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('tv_region').setLabel('Region').setEmoji('\u{1F30D}').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tv_name').setEmoji('\u270F\uFE0F').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tv_limit').setEmoji('\u{1F465}').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tv_privacy').setEmoji('\u{1F512}').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tv_dnd').setEmoji('\u{1F6D1}').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tv_region').setEmoji('\u{1F30D}').setStyle(ButtonStyle.Secondary),
   );
 
   const row2 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('tv_trust').setLabel('Trust').setEmoji('\u2705').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('tv_untrust').setLabel('Untrust').setEmoji('\u274C').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('tv_block').setLabel('Block').setEmoji('\u{1F6AB}').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('tv_unblock').setLabel('Unblock').setEmoji('\u{1F513}').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('tv_bitrate').setLabel('Bitrate').setEmoji('\u{1F3B5}').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tv_trust').setEmoji('\u2705').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tv_untrust').setEmoji('\u274C').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tv_block').setEmoji('\u{1F6AB}').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tv_unblock').setEmoji('\u{1F513}').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tv_bitrate').setEmoji('\u{1F3B5}').setStyle(ButtonStyle.Secondary),
   );
 
   const row3 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('tv_invite').setLabel('Invite').setEmoji('\u{1F4E8}').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('tv_kick').setLabel('Kick').setEmoji('\u{1F45F}').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('tv_claim').setLabel('Claim').setEmoji('\u{1F451}').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('tv_transfer').setLabel('Transfer').setEmoji('\u{1F501}').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('tv_delete').setLabel('Delete').setEmoji('\u{1F5D1}\uFE0F').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('tv_invite').setEmoji('\u{1F4E8}').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tv_kick').setEmoji('\u{1F45F}').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tv_claim').setEmoji('\u{1F451}').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tv_transfer').setEmoji('\u{1F501}').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tv_delete').setEmoji('\u{1F5D1}\uFE0F').setStyle(ButtonStyle.Danger),
   );
 
   return [row1, row2, row3];
