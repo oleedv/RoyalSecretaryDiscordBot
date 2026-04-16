@@ -201,7 +201,7 @@ export async function handleRegion(interaction) {
     { label: 'Singapore', value: 'singapore' },
     { label: 'Sydney', value: 'sydney' },
     { label: 'Russia', value: 'russia' },
-    { label: 'South Africa', value: 'southafrica' },
+    { label: 'South Africa', value: 'south-africa' },
     { label: 'Hong Kong', value: 'hongkong' },
     { label: 'India', value: 'india' },
     { label: 'Japan', value: 'japan' },
@@ -220,8 +220,13 @@ export async function handleRegion(interaction) {
   try {
     const collected = await reply.awaitMessageComponent({ componentType: ComponentType.StringSelect, time: COLLECTOR_TIMEOUT });
     const region = collected.values[0];
-    await vc.setRTCRegion(region === 'auto' ? null : region);
-    await collected.update({ content: `Voice region set to **${region}**.`, components: [] });
+    try {
+      await vc.setRTCRegion(region === 'auto' ? null : region);
+      await collected.update({ content: `Voice region set to **${region}**.`, components: [] });
+    } catch (err) {
+      log.error({ err, region, channelId: vc.id }, 'Failed to set voice region');
+      await collected.update({ content: `Failed to set region to **${region}**.`, components: [] });
+    }
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);
   }
