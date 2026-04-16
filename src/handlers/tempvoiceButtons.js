@@ -150,7 +150,7 @@ export async function handlePrivacy(interaction) {
     }
 
     await collected.update({ content: `Privacy set to **${value}**.`, components: [] });
-    await logEvent(interaction.guild, 'Privacy Changed', `<@${interaction.user.id}> set privacy to **${value}**`);
+    await logEvent(interaction.guild, 'Privacy Changed', `<@${interaction.user.id}> set **${vc.name}** privacy to **${value}**`);
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);
   }
@@ -180,7 +180,7 @@ export async function handleDnd(interaction) {
   await vc.permissionOverwrites.edit(guildId, perms);
   const state = isDndActive ? 'disabled' : 'enabled';
   await interaction.reply({ embeds: [successEmbed(`DND mode **${state}**.`)], flags: ['Ephemeral'] });
-  await logEvent(interaction.guild, 'DND Toggled', `<@${interaction.user.id}> ${state} DND mode`);
+  await logEvent(interaction.guild, 'DND Toggled', `<@${interaction.user.id}> ${state} DND mode in **${vc.name}**`);
 }
 
 // ── Region (select menu) ──
@@ -245,7 +245,7 @@ export async function handleTrust(interaction) {
 
     await vc.permissionOverwrites.edit(targetId, { ViewChannel: true, Connect: true, SendMessages: true });
     await collected.update({ content: `<@${targetId}> is now trusted.`, components: [] });
-    await logEvent(interaction.guild, 'User Trusted', `<@${interaction.user.id}> trusted <@${targetId}>`);
+    await logEvent(interaction.guild, 'User Trusted', `<@${interaction.user.id}> trusted <@${targetId}> in **${vc.name}**`);
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);
   }
@@ -269,7 +269,7 @@ export async function handleUntrust(interaction) {
 
     await vc.permissionOverwrites.delete(targetId).catch(() => null);
     await collected.update({ content: `<@${targetId}> is no longer trusted.`, components: [] });
-    await logEvent(interaction.guild, 'User Untrusted', `<@${interaction.user.id}> untrusted <@${targetId}>`);
+    await logEvent(interaction.guild, 'User Untrusted', `<@${interaction.user.id}> untrusted <@${targetId}> in **${vc.name}**`);
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);
   }
@@ -305,7 +305,7 @@ export async function handleBlock(interaction) {
     if (blockedMember) await blockedMember.voice.disconnect('Blocked from temp channel').catch(() => null);
 
     await collected.update({ content: `<@${targetId}> has been blocked.`, components: [] });
-    await logEvent(interaction.guild, 'User Blocked', `<@${interaction.user.id}> blocked <@${targetId}>`);
+    await logEvent(interaction.guild, 'User Blocked', `<@${interaction.user.id}> blocked <@${targetId}> in **${vc.name}**`);
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);
   }
@@ -329,7 +329,7 @@ export async function handleUnblock(interaction) {
 
     await vc.permissionOverwrites.delete(targetId).catch(() => null);
     await collected.update({ content: `<@${targetId}> has been unblocked.`, components: [] });
-    await logEvent(interaction.guild, 'User Unblocked', `<@${interaction.user.id}> unblocked <@${targetId}>`);
+    await logEvent(interaction.guild, 'User Unblocked', `<@${interaction.user.id}> unblocked <@${targetId}> in **${vc.name}**`);
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);
   }
@@ -385,7 +385,7 @@ export async function handleInvite(interaction) {
     const collected = await reply.awaitMessageComponent({ componentType: ComponentType.UserSelect, time: COLLECTOR_TIMEOUT });
     const targetId = collected.values[0];
 
-    const invite = await vc.createInvite({ maxAge: 86400, maxUses: 1, reason: 'TempVoice invite' });
+    const invite = await vc.createInvite({ maxAge: 86400, maxUses: 1, reason: 'RoyalVoice invite' });
     const targetUser = await interaction.client.users.fetch(targetId).catch(() => null);
 
     if (targetUser) {
@@ -433,7 +433,7 @@ export async function handleKick(interaction) {
     }
 
     await collected.update({ content: `<@${targetId}> has been kicked.`, components: [] });
-    await logEvent(interaction.guild, 'User Kicked', `<@${interaction.user.id}> kicked <@${targetId}>`);
+    await logEvent(interaction.guild, 'User Kicked', `<@${interaction.user.id}> kicked <@${targetId}> from **${vc.name}**`);
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);
   }
@@ -502,6 +502,6 @@ export async function handleDelete(interaction) {
 
   // Small delay to let the reply send before the channel is destroyed
   setTimeout(() => {
-    deleteChannelByInteraction(vc.id, interaction.guild);
+    deleteChannelByInteraction(vc.id, interaction.guild, interaction.user.id);
   }, 500);
 }

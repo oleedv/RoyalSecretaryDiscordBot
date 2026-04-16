@@ -25,7 +25,7 @@ export function buildControlPanelEmbed() {
       '\u{1F501} **Transfer** -- Give ownership to another user\n' +
       '\u{1F5D1}\uFE0F **Delete** -- Delete this channel',
     )
-    .setFooter({ text: 'Royal Battalion -- TempVoice' })
+    .setFooter({ text: 'Royal Battalion -- RoyalVoice' })
     .setTimestamp();
 }
 

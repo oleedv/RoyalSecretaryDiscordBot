@@ -7,7 +7,7 @@ const log = logger.child({ module: 'tempvoice' });
 
 // ── In-memory state ──
 
-const activeChannels = new Map();  // channelId -> { ownerId, guildId, panelMessageId }
+const activeChannels = new Map();  // channelId -> { ownerId, guildId, panelMessageId, channelName }
 const creationLocks = new Set();   // userId -- prevent race conditions
 const deletedChannels = new Set(); // channelId -- prevent double-delete
 
@@ -142,6 +142,7 @@ export async function handleJoinTrigger(member, guild) {
       ownerId: userId,
       guildId: guild.id,
       panelMessageId: panelMessage.id,
+      channelName,
     });
 
     log.info({ userId, channelId: newChannel.id, channelName }, 'Temp channel created');
@@ -162,17 +163,20 @@ export async function handleChannelEmpty(channelId, guild) {
   deletedChannels.add(channelId);
 
   try {
+    const data = activeChannels.get(channelId);
     const channel = await guild.channels.fetch(channelId).catch(() => null);
+    const name = channel?.name || data?.channelName || 'Unknown';
+    const ownerId = data?.ownerId;
+
     if (channel) {
       await channel.delete('Temp channel empty').catch(() => null);
     }
-    const data = activeChannels.get(channelId);
     activeChannels.delete(channelId);
     await db.deleteTempChannel(channelId);
 
-    log.info({ channelId }, 'Temp channel deleted (empty)');
+    log.info({ channelId, channelName: name, ownerId }, 'Temp channel deleted (empty)');
     if (data) {
-      await logEvent(guild, 'Channel Deleted', `Channel deleted (empty)`);
+      await logEvent(guild, 'Channel Deleted', `**${name}** (owned by <@${ownerId}>) was deleted -- channel empty`);
     }
   } catch (err) {
     log.error({ err, channelId }, 'Failed to delete empty temp channel');
@@ -185,11 +189,13 @@ export async function handleChannelEmpty(channelId, guild) {
   }
 }
 
-export async function deleteChannelByInteraction(channelId, guild) {
+export async function deleteChannelByInteraction(channelId, guild, deletedByUserId) {
   if (!activeChannels.has(channelId)) return;
   deletedChannels.add(channelId);
 
   const data = activeChannels.get(channelId);
+  const name = data?.channelName || 'Unknown';
+  const ownerId = data?.ownerId;
   activeChannels.delete(channelId);
   await db.deleteTempChannel(channelId);
 
@@ -202,9 +208,8 @@ export async function deleteChannelByInteraction(channelId, guild) {
     log.error({ err, channelId }, 'Failed to delete temp channel via interaction');
   }
 
-  if (data) {
-    await logEvent(guild, 'Channel Deleted', `Channel deleted by owner`);
-  }
+  const actor = deletedByUserId || ownerId;
+  await logEvent(guild, 'Channel Deleted', `**${name}** (owned by <@${ownerId}>) was deleted by <@${actor}>`);
 }
 
 // ── Ownership ──
@@ -240,7 +245,8 @@ export async function transferOwnership(channelId, newOwnerId, guild) {
     await db.updateOwner(channelId, newOwnerId);
 
     log.info({ channelId, oldOwnerId, newOwnerId }, 'Ownership transferred');
-    await logEvent(guild, 'Ownership Transferred', `<@${oldOwnerId}> -> <@${newOwnerId}>`);
+    const channelName = channel.name;
+    await logEvent(guild, 'Ownership Transferred', `**${channelName}**: <@${oldOwnerId}> transferred ownership to <@${newOwnerId}>`);
     return true;
   } catch (err) {
     log.error({ err, channelId }, 'Failed to transfer ownership');
@@ -264,7 +270,7 @@ export async function claimChannel(channelId, claimerId, guild) {
     const transferred = await transferOwnership(channelId, claimerId, guild);
     if (!transferred) return { success: false, reason: 'Failed to transfer ownership.' };
 
-    await logEvent(guild, 'Channel Claimed', `<@${claimerId}> claimed the channel`);
+    await logEvent(guild, 'Channel Claimed', `<@${claimerId}> claimed **${channel.name}**`);
     return { success: true };
   } catch (err) {
     log.error({ err, channelId, claimerId }, 'Failed to claim channel');
@@ -410,7 +416,7 @@ export function startCleanupScheduler(client) {
   setTimeout(tick, 30_000);
   cleanupInterval = setInterval(tick, 60 * 60 * 1000);
   cleanupInterval.unref();
-  log.info('TempVoice cleanup scheduler started');
+  log.info('RoyalVoice cleanup scheduler started');
 }
 
 export function stopCleanupScheduler() {
@@ -432,9 +438,9 @@ async function logEvent(guild, title, description) {
 
     const embed = new EmbedBuilder()
       .setColor(0x5865f2)
-      .setTitle(`TempVoice -- ${title}`)
+      .setTitle(`RoyalVoice -- ${title}`)
       .setDescription(description)
-      .setFooter({ text: 'Royal Battalion -- TempVoice' })
+      .setFooter({ text: 'Royal Battalion -- RoyalVoice' })
       .setTimestamp();
 
     await logChannel.send({ embeds: [embed] });

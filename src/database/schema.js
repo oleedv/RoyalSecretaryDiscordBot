@@ -381,7 +381,7 @@ export async function initSchema() {
     )
   `);
 
-  // ── TempVoice tables ──
+  // ── RoyalVoice tables ──
 
   await query(`
     CREATE TABLE IF NOT EXISTS temp_voice_config (

@@ -45,7 +45,7 @@ export default {
       ];
 
       await interaction.reply({
-        embeds: [successEmbed(`TempVoice configured.\n\n${lines.join('\n')}`)],
+        embeds: [successEmbed(`RoyalVoice configured.\n\n${lines.join('\n')}`)],
         flags: ['Ephemeral'],
       });
     } catch (err) {

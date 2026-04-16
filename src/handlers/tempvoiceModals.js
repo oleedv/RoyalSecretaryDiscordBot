@@ -26,7 +26,7 @@ export async function handleNameModal(interaction) {
 
   await vc.setName(name);
   await interaction.reply({ embeds: [successEmbed(`Channel renamed to **${name}**.`)], flags: ['Ephemeral'] });
-  await logEvent(interaction.guild, 'Channel Renamed', `<@${interaction.user.id}> renamed to **${name}**`);
+  await logEvent(interaction.guild, 'Channel Renamed', `<@${interaction.user.id}> renamed channel to **${name}**`);
 }
 
 export async function handleLimitModal(interaction) {
