@@ -5,6 +5,7 @@ import config from '../../config.js'
 import logger from '../../logger.js'
 import { getAnthropicClient, isAnthropicAvailable } from './anthropicClient.js'
 import { formatDate } from '../../utils/formatters.js'
+import { formatBMNotes, formatBMFlags } from './bmFormat.js'
 
 const log = logger.child({ module: 'prospect-ai' })
 
@@ -83,6 +84,18 @@ function buildStatsContext(stats) {
       const expiry = ban.permanent ? 'permanent' : `expires ${formatDate(ban.expires)}`
       lines.push(`  - ${ban.serverName}: ${ban.reason} (${formatDate(ban.created)}, ${expiry})`)
     }
+  }
+
+  if (stats.bmNotes && stats.bmNotes.length > 0) {
+    lines.push('BATTLEMETRICS STAFF NOTES:')
+    const rendered = formatBMNotes(stats.bmNotes)
+    for (const line of rendered.split('\n')) lines.push(`  ${line}`)
+  }
+
+  if (stats.bmFlags && stats.bmFlags.length > 0) {
+    lines.push('BATTLEMETRICS FLAGS:')
+    const rendered = formatBMFlags(stats.bmFlags)
+    for (const line of rendered.split('\n')) lines.push(`  ${line}`)
   }
 
   if (stats.steamBans) {
