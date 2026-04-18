@@ -66,23 +66,27 @@ export async function transaction(fn, poolName = 'secretary') {
 }
 
 export async function testConnections() {
+  const status = {};
+  let ok = true;
   for (const [name, pool] of Object.entries(pools)) {
     try {
       const conn = await pool.getConnection();
       await conn.ping();
       conn.release();
       log.info(`Connection verified: ${name}`);
+      status[name] = true;
     } catch (err) {
+      status[name] = false;
       if (OPTIONAL_POOLS.has(name)) {
         log.warn({ err, pool: name }, 'Optional connection failed - features using this pool will be disabled');
         delete pools[name];
         continue;
       }
       log.error({ err, pool: name }, 'Connection failed');
-      return false;
+      ok = false;
     }
   }
-  return true;
+  return { ok, status };
 }
 
 export async function closePools() {

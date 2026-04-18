@@ -7,6 +7,8 @@ import * as seedingButtons from '../handlers/seedingButtons.js';
 import * as seedTrackerButtons from '../handlers/seedTrackerButtons.js';
 import * as verifyButtons from '../handlers/verifyButtons.js';
 import * as activityButtons from '../handlers/activityButtons.js';
+import * as tempvoiceButtons from '../handlers/tempvoiceButtons.js';
+import * as tempvoiceModals from '../handlers/tempvoiceModals.js';
 import { errorEmbed } from '../utils/embed.js';
 import logger from '../logger.js';
 
@@ -80,6 +82,21 @@ const buttonHandlers = {
   seeding_leave: seedingButtons.handleLeave,
   seed_progression: seedTrackerButtons.handleSeedProgression,
   verify_start: verifyButtons.handleStart,
+  tv_name: tempvoiceButtons.handleName,
+  tv_limit: tempvoiceButtons.handleLimit,
+  tv_privacy: tempvoiceButtons.handlePrivacy,
+  tv_dnd: tempvoiceButtons.handleDnd,
+  tv_region: tempvoiceButtons.handleRegion,
+  tv_trust: tempvoiceButtons.handleTrust,
+  tv_untrust: tempvoiceButtons.handleUntrust,
+  tv_block: tempvoiceButtons.handleBlock,
+  tv_unblock: tempvoiceButtons.handleUnblock,
+  tv_bitrate: tempvoiceButtons.handleBitrate,
+  tv_invite: tempvoiceButtons.handleInvite,
+  tv_kick: tempvoiceButtons.handleKick,
+  tv_claim: tempvoiceButtons.handleClaim,
+  tv_transfer: tempvoiceButtons.handleTransfer,
+  tv_delete: tempvoiceButtons.handleDelete,
 };
 
 const modalHandlers = {
@@ -91,6 +108,8 @@ const modalHandlers = {
   prospect_modal_2: prospectModals.handleModal2,
   prospect_deny_modal: prospectModals.handleDenyModal,
   prospect_extend_modal: prospectModals.handleExtendModal,
+  tv_name_modal: tempvoiceModals.handleNameModal,
+  tv_limit_modal: tempvoiceModals.handleLimitModal,
 };
 
 export default {

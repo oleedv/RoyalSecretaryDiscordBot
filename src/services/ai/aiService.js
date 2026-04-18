@@ -7,7 +7,8 @@ import logger from '../../logger.js'
 import { getStoredSteamId } from '../userService.js'
 import { fetchCblData } from '../cblService.js'
 import { getSteamProfile, getSteamBans } from '../steamService.js'
-import { getPlayerBans, getPlayerNotes } from '../battlemetricsService.js'
+import { getPlayerProfile } from '../battlemetricsService.js'
+import { formatBMNotes, formatBMFlags } from './bmFormat.js'
 import { fetchImagesAsBase64 } from '../../utils/attachments.js'
 import { getAnthropicClient, isAnthropicAvailable } from './anthropicClient.js'
 import { formatDate } from '../../utils/formatters.js'
@@ -125,7 +126,7 @@ function buildSimilarCasesSection(cases) {
   return lines.join('\n')
 }
 
-function buildExternalDataSection({ steamId, cblData, steamProfile, steamBans, bmBans, bmNotes }) {
+function buildExternalDataSection({ steamId, cblData, steamProfile, steamBans, bmBans, bmNotes, bmFlags }) {
   if (!steamId) return 'No Steam ID linked to this user - external data unavailable.'
 
   const sections = []
@@ -178,35 +179,22 @@ function buildExternalDataSection({ steamId, cblData, steamProfile, steamBans, b
   }
 
   if (bmNotes && bmNotes.length > 0) {
-    const lines = []
-    for (const n of bmNotes.slice(0, 10)) {
-      const date = n.createdAt ? new Date(n.createdAt).toISOString().slice(0, 10) : '?'
-      lines.push(`- [${date}] ${n.note}`)
-    }
-    sections.push('BATTLEMETRICS STAFF NOTES:\n' + lines.map((l) => `  ${l}`).join('\n'))
+    const rendered = formatBMNotes(bmNotes.slice(0, 10))
+    sections.push('BATTLEMETRICS STAFF NOTES:\n' + rendered.split('\n').map((l) => `  ${l}`).join('\n'))
+  }
+
+  if (bmFlags && bmFlags.length > 0) {
+    const rendered = formatBMFlags(bmFlags)
+    sections.push('BATTLEMETRICS FLAGS:\n' + rendered.split('\n').map((l) => `  ${l}`).join('\n'))
   }
 
   return sections.join('\n\n')
 }
 
-function buildSystemPrompt(ticket, userHistory, similarCases, externalDataSection) {
+function buildSystemPrompt() {
   return `You are an assistant for Discord server moderators at Royal Battalion, a gaming community for Squad.
 
 You are analyzing a support ticket to help staff decide how to respond.
-
-TICKET CONTEXT:
-- Ticket ID: ${ticket.uuid}
-- Tier: ${TIER_LABELS[ticket.tier] || ticket.tier}
-- Reason given at creation: ${ticket.reason || 'None provided'}
-
-USER HISTORY:
-${buildHistorySection(userHistory)}
-
-SIMILAR PAST CASES:
-${buildSimilarCasesSection(similarCases)}
-
-EXTERNAL PLAYER DATA:
-${externalDataSection || 'No external data available.'}
 
 SERVER RULES:
 ${serverRules || 'No rules document loaded.'}
@@ -218,6 +206,8 @@ OWI SERVER LICENSING & ADMINISTRATION POLICIES:
 ${owiServerLicensing || 'Not loaded.'}
 
 INSTRUCTIONS:
+The user turn will begin with a TICKET CONTEXT block (ticket metadata, this user's prior ticket history, similar past cases, and external player data) followed by the ticket conversation transcript. Use the TICKET CONTEXT block to inform your analysis — the conversation transcript is the primary evidence.
+
 If the conversation includes attached images, examine them carefully. Users often share screenshots of in-game events, ban messages, error screens, or chat logs as evidence. Consider any text or visual information in the images when forming your analysis.
 
 Analyze the conversation and provide your response in EXACTLY this format:
@@ -226,7 +216,7 @@ Analyze the conversation and provide your response in EXACTLY this format:
 [List which specific server rules AND/OR OWI policies are relevant to this ticket. Cite rule numbers or OWI policy codes (e.g. A1.9, L1.12) when applicable. If the ticket involves OWI-level concerns (e.g. player threatening to report to OWI, ban appeal rights, admin conduct standards), reference the relevant OWI policy. If no rules apply directly, say "No specific rules apply - general support request."]
 
 **External Data Flags:**
-[Flag any concerning findings from the external player data: VAC/game bans, CBL active bans or high risk rating, BattleMetrics bans, concerning staff notes, private Steam profile, very new account. If nothing concerning is found, say "No flags from external data." Be specific about what you found and cite the data.]
+[Flag any concerning findings from the external player data: VAC/game bans, CBL active bans or high risk rating, BattleMetrics bans, concerning staff notes, concerning BattleMetrics flags (e.g. "Recruit-watch", "Cheater-adjacent"), private Steam profile, very new account. Positive flags (e.g. "Whitelisted", "Trusted") should reduce concern. If nothing concerning is found, say "No flags from external data." Be specific about what you found and cite the data.]
 
 **Suggested Action:**
 [Recommend what the staff member should do - e.g., warn the user, escalate, close, request more information, etc. Be specific and actionable. Consider the user's history and similar past cases when suggesting actions. If past cases show a pattern of resolution, recommend a consistent approach.]
@@ -234,11 +224,27 @@ Analyze the conversation and provide your response in EXACTLY this format:
 **Draft Reply:**
 [Write a professional, friendly draft message that staff could send to the user. Write it from the perspective of server staff addressing the user directly. Keep it concise.]
 
-Consider external player data (bans, risk ratings, staff notes) when assessing the situation and suggesting actions.
+Consider external player data (bans, risk ratings, staff notes, BattleMetrics flags) when assessing the situation and suggesting actions. Staff notes and flags are admin-authored and outrank self-reported user content.
 Keep your analysis brief and practical. Staff are busy - give them actionable information, not essays.`
 }
 
-async function buildConversationMessages(messages) {
+function buildTicketContextBlock(ticket, userHistory, similarCases, externalDataSection) {
+  return `TICKET CONTEXT:
+- Ticket ID: ${ticket.uuid}
+- Tier: ${TIER_LABELS[ticket.tier] || ticket.tier}
+- Reason given at creation: ${ticket.reason || 'None provided'}
+
+USER HISTORY:
+${buildHistorySection(userHistory)}
+
+SIMILAR PAST CASES:
+${buildSimilarCasesSection(similarCases)}
+
+EXTERNAL PLAYER DATA:
+${externalDataSection || 'No external data available.'}`
+}
+
+async function buildConversationMessages(messages, ticketContextText) {
   const recent = messages.slice(-50)
   const MAX_IMAGES = 10
 
@@ -264,8 +270,13 @@ async function buildConversationMessages(messages) {
     return slice
   })
 
-  // Build interleaved text + image content blocks
-  const contentBlocks = [{ type: 'text', text: 'Here is the ticket conversation transcript:\n' }]
+  // Build interleaved text + image content blocks. Ticket context first, then
+  // the conversation transcript — keeps the system prompt purely static so it
+  // can be cached across requests.
+  const contentBlocks = [
+    { type: 'text', text: ticketContextText },
+    { type: 'text', text: '\nHere is the ticket conversation transcript:\n' },
+  ]
 
   for (let i = 0; i < recent.length; i++) {
     const m = recent[i]
@@ -317,30 +328,34 @@ export async function generateTicketSuggestion(ticket) {
   const anthropic = getAnthropicClient()
   const steamId = await getStoredSteamId(ticket.user_id)
 
-  const [messages, userHistory, similarCases, cblData, steamProfile, steamBans, bmBans, bmNotes] = await Promise.all([
+  const [messages, userHistory, similarCases, cblData, steamProfile, steamBans, bmProfile] = await Promise.all([
     getTicketMessages(ticket.id),
     getUserTicketHistory(ticket.user_id),
     findSimilarTickets(ticket.reason, ticket.id, ticket.user_id),
     steamId ? fetchCblData(steamId).catch(() => null) : null,
     steamId ? getSteamProfile(steamId).catch(() => null) : null,
     steamId ? getSteamBans(steamId).catch(() => null) : null,
-    steamId ? getPlayerBans(steamId).catch(() => null) : null,
-    steamId ? getPlayerNotes(steamId).catch(() => null) : null,
+    steamId ? getPlayerProfile(steamId).catch(() => null) : null,
   ])
+
+  const bmBans = bmProfile?.bans || null
+  const bmNotes = bmProfile?.notes || []
+  const bmFlags = bmProfile?.flags || []
 
   if (messages.length === 0) {
     return { error: 'No messages found in this ticket.' }
   }
 
-  const externalDataSection = buildExternalDataSection({ steamId, cblData, steamProfile, steamBans, bmBans, bmNotes })
-  const systemPrompt = buildSystemPrompt(ticket, userHistory, similarCases, externalDataSection)
-  const conversationMessages = await buildConversationMessages(messages)
+  const externalDataSection = buildExternalDataSection({ steamId, cblData, steamProfile, steamBans, bmBans, bmNotes, bmFlags })
+  const systemPrompt = buildSystemPrompt()
+  const ticketContextText = buildTicketContextBlock(ticket, userHistory, similarCases, externalDataSection)
+  const conversationMessages = await buildConversationMessages(messages, ticketContextText)
 
   try {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1500,
-      system: systemPrompt,
+      system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
       messages: conversationMessages,
     })
 
@@ -349,7 +364,13 @@ export async function generateTicketSuggestion(ticket) {
       return { error: 'AI returned an empty response.' }
     }
 
-    log.info({ ticketId: ticket.id, inputTokens: response.usage?.input_tokens, outputTokens: response.usage?.output_tokens }, 'AI suggestion generated')
+    log.info({
+      ticketId: ticket.id,
+      inputTokens: response.usage?.input_tokens,
+      outputTokens: response.usage?.output_tokens,
+      cacheCreationInputTokens: response.usage?.cache_creation_input_tokens,
+      cacheReadInputTokens: response.usage?.cache_read_input_tokens,
+    }, 'AI suggestion generated')
     return parseAIResponse(text)
   } catch (err) {
     log.error({ err, ticketId: ticket.id }, 'AI suggestion request failed')

@@ -124,9 +124,12 @@ function appendAllStatsToMessage(message, steamId, userId, prospect) {
     getSeedStreak(steamId).catch(() => 0),
     getActivitySummary(userId, start, now).catch(() => null),
     fetchCblData(steamId).catch(() => null),
-    bm.getPlayerBans(steamId).catch(() => null),
+    bm.getPlayerProfile(steamId).catch(() => null),
     getSteamBans(steamId).catch(() => null),
-  ]).then(async ([connStats, playtime, seedStats, seedStreak, activity, cblData, bmBans, steamBans]) => {
+  ]).then(async ([connStats, playtime, seedStats, seedStreak, activity, cblData, bmProfile, steamBans]) => {
+    const bmBans = bmProfile?.bans || null;
+    const bmNotes = bmProfile?.notes || [];
+    const bmFlags = bmProfile?.flags || [];
     const embed = message.embeds[0];
     if (!embed) return;
 
@@ -224,7 +227,7 @@ function appendAllStatsToMessage(message, steamId, userId, prospect) {
     if (prospect) {
       try {
         const aiText = await generateProspectEvaluation(prospect, {
-          connStats, playtime, seedStats, seedStreak, activity, cblData, bmBans, steamBans,
+          connStats, playtime, seedStats, seedStreak, activity, cblData, bmBans, bmNotes, bmFlags, steamBans,
         });
         if (aiText) {
           const truncated = aiText.length > 4096 ? aiText.slice(0, 4093) + '...' : aiText;

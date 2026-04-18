@@ -5,6 +5,7 @@ import config from '../../config.js'
 import logger from '../../logger.js'
 import { getAnthropicClient, isAnthropicAvailable } from './anthropicClient.js'
 import { formatDate } from '../../utils/formatters.js'
+import { formatBMNotes, formatBMFlags } from './bmFormat.js'
 
 const log = logger.child({ module: 'prospect-ai' })
 
@@ -85,6 +86,18 @@ function buildStatsContext(stats) {
     }
   }
 
+  if (stats.bmNotes && stats.bmNotes.length > 0) {
+    lines.push('BATTLEMETRICS STAFF NOTES:')
+    const rendered = formatBMNotes(stats.bmNotes.slice(0, 10))
+    for (const line of rendered.split('\n')) lines.push(`  ${line}`)
+  }
+
+  if (stats.bmFlags && stats.bmFlags.length > 0) {
+    lines.push('BATTLEMETRICS FLAGS:')
+    const rendered = formatBMFlags(stats.bmFlags)
+    for (const line of rendered.split('\n')) lines.push(`  ${line}`)
+  }
+
   if (stats.steamBans) {
     const sb = stats.steamBans
     lines.push('STEAM BANS:')
@@ -153,7 +166,7 @@ export async function generateProspectEvaluation(prospect, stats) {
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-sonnet-4-6',
       max_tokens: 512,
       system: buildSystemPrompt(),
       messages: [{ role: 'user', content: buildUserMessage(prospect, statsContext) }],

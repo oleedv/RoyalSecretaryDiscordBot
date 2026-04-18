@@ -14,6 +14,7 @@ import { startActionProcessor } from '../services/actionProcessor.js';
 import { startScheduler as startConfigGuardian } from '../services/configGuardian/configGuardianScheduler.js';
 import { recoverActiveSessions } from '../services/activity/voiceTracker.js';
 import { startScheduler as startActivityScheduler } from '../services/activity/activityScheduler.js';
+import { initFromDb as initTempVoice, startCleanupScheduler as startTempVoiceCleanup } from '../services/tempvoice/tempvoiceManager.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'bot' });
@@ -47,5 +48,7 @@ export default {
     await safeInit('configGuardian', () => startConfigGuardian(client));
     await safeInit('voiceRecovery', () => recoverActiveSessions(client));
     await safeInit('activityScheduler', () => startActivityScheduler());
+    await safeInit('tempVoiceRecovery', () => initTempVoice(client));
+    await safeInit('tempVoiceCleanup', () => startTempVoiceCleanup(client));
   },
 };
