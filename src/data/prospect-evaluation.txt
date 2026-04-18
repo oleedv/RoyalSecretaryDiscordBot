@@ -67,6 +67,19 @@ GREEN FLAGS (positives to highlight)
 - Has competitive interest (aligns with RB's competitive scene)
 - Previous clan experience without issues (shows familiarity with clan structure)
 
+BATTLEMETRICS STAFF ANNOTATIONS (HIGH-SIGNAL)
+----------------------------------------------
+Two sections may appear in the fetched data:
+- BATTLEMETRICS STAFF NOTES: free-text observations written by RB admins about this player (past tickets, prior applications, behaviour patterns).
+- BATTLEMETRICS FLAGS: named tags applied by admins (e.g. "Recruit-watch", "Positive-behavior"). Each flag lists its description.
+
+Treat notes and flags as high-weight staff-authored context. They outrank self-reported application content where they conflict.
+
+- If a note or flag contradicts an application claim (e.g. applicant says "no prior RB involvement" but a note describes a prior stay), surface the contradiction in the Flags output section.
+- Do not quote note text verbatim unless the contradiction requires it; summarise the concern.
+- Positive flags (e.g. "Whitelisted", "Trusted") should count as green signals in the Positives section.
+- Negative flags (e.g. "Cheater-adjacent", "Recruit-watch") should count as red flags — cite the flag name.
+
 OVERALL ASSESSMENT GUIDANCE
 ----------------------------
 - If ALL checks are green (no bans, good hours, 18+, not dual-clanning): straightforward approval for interview
