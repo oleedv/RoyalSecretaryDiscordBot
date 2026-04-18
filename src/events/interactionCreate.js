@@ -7,6 +7,7 @@ import * as seedingButtons from '../handlers/seedingButtons.js';
 import * as seedTrackerButtons from '../handlers/seedTrackerButtons.js';
 import * as verifyButtons from '../handlers/verifyButtons.js';
 import * as activityButtons from '../handlers/activityButtons.js';
+import * as prospectAiButtons from '../handlers/prospectAiButtons.js';
 import * as tempvoiceButtons from '../handlers/tempvoiceButtons.js';
 import * as tempvoiceModals from '../handlers/tempvoiceModals.js';
 import { errorEmbed } from '../utils/embed.js';
@@ -140,6 +141,9 @@ export default {
       }
       if (!handler && interaction.customId.startsWith('activity_tab:')) {
         handler = activityButtons.handleTabSwitch;
+      }
+      if (!handler && interaction.customId.startsWith('prospect_ai_tab:')) {
+        handler = prospectAiButtons.handleTabSwitch;
       }
       if (handler) {
         log.info({ userId: interaction.user.id, userTag: interaction.user.tag, customId: interaction.customId, channelId: interaction.channel?.id }, 'Button pressed');

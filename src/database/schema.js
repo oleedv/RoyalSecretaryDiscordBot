@@ -176,6 +176,7 @@ export async function initSchema() {
   await query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS extra_days INT DEFAULT 0`);
   await query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS paused_at TIMESTAMP NULL`);
   await query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS period_started_at TIMESTAMP NULL`);
+  await query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS ai_evaluation TEXT NULL`);
   await query(`ALTER TABLE prospect_events MODIFY COLUMN event_type ENUM('created', 'vote_started', 'accepted', 'denied', 'closed', 'paused', 'unpaused', 'extended', 'unclaimed') NOT NULL`).catch(e => log.warn({ err: e.message }, 'prospect_events.event_type MODIFY skipped'));
   await query(`ALTER TABLE prospect_votes ADD COLUMN IF NOT EXISTS reason TEXT NULL`);
 

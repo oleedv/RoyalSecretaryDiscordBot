@@ -248,6 +248,58 @@ export function buildEndVoteComponents() {
   return [row];
 }
 
+const AI_SECTIONS = ['summary', 'flags', 'positives'];
+const AI_SECTION_LABELS = { summary: 'Summary', flags: 'Flags', positives: 'Positives' };
+const AI_DEFAULT_SECTION = 'summary';
+
+export function parseAiSections(text) {
+  const sections = { flags: '', positives: '', summary: '' };
+  if (!text) return sections;
+
+  const pattern = /\*\*(Flags|Positives|Summary)\s*:?\s*\*\*\s*\n?/gi;
+  const matches = [];
+  let m;
+  while ((m = pattern.exec(text)) !== null) {
+    matches.push({ key: m[1].toLowerCase(), start: m.index, end: m.index + m[0].length });
+  }
+
+  for (let i = 0; i < matches.length; i++) {
+    const end = i + 1 < matches.length ? matches[i + 1].start : text.length;
+    sections[matches[i].key] = text.slice(matches[i].end, end).trim();
+  }
+
+  return sections;
+}
+
+export function buildProspectAiEmbed(section, sections) {
+  const key = AI_SECTIONS.includes(section) ? section : AI_DEFAULT_SECTION;
+  const label = AI_SECTION_LABELS[key];
+  const body = sections[key] || '*Not provided.*';
+  const truncated = body.length > 4096 ? body.slice(0, 4093) + '...' : body;
+
+  return createEmbed('Prospect')
+    .setTitle(`AI Assessment — ${label}`)
+    .setDescription(truncated)
+    .setColor(0x5865f2);
+}
+
+export function buildProspectAiTabRow(prospectId, activeSection) {
+  const active = AI_SECTIONS.includes(activeSection) ? activeSection : AI_DEFAULT_SECTION;
+  const row = new ActionRowBuilder();
+  for (const key of AI_SECTIONS) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`prospect_ai_tab:${key}:${prospectId}`)
+        .setLabel(AI_SECTION_LABELS[key])
+        .setStyle(key === active ? ButtonStyle.Primary : ButtonStyle.Secondary)
+        .setDisabled(key === active),
+    );
+  }
+  return row;
+}
+
+export { AI_DEFAULT_SECTION };
+
 export function buildCloseTicketComponents() {
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()

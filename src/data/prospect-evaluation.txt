@@ -40,6 +40,13 @@ MENTOR CHECKLIST (PRE-INTERVIEW)
 7. Check for VAC bans (>1500 days old = acceptable, otherwise discuss)
 8. Post "Checked" in ticket to signal all checks are green
 
+DATA UNIVERSES (READ BEFORE COMPARING NUMBERS)
+-----------------------------------------------
+- "Hours in Squad (self-reported)" covers the applicant's ENTIRE Squad playtime across ALL servers they have ever played on — it is a total-lifetime, all-servers number coming from the applicant.
+- "RB SERVER ACTIVITY" in the fetched data is OUR internal server-log of connections on the Royal Battalion Squad server ONLY. It does not include any other servers.
+- These two numbers are in different universes and MUST NOT be compared directly. A player claiming 2,000h total Squad with only 20h on our server is normal — they play mostly elsewhere. That gap alone is NOT a red flag.
+- Do not write statements like "BattleMetrics shows only Xh on RB servers, suspicious given their claimed total" — that comparison is invalid. Only comment on RB-server hours relative to what is expected of a prospect on OUR server (e.g. during the prospect period), not relative to their self-reported total.
+
 RED FLAGS (concerns to highlight)
 ----------------------------------
 - Any active bans on CBL (especially multiple or from well-known communities)
@@ -47,13 +54,11 @@ RED FLAGS (concerns to highlight)
 - Active BattleMetrics bans on other servers
 - Multiple expired bans across many different servers (pattern of behavior)
 - VAC ban less than 1500 days old
-- Very low hours in Squad (e.g., under 100 hours claimed but no BM history to support it)
+- Implausibly low self-reported total Squad hours for the role they are applying for (e.g. under 100h claimed for someone asking to join competitive); do NOT infer low total hours from low RB-server hours — see DATA UNIVERSES above
 - Already in another Squad clan (dual-clanning)
 - Under 18 years old
-- First/last seen data showing very recent first appearance (potential alt account)
-- Very low game connections or average session time (suggesting casual play inconsistent with commitment)
+- Very low game connections on RB server combined with a very recent first-seen date, where this contradicts a separate claim the applicant made about prior RB involvement
 - No Discord activity history (never messaged or joined voice)
-- Applicant's stated hours don't match BattleMetrics recorded playtime
 
 GREEN FLAGS (positives to highlight)
 -------------------------------------

@@ -3,7 +3,7 @@ import { ChannelType, EmbedBuilder } from 'discord.js';
 import { createEmbed } from '../../utils/embed.js';
 import { buildPrivateChannelPermissions } from '../../utils/permissions.js';
 import { findBotMessageByCustomId } from '../../utils/messageSearch.js';
-import { buildProspectInfoEmbed, buildForumIntroEmbed, buildProspectComponents, buildProspectAcceptedComponents, buildAcceptedAnnouncementEmbed } from './prospectEmbeds.js';
+import { buildProspectInfoEmbed, buildForumIntroEmbed, buildProspectComponents, buildProspectAcceptedComponents, buildAcceptedAnnouncementEmbed, parseAiSections, buildProspectAiEmbed, buildProspectAiTabRow, AI_DEFAULT_SECTION } from './prospectEmbeds.js';
 import * as bm from '../battlemetricsService.js';
 import * as whitelistService from '../whitelistService.js';
 import { fetchCblData } from '../cblService.js';
@@ -84,6 +84,41 @@ function formatDuration(seconds) {
 function pct(part, total) {
   if (total === 0) return '0%';
   return `${Math.round((part / total) * 100)}%`;
+}
+
+function formatBmFlags(bmFlags) {
+  const shown = bmFlags.slice(0, 10);
+  const lines = [];
+  for (const f of shown) {
+    const name = f.name || 'Unnamed flag';
+    const desc = (f.description || '').replace(/\s+/g, ' ').trim();
+    lines.push(desc ? `**${name}** — ${desc}` : `**${name}**`);
+  }
+  if (bmFlags.length > shown.length) {
+    lines.push(`*…+${bmFlags.length - shown.length} more*`);
+  }
+  const text = lines.join('\n');
+  return text.length > 1024 ? text.slice(0, 1021) + '...' : text;
+}
+
+function formatBmNotes(bmNotes) {
+  const MAX_NOTES = 5;
+  const PER_NOTE_MAX = 200;
+  const shown = bmNotes.slice(0, MAX_NOTES);
+  const lines = [];
+  for (const n of shown) {
+    const text = (n.note || '').replace(/\s+/g, ' ').trim();
+    if (!text) continue;
+    const truncated = text.length > PER_NOTE_MAX ? text.slice(0, PER_NOTE_MAX - 3) + '...' : text;
+    const ts = n.createdAt ? Math.floor(new Date(n.createdAt).getTime() / 1000) : null;
+    const prefix = ts ? `<t:${ts}:d> — ` : '';
+    lines.push(`${prefix}${truncated}`);
+  }
+  if (bmNotes.length > shown.length) {
+    lines.push(`*…+${bmNotes.length - shown.length} more*`);
+  }
+  const joined = lines.join('\n');
+  return joined.length > 1024 ? joined.slice(0, 1021) + '...' : joined;
 }
 
 function formatBmBans(bmBans) {
@@ -193,6 +228,17 @@ function appendAllStatsToMessage(message, steamId, userId, prospect) {
       fields.push({ name: 'BattleMetrics Bans', value: bmText.length > 1024 ? bmText.slice(0, 1021) + '...' : bmText });
     }
 
+    // BattleMetrics Flags
+    if (bmFlags.length > 0) {
+      fields.push({ name: 'BattleMetrics Flags', value: formatBmFlags(bmFlags) });
+    }
+
+    // BattleMetrics Staff Notes
+    if (bmNotes.length > 0) {
+      const notesText = formatBmNotes(bmNotes);
+      if (notesText) fields.push({ name: 'BattleMetrics Staff Notes', value: notesText });
+    }
+
     // Steam Bans (VAC / Game Bans)
     if (steamBans) {
       const lines = [];
@@ -223,26 +269,29 @@ function appendAllStatsToMessage(message, steamId, userId, prospect) {
     }
     embeds.push(updated);
 
-    // AI Assessment as a separate embed
+    // AI Assessment as a separate embed with tab buttons
+    let aiTabRow = null;
     if (prospect) {
       try {
         const aiText = await generateProspectEvaluation(prospect, {
           connStats, playtime, seedStats, seedStreak, activity, cblData, bmBans, bmNotes, bmFlags, steamBans,
         });
         if (aiText) {
-          const truncated = aiText.length > 4096 ? aiText.slice(0, 4093) + '...' : aiText;
-          const aiEmbed = createEmbed('Prospect')
-            .setTitle('AI Assessment')
-            .setDescription(truncated)
-            .setColor(0x5865f2);
-          embeds.push(aiEmbed);
+          await query('UPDATE prospects SET ai_evaluation = ? WHERE id = ?', [aiText, prospect.id]);
+          const sections = parseAiSections(aiText);
+          embeds.push(buildProspectAiEmbed(AI_DEFAULT_SECTION, sections));
+          aiTabRow = buildProspectAiTabRow(prospect.id, AI_DEFAULT_SECTION);
         }
       } catch (err) {
         log.warn({ err }, 'Failed to generate AI prospect evaluation');
       }
     }
 
-    message.edit({ embeds }).catch((err) =>
+    const editPayload = { embeds };
+    if (aiTabRow) {
+      editPayload.components = [...(message.components || []), aiTabRow];
+    }
+    message.edit(editPayload).catch((err) =>
       log.warn({ err }, 'Failed to append stats to prospect embed')
     );
   }).catch((err) => {
