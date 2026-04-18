@@ -46,10 +46,10 @@ export async function createBot() {
     }
   });
 
-  await loadCommands(client);
-  await loadEvents(client);
+  const commandCount = await loadCommands(client);
+  const eventCount = await loadEvents(client);
 
-  return client;
+  return { client, commandCount, eventCount };
 }
 
 async function loadCommands(client) {
@@ -71,6 +71,7 @@ async function loadCommands(client) {
   }
 
   log.info(`Loaded ${client.commands.size} command(s)`);
+  return client.commands.size;
 }
 
 async function loadEvents(client) {
@@ -105,4 +106,5 @@ async function loadEvents(client) {
   }
 
   log.info(`Loaded ${count} event(s)`);
+  return count;
 }

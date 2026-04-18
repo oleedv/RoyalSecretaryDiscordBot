@@ -1,8 +1,10 @@
+import { Events } from 'discord.js';
 import logger from './logger.js';
 import config, { validateConfig } from './config.js';
 import { createPools, testConnections, closePools } from './database/connection.js';
 import { initSchema } from './database/schema.js';
 import { createBot } from './bot.js';
+import { printStartupBanner, printReadyBanner, printShutdownBanner } from './utils/printBanner.js';
 import { stopScheduler } from './services/prospect/prospectScheduler.js';
 import { stopScheduler as stopSeedingScheduler } from './services/seeding/seedingScheduler.js';
 import { disconnect as disconnectSquadJS } from './services/seeding/seedingSocket.js';
@@ -19,15 +21,16 @@ import { stopCleanupScheduler as stopTempVoiceCleanup } from './services/tempvoi
 const log = logger.child({ module: 'main' });
 
 let shuttingDown = false;
+const startedAt = Date.now();
 
 async function main() {
-  log.info(`Starting ${config.bot.name} v${config.bot.version}`);
+  printStartupBanner();
 
   validateConfig();
   log.info('Configuration validated');
 
   createPools();
-  const dbReady = await testConnections();
+  const { ok: dbReady, status: dbStatus } = await testConnections();
   if (!dbReady) {
     log.fatal('Cannot connect to database - exiting');
     process.exit(1);
@@ -35,8 +38,20 @@ async function main() {
 
   await initSchema();
 
-  const client = await createBot();
+  const { client, commandCount, eventCount } = await createBot();
   await client.login(config.discord.token);
+
+  if (!client.isReady()) {
+    await new Promise((resolve) => client.once(Events.ClientReady, resolve));
+  }
+
+  printReadyBanner({
+    client,
+    commandCount,
+    eventCount,
+    dbStatus,
+    bootMs: Date.now() - startedAt,
+  });
 
   const shutdown = async (signal) => {
     if (shuttingDown) return;
@@ -57,6 +72,7 @@ async function main() {
     client.destroy();
     await closePools();
     log.info('Shutdown complete');
+    printShutdownBanner(signal, startedAt);
     process.exit(0);
   };
 
