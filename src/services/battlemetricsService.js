@@ -7,6 +7,33 @@ const log = logger.child({ module: 'battlemetrics' });
 const BASE_URL = 'https://api.battlemetrics.com';
 const playerIdCache = new Map();
 
+// Combined profile cache: { bans, notes, flags } keyed by steamId. 15-min TTL, ~200 entries LRU.
+const PROFILE_TTL_MS = 15 * 60 * 1000;
+const PROFILE_CACHE_MAX = 200;
+const profileCache = new Map(); // Map<steamId, { value, expiresAt }>
+
+function profileCacheGet(steamId) {
+  const entry = profileCache.get(steamId);
+  if (!entry) return null;
+  if (entry.expiresAt < Date.now()) {
+    profileCache.delete(steamId);
+    return null;
+  }
+  // Touch for LRU ordering
+  profileCache.delete(steamId);
+  profileCache.set(steamId, entry);
+  return entry.value;
+}
+
+function profileCacheSet(steamId, value) {
+  if (profileCache.has(steamId)) profileCache.delete(steamId);
+  profileCache.set(steamId, { value, expiresAt: Date.now() + PROFILE_TTL_MS });
+  while (profileCache.size > PROFILE_CACHE_MAX) {
+    const oldestKey = profileCache.keys().next().value;
+    profileCache.delete(oldestKey);
+  }
+}
+
 function headers() {
   return {
     Authorization: `Bearer ${config.battlemetrics.token}`,
@@ -262,6 +289,86 @@ export async function resolveAndGetStats(steamId, startDate, endDate) {
     return { playerName, playerId, hours, counters };
   } catch (err) {
     log.warn({ err, steamId }, 'BM: resolveAndGetStats failed');
+    return null;
+  }
+}
+
+// BM /players/:id?include=flagPlayer,playerFlag,playerNote response shape (confirmed 2026-04-18):
+//   type: "playerNote"   attrs: note (string), createdAt (ISO string), clearanceLevel (number|null)
+//   type: "playerFlag"   attrs: name (string), description (string), icon (string|null), color (string|null)
+//                        This is the flag *definition* (shared across org); keyed by item.id.
+//   type: "flagPlayer"   attrs: addedAt (ISO string)
+//                        This is the per-player flag *assignment* (join row).
+//                        relationships.playerFlag.data.id links back to the playerFlag definition id.
+// To render the flag list: collect flagPlayer items -> resolve each relationships.playerFlag.data.id
+// against the playerFlag definitions map -> produce flag objects with name+description.
+// Note: BM token is not present in local .env (BM_TOKEN); shape confirmed from existing codebase
+// usage in addFlag/removeFlag (which POST { type: 'playerFlag' }) and from BM API documentation.
+// Local smoke-test requires BM_TOKEN to be added to .env first.
+
+// See discovery notes above for BM include response shape.
+export async function getPlayerProfile(steamId) {
+  if (!isConfigured()) return null;
+
+  const cached = profileCacheGet(steamId);
+  if (cached) {
+    log.debug({ steamId }, 'BM: profile cache hit');
+    return cached;
+  }
+
+  try {
+    const result = await playerSearch(steamId);
+    if (!result) return null;
+    const { playerId } = result;
+
+    log.info({ steamId, playerId }, 'BM: fetching player profile (bans+notes+flags)');
+    const url = `${BASE_URL}/players/${playerId}?include=flagPlayer,playerFlag,playerNote`;
+    const res = await fetch(url, { headers: headers(), signal: AbortSignal.timeout(15000) });
+    if (!res.ok) {
+      log.warn({ steamId, status: res.status }, 'BM: player profile returned non-OK status');
+      return null;
+    }
+    const json = await res.json();
+
+    const flagDefsById = new Map();
+    const flagAssignments = [];
+    const notes = [];
+
+    for (const item of json?.included ?? []) {
+      if (item.type === 'playerNote') {
+        notes.push({
+          id: item.id,
+          note: item.attributes?.note || '',
+          createdAt: item.attributes?.createdAt || null,
+          clearanceLevel: item.attributes?.clearanceLevel ?? null,
+        });
+      } else if (item.type === 'playerFlag') {
+        flagDefsById.set(item.id, {
+          id: item.id,
+          name: item.attributes?.name || 'Unnamed flag',
+          description: item.attributes?.description || '',
+          icon: item.attributes?.icon || null,
+          color: item.attributes?.color || null,
+        });
+      } else if (item.type === 'flagPlayer') {
+        const flagId = item.relationships?.playerFlag?.data?.id;
+        if (flagId) flagAssignments.push(flagId);
+      }
+    }
+
+    notes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    const flags = flagAssignments
+      .map((id) => flagDefsById.get(id))
+      .filter(Boolean);
+
+    const bans = await getPlayerBans(steamId);
+
+    const profile = { bans: bans ?? { activeBans: [], expiredBanCount: 0 }, notes, flags };
+    profileCacheSet(steamId, profile);
+    return profile;
+  } catch (err) {
+    log.warn({ err, steamId }, 'BM: player profile fetch failed');
     return null;
   }
 }
