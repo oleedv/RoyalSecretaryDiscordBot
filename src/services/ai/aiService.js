@@ -191,24 +191,10 @@ function buildExternalDataSection({ steamId, cblData, steamProfile, steamBans, b
   return sections.join('\n\n')
 }
 
-function buildSystemPrompt(ticket, userHistory, similarCases, externalDataSection) {
+function buildSystemPrompt() {
   return `You are an assistant for Discord server moderators at Royal Battalion, a gaming community for Squad.
 
 You are analyzing a support ticket to help staff decide how to respond.
-
-TICKET CONTEXT:
-- Ticket ID: ${ticket.uuid}
-- Tier: ${TIER_LABELS[ticket.tier] || ticket.tier}
-- Reason given at creation: ${ticket.reason || 'None provided'}
-
-USER HISTORY:
-${buildHistorySection(userHistory)}
-
-SIMILAR PAST CASES:
-${buildSimilarCasesSection(similarCases)}
-
-EXTERNAL PLAYER DATA:
-${externalDataSection || 'No external data available.'}
 
 SERVER RULES:
 ${serverRules || 'No rules document loaded.'}
@@ -220,6 +206,8 @@ OWI SERVER LICENSING & ADMINISTRATION POLICIES:
 ${owiServerLicensing || 'Not loaded.'}
 
 INSTRUCTIONS:
+The user turn will begin with a TICKET CONTEXT block (ticket metadata, this user's prior ticket history, similar past cases, and external player data) followed by the ticket conversation transcript. Use the TICKET CONTEXT block to inform your analysis — the conversation transcript is the primary evidence.
+
 If the conversation includes attached images, examine them carefully. Users often share screenshots of in-game events, ban messages, error screens, or chat logs as evidence. Consider any text or visual information in the images when forming your analysis.
 
 Analyze the conversation and provide your response in EXACTLY this format:
@@ -240,7 +228,23 @@ Consider external player data (bans, risk ratings, staff notes, BattleMetrics fl
 Keep your analysis brief and practical. Staff are busy - give them actionable information, not essays.`
 }
 
-async function buildConversationMessages(messages) {
+function buildTicketContextBlock(ticket, userHistory, similarCases, externalDataSection) {
+  return `TICKET CONTEXT:
+- Ticket ID: ${ticket.uuid}
+- Tier: ${TIER_LABELS[ticket.tier] || ticket.tier}
+- Reason given at creation: ${ticket.reason || 'None provided'}
+
+USER HISTORY:
+${buildHistorySection(userHistory)}
+
+SIMILAR PAST CASES:
+${buildSimilarCasesSection(similarCases)}
+
+EXTERNAL PLAYER DATA:
+${externalDataSection || 'No external data available.'}`
+}
+
+async function buildConversationMessages(messages, ticketContextText) {
   const recent = messages.slice(-50)
   const MAX_IMAGES = 10
 
@@ -266,8 +270,13 @@ async function buildConversationMessages(messages) {
     return slice
   })
 
-  // Build interleaved text + image content blocks
-  const contentBlocks = [{ type: 'text', text: 'Here is the ticket conversation transcript:\n' }]
+  // Build interleaved text + image content blocks. Ticket context first, then
+  // the conversation transcript — keeps the system prompt purely static so it
+  // can be cached across requests.
+  const contentBlocks = [
+    { type: 'text', text: ticketContextText },
+    { type: 'text', text: '\nHere is the ticket conversation transcript:\n' },
+  ]
 
   for (let i = 0; i < recent.length; i++) {
     const m = recent[i]
@@ -338,14 +347,15 @@ export async function generateTicketSuggestion(ticket) {
   }
 
   const externalDataSection = buildExternalDataSection({ steamId, cblData, steamProfile, steamBans, bmBans, bmNotes, bmFlags })
-  const systemPrompt = buildSystemPrompt(ticket, userHistory, similarCases, externalDataSection)
-  const conversationMessages = await buildConversationMessages(messages)
+  const systemPrompt = buildSystemPrompt()
+  const ticketContextText = buildTicketContextBlock(ticket, userHistory, similarCases, externalDataSection)
+  const conversationMessages = await buildConversationMessages(messages, ticketContextText)
 
   try {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1500,
-      system: systemPrompt,
+      system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
       messages: conversationMessages,
     })
 
@@ -354,7 +364,13 @@ export async function generateTicketSuggestion(ticket) {
       return { error: 'AI returned an empty response.' }
     }
 
-    log.info({ ticketId: ticket.id, inputTokens: response.usage?.input_tokens, outputTokens: response.usage?.output_tokens }, 'AI suggestion generated')
+    log.info({
+      ticketId: ticket.id,
+      inputTokens: response.usage?.input_tokens,
+      outputTokens: response.usage?.output_tokens,
+      cacheCreationInputTokens: response.usage?.cache_creation_input_tokens,
+      cacheReadInputTokens: response.usage?.cache_read_input_tokens,
+    }, 'AI suggestion generated')
     return parseAIResponse(text)
   } catch (err) {
     log.error({ err, ticketId: ticket.id }, 'AI suggestion request failed')
