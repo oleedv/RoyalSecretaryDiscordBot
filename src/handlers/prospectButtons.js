@@ -143,7 +143,7 @@ export async function handleDeny(interaction) {
         .setCustomId('deny_reason')
         .setLabel('Reason (will be sent to the prospect)')
         .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder('This message will be sent to the prospect via DM. Provide a clear reason for denying this prospect...')
+        .setPlaceholder('Sent to the prospect via DM. Give a clear reason for denying this application...')
         .setMinLength(5)
         .setRequired(true)
     )
