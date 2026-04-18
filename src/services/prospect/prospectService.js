@@ -86,6 +86,41 @@ function pct(part, total) {
   return `${Math.round((part / total) * 100)}%`;
 }
 
+function formatBmFlags(bmFlags) {
+  const shown = bmFlags.slice(0, 10);
+  const lines = [];
+  for (const f of shown) {
+    const name = f.name || 'Unnamed flag';
+    const desc = (f.description || '').replace(/\s+/g, ' ').trim();
+    lines.push(desc ? `**${name}** — ${desc}` : `**${name}**`);
+  }
+  if (bmFlags.length > shown.length) {
+    lines.push(`*…+${bmFlags.length - shown.length} more*`);
+  }
+  const text = lines.join('\n');
+  return text.length > 1024 ? text.slice(0, 1021) + '...' : text;
+}
+
+function formatBmNotes(bmNotes) {
+  const MAX_NOTES = 5;
+  const PER_NOTE_MAX = 200;
+  const shown = bmNotes.slice(0, MAX_NOTES);
+  const lines = [];
+  for (const n of shown) {
+    const text = (n.note || '').replace(/\s+/g, ' ').trim();
+    if (!text) continue;
+    const truncated = text.length > PER_NOTE_MAX ? text.slice(0, PER_NOTE_MAX - 3) + '...' : text;
+    const ts = n.createdAt ? Math.floor(new Date(n.createdAt).getTime() / 1000) : null;
+    const prefix = ts ? `<t:${ts}:d> — ` : '';
+    lines.push(`${prefix}${truncated}`);
+  }
+  if (bmNotes.length > shown.length) {
+    lines.push(`*…+${bmNotes.length - shown.length} more*`);
+  }
+  const joined = lines.join('\n');
+  return joined.length > 1024 ? joined.slice(0, 1021) + '...' : joined;
+}
+
 function formatBmBans(bmBans) {
   let text = `**Active:** ${bmBans.activeBans.length} | **Expired:** ${bmBans.expiredBanCount}`;
 
@@ -191,6 +226,17 @@ function appendAllStatsToMessage(message, steamId, userId, prospect) {
     if (bmBans) {
       const bmText = formatBmBans(bmBans);
       fields.push({ name: 'BattleMetrics Bans', value: bmText.length > 1024 ? bmText.slice(0, 1021) + '...' : bmText });
+    }
+
+    // BattleMetrics Flags
+    if (bmFlags.length > 0) {
+      fields.push({ name: 'BattleMetrics Flags', value: formatBmFlags(bmFlags) });
+    }
+
+    // BattleMetrics Staff Notes
+    if (bmNotes.length > 0) {
+      const notesText = formatBmNotes(bmNotes);
+      if (notesText) fields.push({ name: 'BattleMetrics Staff Notes', value: notesText });
     }
 
     // Steam Bans (VAC / Game Bans)

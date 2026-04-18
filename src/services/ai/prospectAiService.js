@@ -24,15 +24,15 @@ function buildStatsContext(stats) {
 
   if (stats.connStats) {
     const c = stats.connStats
-    lines.push('GAME ACTIVITY (90d):')
-    if (stats.playtime) lines.push(`  Playtime: ${stats.playtime.playtimeHours}h`)
+    lines.push('RB SERVER ACTIVITY (our Squad server only, 90d):')
+    if (stats.playtime) lines.push(`  Playtime on RB server: ${stats.playtime.playtimeHours}h`)
     lines.push(`  Connections: ${c.connections}`)
     if (c.avgSessionHours > 0) lines.push(`  Avg Session: ${c.avgSessionHours}h`)
-    if (c.firstSeen) lines.push(`  First Seen: ${formatDate(c.firstSeen)}`)
-    if (c.lastSeen) lines.push(`  Last Seen: ${formatDate(c.lastSeen)}`)
+    if (c.firstSeen) lines.push(`  First Seen on RB: ${formatDate(c.firstSeen)}`)
+    if (c.lastSeen) lines.push(`  Last Seen on RB: ${formatDate(c.lastSeen)}`)
   } else if (stats.playtime) {
-    lines.push('GAME ACTIVITY (90d):')
-    lines.push(`  Playtime: ${stats.playtime.playtimeHours}h`)
+    lines.push('RB SERVER ACTIVITY (our Squad server only, 90d):')
+    lines.push(`  Playtime on RB server: ${stats.playtime.playtimeHours}h`)
   }
 
   if (stats.seedStats || stats.playtime) {
@@ -159,7 +159,10 @@ Please evaluate this prospect.`
 }
 
 export async function generateProspectEvaluation(prospect, stats) {
-  if (!isAnthropicAvailable()) return null
+  if (!isAnthropicAvailable()) {
+    log.warn({ prospectId: prospect.id }, 'Skipping prospect AI evaluation: ANTHROPIC_API_KEY not configured')
+    return null
+  }
   const anthropic = getAnthropicClient()
 
   const statsContext = buildStatsContext(stats)
