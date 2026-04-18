@@ -88,7 +88,7 @@ function buildStatsContext(stats) {
 
   if (stats.bmNotes && stats.bmNotes.length > 0) {
     lines.push('BATTLEMETRICS STAFF NOTES:')
-    const rendered = formatBMNotes(stats.bmNotes)
+    const rendered = formatBMNotes(stats.bmNotes.slice(0, 10))
     for (const line of rendered.split('\n')) lines.push(`  ${line}`)
   }
 
