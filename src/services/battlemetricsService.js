@@ -22,7 +22,7 @@ function profileCacheGet(steamId) {
   // Touch for LRU ordering
   profileCache.delete(steamId);
   profileCache.set(steamId, entry);
-  return entry.value;
+  return structuredClone(entry.value);
 }
 
 function profileCacheSet(steamId, value) {
@@ -302,11 +302,6 @@ export async function resolveAndGetStats(steamId, startDate, endDate) {
 //                        relationships.playerFlag.data.id links back to the playerFlag definition id.
 // To render the flag list: collect flagPlayer items -> resolve each relationships.playerFlag.data.id
 // against the playerFlag definitions map -> produce flag objects with name+description.
-// Note: BM token is not present in local .env (BM_TOKEN); shape confirmed from existing codebase
-// usage in addFlag/removeFlag (which POST { type: 'playerFlag' }) and from BM API documentation.
-// Local smoke-test requires BM_TOKEN to be added to .env first.
-
-// See discovery notes above for BM include response shape.
 export async function getPlayerProfile(steamId) {
   if (!isConfigured()) return null;
 
@@ -322,13 +317,15 @@ export async function getPlayerProfile(steamId) {
     const { playerId } = result;
 
     log.info({ steamId, playerId }, 'BM: fetching player profile (bans+notes+flags)');
-    const url = `${BASE_URL}/players/${playerId}?include=flagPlayer,playerFlag,playerNote`;
-    const res = await fetch(url, { headers: headers(), signal: AbortSignal.timeout(15000) });
-    if (!res.ok) {
-      log.warn({ steamId, status: res.status }, 'BM: player profile returned non-OK status');
+    const [includeRes, bans] = await Promise.all([
+      fetch(`${BASE_URL}/players/${playerId}?include=flagPlayer,playerFlag,playerNote`, { headers: headers(), signal: AbortSignal.timeout(15000) }),
+      getPlayerBans(steamId),
+    ]);
+    if (!includeRes.ok) {
+      log.warn({ steamId, status: includeRes.status }, 'BM: player profile returned non-OK status');
       return null;
     }
-    const json = await res.json();
+    const json = await includeRes.json();
 
     const flagDefsById = new Map();
     const flagAssignments = [];
@@ -361,8 +358,6 @@ export async function getPlayerProfile(steamId) {
     const flags = flagAssignments
       .map((id) => flagDefsById.get(id))
       .filter(Boolean);
-
-    const bans = await getPlayerBans(steamId);
 
     const profile = { bans: bans ?? { activeBans: [], expiredBanCount: 0 }, notes, flags };
     profileCacheSet(steamId, profile);
