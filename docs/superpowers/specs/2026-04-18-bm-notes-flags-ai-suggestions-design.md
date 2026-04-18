@@ -27,13 +27,7 @@ The AI suggestion prompts for prospect applications and support tickets lack sta
 
 ### 1. `battlemetricsService.js` — new `getPlayerProfile(steamId)`
 
-Add a combined fetch function that resolves the BM player ID via the existing 3-tier cache (memory → DB → API) and performs **one** request:
-
-```
-GET /players/{id}?include=playerNote,flagPlayer,flag,ban
-```
-
-The response `included` array is split by `type` into `{ bans, notes, flags }`.
+Add a combined fetch function that resolves the BM player ID via the existing 3-tier cache (memory → DB → API) and performs **one** `GET /players/{id}` request with the relevant `include` parameters for bans, notes, and flags. Exact include names (`playerNote` is confirmed from existing code; `flagPlayer`/`flag` names should be verified against the BM API during implementation) are an implementation detail; the contract is that one call returns all three resources. The response `included` array is split by `type` into `{ bans, notes, flags }`.
 
 **Returned shape:**
 
@@ -86,7 +80,7 @@ A tiny helper, colocated in `battlemetricsService.js` or a new `src/services/ai/
 
 ```js
 export function formatBMNotes(notes) { /* bullet list, newest first, "[YYYY-MM-DD] text" */ }
-export function formatBMFlags(flags) { /* bullet list, "- Name: description" (description optional) */ }
+export function formatBMFlags(flags) { /* bullet list: "- Name: description" when description present, "- Name" when not */ }
 ```
 
 Both AIs call the same formatter to keep output consistent. Empty lists → empty string (caller decides whether to include a header).
