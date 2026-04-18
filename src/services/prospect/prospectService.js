@@ -3,7 +3,7 @@ import { ChannelType, EmbedBuilder } from 'discord.js';
 import { createEmbed } from '../../utils/embed.js';
 import { buildPrivateChannelPermissions } from '../../utils/permissions.js';
 import { findBotMessageByCustomId } from '../../utils/messageSearch.js';
-import { buildProspectInfoEmbed, buildForumIntroEmbed, buildProspectComponents, buildProspectAcceptedComponents, buildAcceptedAnnouncementEmbed } from './prospectEmbeds.js';
+import { buildProspectInfoEmbed, buildForumIntroEmbed, buildProspectComponents, buildProspectAcceptedComponents, buildAcceptedAnnouncementEmbed, parseAiSections, buildProspectAiEmbed, buildProspectAiTabRow, AI_DEFAULT_SECTION } from './prospectEmbeds.js';
 import * as bm from '../battlemetricsService.js';
 import * as whitelistService from '../whitelistService.js';
 import { fetchCblData } from '../cblService.js';
@@ -269,26 +269,29 @@ function appendAllStatsToMessage(message, steamId, userId, prospect) {
     }
     embeds.push(updated);
 
-    // AI Assessment as a separate embed
+    // AI Assessment as a separate embed with tab buttons
+    let aiTabRow = null;
     if (prospect) {
       try {
         const aiText = await generateProspectEvaluation(prospect, {
           connStats, playtime, seedStats, seedStreak, activity, cblData, bmBans, bmNotes, bmFlags, steamBans,
         });
         if (aiText) {
-          const truncated = aiText.length > 4096 ? aiText.slice(0, 4093) + '...' : aiText;
-          const aiEmbed = createEmbed('Prospect')
-            .setTitle('AI Assessment')
-            .setDescription(truncated)
-            .setColor(0x5865f2);
-          embeds.push(aiEmbed);
+          await query('UPDATE prospects SET ai_evaluation = ? WHERE id = ?', [aiText, prospect.id]);
+          const sections = parseAiSections(aiText);
+          embeds.push(buildProspectAiEmbed(AI_DEFAULT_SECTION, sections));
+          aiTabRow = buildProspectAiTabRow(prospect.id, AI_DEFAULT_SECTION);
         }
       } catch (err) {
         log.warn({ err }, 'Failed to generate AI prospect evaluation');
       }
     }
 
-    message.edit({ embeds }).catch((err) =>
+    const editPayload = { embeds };
+    if (aiTabRow) {
+      editPayload.components = [...(message.components || []), aiTabRow];
+    }
+    message.edit(editPayload).catch((err) =>
       log.warn({ err }, 'Failed to append stats to prospect embed')
     );
   }).catch((err) => {
