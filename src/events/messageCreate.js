@@ -115,8 +115,7 @@ async function handleDM(message) {
     new ButtonBuilder()
       .setCustomId('prospect_apply')
       .setLabel('Join RB')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(true),
+      .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId('seed_progression')
       .setLabel('Seed Progression')
