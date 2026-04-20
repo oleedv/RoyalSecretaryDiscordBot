@@ -269,21 +269,27 @@ function appendAllStatsToMessage(message, steamId, userId, prospect) {
     }
     embeds.push(updated);
 
-    // AI Assessment as a separate embed with tab buttons
+    // AI Assessment as a separate embed with tab buttons.
+    // Only generate if not already stored; otherwise reuse the cached evaluation.
     let aiTabRow = null;
     if (prospect) {
-      try {
-        const aiText = await generateProspectEvaluation(prospect, {
-          connStats, playtime, seedStats, seedStreak, activity, cblData, bmBans, bmNotes, bmFlags, steamBans,
-        });
-        if (aiText) {
-          await query('UPDATE prospects SET ai_evaluation = ? WHERE id = ?', [aiText, prospect.id]);
-          const sections = parseAiSections(aiText);
-          embeds.push(buildProspectAiEmbed(AI_DEFAULT_SECTION, sections));
-          aiTabRow = buildProspectAiTabRow(prospect.id, AI_DEFAULT_SECTION);
+      let aiText = prospect.ai_evaluation || null;
+      if (!aiText) {
+        try {
+          aiText = await generateProspectEvaluation(prospect, {
+            connStats, playtime, seedStats, seedStreak, activity, cblData, bmBans, bmNotes, bmFlags, steamBans,
+          });
+          if (aiText) {
+            await query('UPDATE prospects SET ai_evaluation = ? WHERE id = ?', [aiText, prospect.id]);
+          }
+        } catch (err) {
+          log.warn({ err }, 'Failed to generate AI prospect evaluation');
         }
-      } catch (err) {
-        log.warn({ err }, 'Failed to generate AI prospect evaluation');
+      }
+      if (aiText) {
+        const sections = parseAiSections(aiText);
+        embeds.push(buildProspectAiEmbed(AI_DEFAULT_SECTION, sections));
+        aiTabRow = buildProspectAiTabRow(prospect.id, AI_DEFAULT_SECTION);
       }
     }
 
