@@ -7,6 +7,7 @@ import { createBot } from './bot.js';
 import { printStartupBanner, printReadyBanner, printShutdownBanner } from './utils/printBanner.js';
 import { stopScheduler } from './services/prospect/prospectScheduler.js';
 import { stopScheduler as stopSeedingScheduler } from './services/seeding/seedingScheduler.js';
+import { getSeedingConfig } from './services/seeding/seedingService.js';
 import { disconnect as disconnectSquadJS } from './services/seeding/seedingSocket.js';
 import { stopHeartbeat } from './services/admin/statusHeartbeat.js';
 import { stopScheduler as stopSeedTrackerScheduler } from './services/seedTracker/seedTrackerScheduler.js';
@@ -37,6 +38,26 @@ async function main() {
   }
 
   await initSchema();
+
+  // Single-line environment assertion so prod/staging misconfig is obvious in logs.
+  try {
+    const seedingCfg = await getSeedingConfig();
+    log.info({
+      env: process.env.NODE_ENV,
+      dbHost: config.database.host,
+      secretaryDb: config.database.databases.secretary,
+      websiteDb: config.database.databases.website,
+      squadjsServers: (config.squadjs || []).map(s => ({ name: s.name, url: s.url })),
+      seedingServer: config.seeding?.seedingServer ?? null,
+      seedingChannelId: seedingCfg?.channel_id ?? null,
+      seedingRoleId: seedingCfg?.role_id ?? null,
+      seedThreshold: seedingCfg?.seed_threshold ?? null,
+      seedTrackerProgressionChannelId: config.seedTracker?.progressionChannelId ?? null,
+      seedTrackerLeaderboardChannelId: config.seedTracker?.leaderboardChannelId ?? null,
+    }, '[boot] bot environment');
+  } catch (err) {
+    log.warn({ err }, '[boot] failed to log environment assertion');
+  }
 
   const { client, commandCount, eventCount } = await createBot();
   await client.login(config.discord.token);

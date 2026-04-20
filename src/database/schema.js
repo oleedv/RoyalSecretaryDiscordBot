@@ -236,6 +236,7 @@ export async function initSchema() {
   } catch { /* daily_hour column may not exist on fresh installs */ }
   await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS last_daily_call_date DATE NULL`);
   await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS panel_message_id VARCHAR(20) NULL`);
+  await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS last_reset_date DATE NULL`);
 
   // ── Admin / console tables ──
 

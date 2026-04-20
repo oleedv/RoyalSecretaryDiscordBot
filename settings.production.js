@@ -31,9 +31,10 @@ export default {
     forumChannelId: '1237525233770958898',               // Forum channel for public prospect posts
     loungeChannelId: '460898033794809856',              // Public announcements (voting, accepted)
     periodDays: 28,
-    voteDaysBefore: 7,
+    voteDaysBefore: 14,
     roles: ['1204763136830218260', '654022866261770270', '1213958671843860552', '1295470787934814259', '989894740642263082', '733974178797191189'],                      // Staff roles, trainee mentor, mentor, seniro mentor, recruitment officer, comm officer, rb managers
     prospectRoleId: '706053335106715650',               // Prospect role
+    purgedRoleId: '1125873310182428693',                // Purged role (removed on accept)
     whitelistRoleId: '528574587747958794',              // Whitelist role aka rb member
     mentorRoleId: '654022866261770270',                 // Mentor role
     voiceChannelId: '1476956237110186195',               // Voice channel for invites
@@ -56,6 +57,7 @@ export default {
     memberFlagId: '60539480-0d14-11ec-a83f-b32d5968dd59',
   },
   seeding: {
+    seedingServer: 'production',                         // Must match the name in SQUADJS_SERVERS env var (name|url|token)
     defaultThreshold: 40,
     defaultResetThreshold: 20,
     defaultTime: '16:00',

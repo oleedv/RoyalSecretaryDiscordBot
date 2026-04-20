@@ -4,6 +4,7 @@ import {
   resetSession, updateSessionPeak, updateSessionCallMessage,
   expireOldSessions, getSeedingStats, trackMessage,
   clearTrackedMessages, setLastDailyCallDate, setPanelMessageId,
+  setLastResetDate,
 } from './seedingService.js';
 import {
   buildSeedingCallEmbed, buildSeedingCompletionEmbed,
@@ -15,7 +16,6 @@ import logger from '../../logger.js';
 
 const log = logger.child({ module: 'seedingScheduler' });
 
-let lastResetDate = null;
 let lastPanelConfig = null;
 
 const checkMs = config.seeding?.schedulerCheckMs || 60000;
@@ -249,10 +249,14 @@ async function checkDailyCall(client) {
     const currentTime = getCurrentTime(tz);
     const dailyTime = normalizeTime(cfg.daily_time || '16:00');
 
+    const lastResetDateStored = cfg.last_reset_date
+      ? new Date(cfg.last_reset_date).toISOString().slice(0, 10)
+      : null;
+
     // Channel reset: 1 hour before daily call, clean up everything except panel (once per day)
-    if (isInResetWindow(currentTime, dailyTime) && lastResetDate !== today) {
+    if (isInResetWindow(currentTime, dailyTime) && lastResetDateStored !== today) {
       await resetChannel(client, cfg);
-      lastResetDate = today;
+      await setLastResetDate(today);
     }
 
     // Daily call: post if at or past daily time and not yet posted today
@@ -261,6 +265,13 @@ async function checkDailyCall(client) {
       : null;
     if (lastCallDate === today) return;
     if (currentTime < dailyTime) return;
+
+    // Self-heal: if reset was missed today (bot was offline during reset window),
+    // clean the channel now before posting the daily call.
+    if (lastResetDateStored !== today) {
+      await resetChannel(client, cfg);
+      await setLastResetDate(today);
+    }
 
     await setLastDailyCallDate(today);
     log.info({ time: currentTime, date: today }, 'Posting daily seeding call');
@@ -271,22 +282,41 @@ async function checkDailyCall(client) {
   }
 }
 
+function isPanelMessage(client, msg) {
+  return (
+    msg.author.id === client.user.id &&
+    msg.components.some(row => row.components.some(c => c.customId === 'seeding_join'))
+  );
+}
+
 async function resetChannel(client, cfg) {
   try {
     const channel = await client.channels.fetch(cfg.channel_id).catch(() => null);
     if (!channel) return;
 
-    const messages = await channel.messages.fetch({ limit: 50 });
-    const toDelete = messages.filter(
-      msg => !(
-        msg.author.id === client.user.id &&
-        msg.components.some(row => row.components.some(c => c.customId === 'seeding_join'))
-      )
-    );
+    const messages = await channel.messages.fetch({ limit: 100 });
+    const toDelete = messages.filter(msg => !isPanelMessage(client, msg));
 
     if (toDelete.size === 0) return;
 
+    // bulkDelete only handles messages younger than 14 days (filter:true drops old ones silently).
     await channel.bulkDelete(toDelete, true).catch(() => {});
+
+    // Fallback: iterate any messages still in the channel (those >14 days old) and delete one-by-one.
+    const remaining = await channel.messages.fetch({ limit: 100 }).catch(() => null);
+    if (remaining) {
+      let oldDeleted = 0;
+      for (const msg of remaining.values()) {
+        if (isPanelMessage(client, msg)) continue;
+        await msg.delete().catch(() => {});
+        oldDeleted += 1;
+        await new Promise(r => setTimeout(r, 250));
+      }
+      if (oldDeleted > 0) {
+        log.info({ oldDeleted }, 'Deleted messages older than bulkDelete limit');
+      }
+    }
+
     await clearTrackedMessages(cfg.channel_id);
 
     // Expire any lingering active session
@@ -387,9 +417,11 @@ export async function postSeedingCall(client, cfg) {
     fastestSeed: stats.fastest,
   });
 
-  const content = [cfg.role_id].filter(Boolean).map(id => `<@&${id}>`).join(' ') || undefined;
+  const roleMention = cfg.role_id ? `<@&${cfg.role_id}>` : '';
+  const content = [roleMention, '**SEEDING HAS BEGUN**'].filter(Boolean).join(' ');
+  const allowedMentions = cfg.role_id ? { roles: [cfg.role_id] } : { parse: [] };
 
-  const msg = await channel.send({ content, embeds: [embed] });
+  const msg = await channel.send({ content, embeds: [embed], allowedMentions });
 
   // Start a seeding session
   const session = await startSession(state.currentMap, state.currentLayer, state.playerCount);
@@ -409,9 +441,11 @@ async function postCompletionMessage(client, cfg, session, state, duration) {
     duration,
   });
 
-  const content = [cfg.role_id].filter(Boolean).map(id => `<@&${id}>`).join(' ') || undefined;
+  const roleMention = cfg.role_id ? `<@&${cfg.role_id}>` : '';
+  const content = [roleMention, '**SEEDING COMPLETE**'].filter(Boolean).join(' ');
+  const allowedMentions = cfg.role_id ? { roles: [cfg.role_id] } : { parse: [] };
 
-  const msg = await channel.send({ content, embeds: [embed] });
+  const msg = await channel.send({ content, embeds: [embed], allowedMentions });
   await trackMessage(msg.id, cfg.channel_id, 'completion', session.id);
 
   log.info({ sessionId: session.id, duration, players: state.playerCount }, 'Seeding completion posted');
