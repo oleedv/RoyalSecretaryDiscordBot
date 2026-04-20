@@ -346,6 +346,35 @@ export async function getProspectsNeedingVote() {
   );
 }
 
+export async function backfillMissingAiEvaluations(client) {
+  const prospects = await query(
+    "SELECT * FROM prospects WHERE status = 'open' AND ai_evaluation IS NULL AND channel_id IS NOT NULL"
+  );
+  if (prospects.length === 0) return;
+
+  log.info({ count: prospects.length }, 'Backfilling missing prospect AI evaluations');
+
+  for (const prospect of prospects) {
+    if (isTestSteamId(prospect.steam_id)) continue;
+    try {
+      const channel = await client.channels.fetch(prospect.channel_id).catch(() => null);
+      if (!channel) {
+        log.warn({ prospectId: prospect.id, channelId: prospect.channel_id }, 'AI backfill: channel not found');
+        continue;
+      }
+      const topMsg = await findBotMessageByCustomId(channel, client.user.id, ['prospect_claim', 'prospect_accept', 'prospect_deny', 'prospect_unclaim']);
+      if (!topMsg) {
+        log.warn({ prospectId: prospect.id, channelId: prospect.channel_id }, 'AI backfill: top prospect message not found');
+        continue;
+      }
+      appendAllStatsToMessage(topMsg, prospect.steam_id, prospect.user_id, prospect);
+      log.info({ prospectId: prospect.id }, 'AI backfill: dispatched regeneration');
+    } catch (err) {
+      log.error({ err, prospectId: prospect.id }, 'AI backfill failed for prospect');
+    }
+  }
+}
+
 export async function saveProspectMessage(prospectId, authorId, authorTag, content, attachments, isStaff, sourceMessageId, channelMessageId) {
   await query(
     'INSERT INTO prospect_messages (prospect_id, author_id, author_tag, content, attachments, is_staff, source_message_id, channel_message_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',

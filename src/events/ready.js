@@ -4,6 +4,7 @@ import { ensureProspectPanel } from '../services/prospect/prospectPanel.js';
 import { ensureVerifyPanel } from '../services/verify/verifyPanel.js';
 import { ensurePurgedPanel } from '../services/purged/purgedPanel.js';
 import { startScheduler } from '../services/prospect/prospectScheduler.js';
+import { backfillMissingAiEvaluations } from '../services/prospect/prospectService.js';
 import { connect as connectSquadJS } from '../services/seeding/seedingSocket.js';
 import { startScheduler as startSeedingScheduler } from '../services/seeding/seedingScheduler.js';
 import { startHeartbeat } from '../services/admin/statusHeartbeat.js';
@@ -39,6 +40,7 @@ export default {
     await safeInit('anonymousModes', () => restoreAnonymousModes());
 
     await safeInit('prospectScheduler', () => startScheduler(client));
+    await safeInit('prospectAiBackfill', () => backfillMissingAiEvaluations(client));
     await safeInit('squadJSSocket', () => connectSquadJS(client));
     await safeInit('seedingScheduler', () => startSeedingScheduler(client));
     await safeInit('seedTrackerScheduler', () => startSeedTrackerScheduler(client));
