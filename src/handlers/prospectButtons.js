@@ -166,7 +166,7 @@ export async function handleVoiceInvite(interaction) {
   const voiceLink = `https://discord.com/channels/${interaction.guild.id}/${voiceChannelId}`;
   await user.send({ embeds: [infoEmbed(`You've been invited to join a voice chat with a mentor! Click here to join: ${voiceLink}`)] }).catch(() => null);
 
-  await interaction.reply({ embeds: [successEmbed(`Voice invite sent to **${prospect.alias}**.`)], flags: ['Ephemeral'] });
+  await interaction.reply({ embeds: [successEmbed(`Voice invite sent to **${prospect.alias}**.`)] });
   log.info({ prospectId: prospect.id, invitedBy: interaction.user.id }, 'Voice invite sent to prospect');
 }
 
@@ -220,9 +220,11 @@ export async function handleTestVote(interaction) {
 
 export async function handleVoteYes(interaction) {
   if (await requireRole(interaction, staffRoles())) return;
-  await interaction.deferUpdate();
   const prospect = await getProspectByVoteMessage(interaction.message.id);
-  if (!prospect) return;
+  if (!prospect) {
+    return interaction.reply({ embeds: [errorEmbed('Could not find the associated prospect.')], flags: ['Ephemeral'] });
+  }
+  await interaction.deferUpdate();
 
   await upsertVote(prospect.id, interaction.user.id, interaction.user.tag, 'yes');
   const counts = await getVoteCounts(prospect.id);
@@ -233,9 +235,11 @@ export async function handleVoteYes(interaction) {
 
 export async function handleVoteUnsure(interaction) {
   if (await requireRole(interaction, staffRoles())) return;
-  await interaction.deferUpdate();
   const prospect = await getProspectByVoteMessage(interaction.message.id);
-  if (!prospect) return;
+  if (!prospect) {
+    return interaction.reply({ embeds: [errorEmbed('Could not find the associated prospect.')], flags: ['Ephemeral'] });
+  }
+  await interaction.deferUpdate();
 
   await upsertVote(prospect.id, interaction.user.id, interaction.user.tag, 'unsure');
   const counts = await getVoteCounts(prospect.id);

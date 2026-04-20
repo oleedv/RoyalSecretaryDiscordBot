@@ -19,6 +19,20 @@ import logger from '../../logger.js';
 
 const log = logger.child({ module: 'prospects' });
 
+const PROSPECT_COLUMNS = [
+  'id', 'uuid', 'channel_id', 'forum_thread_id', 'user_id', 'status',
+  'alias', 'nationality', 'date_of_birth', 'squad_hours', 'preferred_roles',
+  'prev_clan', 'why_rb', 'active_hours', 'competitive', 'steam_id',
+  'mentor_id', 'vote_posted_at', 'vote_message_id', 'created_at',
+  'closed_at', 'closed_by', 'extra_days', 'paused_at', 'period_started_at',
+  'ai_evaluation',
+].join(', ');
+
+export async function getProspectById(id) {
+  const rows = await query(`SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE id = ?`, [id]);
+  return rows[0] || null;
+}
+
 /**
  * Check if a Steam ID is the test/placeholder value "Q".
  */
@@ -309,19 +323,19 @@ function appendAllStatsToMessage(message, steamId, userId, prospect) {
 
 export async function getOpenProspectByUser(userId) {
   const rows = await query(
-    'SELECT * FROM prospects WHERE user_id = ? AND status = ?',
+    `SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE user_id = ? AND status = ?`,
     [userId, 'open']
   );
   return rows[0] || null;
 }
 
 export async function getOpenProspectsByMentor(mentorId) {
-  return query('SELECT * FROM prospects WHERE mentor_id = ? AND status = ?', [mentorId, 'open']);
+  return query(`SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE mentor_id = ? AND status = ?`, [mentorId, 'open']);
 }
 
 export async function getProspectByChannel(channelId) {
   const rows = await query(
-    'SELECT * FROM prospects WHERE channel_id = ? AND status = ?',
+    `SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE channel_id = ? AND status = ?`,
     [channelId, 'open']
   );
   return rows[0] || null;
@@ -329,7 +343,7 @@ export async function getProspectByChannel(channelId) {
 
 export async function getProspectByUserWithChannel(userId) {
   const rows = await query(
-    'SELECT * FROM prospects WHERE user_id = ? AND channel_id IS NOT NULL AND status IN (?, ?) ORDER BY created_at DESC LIMIT 1',
+    `SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE user_id = ? AND channel_id IS NOT NULL AND status IN (?, ?) ORDER BY created_at DESC LIMIT 1`,
     [userId, 'accepted', 'denied']
   );
   return rows[0] || null;
@@ -337,7 +351,7 @@ export async function getProspectByUserWithChannel(userId) {
 
 export async function getProspectByChannelAnyStatus(channelId) {
   const rows = await query(
-    'SELECT * FROM prospects WHERE channel_id = ? ORDER BY created_at DESC LIMIT 1',
+    `SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE channel_id = ? ORDER BY created_at DESC LIMIT 1`,
     [channelId]
   );
   return rows[0] || null;
@@ -347,14 +361,14 @@ export async function getProspectsNeedingVote() {
   const { periodDays, voteDaysBefore } = config.prospects;
   const daysUntilVote = periodDays - voteDaysBefore;
   return await query(
-    'SELECT * FROM prospects WHERE status = ? AND forum_thread_id IS NOT NULL AND vote_posted_at IS NULL AND paused_at IS NULL AND TIMESTAMPDIFF(DAY, COALESCE(period_started_at, created_at), NOW()) >= (? + COALESCE(extra_days, 0))',
+    `SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE status = ? AND forum_thread_id IS NOT NULL AND vote_posted_at IS NULL AND paused_at IS NULL AND TIMESTAMPDIFF(DAY, COALESCE(period_started_at, created_at), NOW()) >= (? + COALESCE(extra_days, 0))`,
     ['open', daysUntilVote]
   );
 }
 
 export async function backfillMissingAiEvaluations(client) {
   const prospects = await query(
-    "SELECT * FROM prospects WHERE status = 'open' AND ai_evaluation IS NULL AND channel_id IS NOT NULL"
+    `SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE status = 'open' AND ai_evaluation IS NULL AND channel_id IS NOT NULL`
   );
   if (prospects.length === 0) return;
 
@@ -415,7 +429,7 @@ export async function createProspect(userId, guild, formData) {
       [uuid, channel.id, userId, formData.alias, formData.nationality, formData.dateOfBirth, formData.squadHours, formData.preferredRoles, formData.prevClan, formData.whyRb, formData.activeHours, formData.competitive, formData.steamId]
     );
 
-    const rows = await query('SELECT * FROM prospects WHERE uuid = ?', [uuid]);
+    const rows = await query(`SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE uuid = ?`, [uuid]);
     prospect = rows[0];
 
     await query(
@@ -465,7 +479,7 @@ export async function claimProspect(prospect, mentorId, guild) {
   const staffChannel = await guild.channels.fetch(prospect.channel_id).catch(() => null);
   if (staffChannel) {
     const member = await guild.members.fetch(prospect.user_id).catch(() => null);
-    const updated = (await query('SELECT * FROM prospects WHERE id = ?', [prospect.id]))[0];
+    const updated = (await query(`SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE id = ?`, [prospect.id]))[0];
     const bmPlayerId = !isTestSteamId(updated.steam_id) ? await bm.resolvePlayerId(updated.steam_id) : null;
     const infoEmbed = buildProspectInfoEmbed(member, updated, null, bmPlayerId);
     const components = buildProspectComponents(updated);
@@ -526,7 +540,7 @@ export async function unclaimProspect(prospect, actorId, guild, reason = null) {
   const staffChannel = await guild.channels.fetch(prospect.channel_id).catch(() => null);
   if (staffChannel) {
     const member = await guild.members.fetch(prospect.user_id).catch(() => null);
-    const updated = (await query('SELECT * FROM prospects WHERE id = ?', [prospect.id]))[0];
+    const updated = (await query(`SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE id = ?`, [prospect.id]))[0];
     const bmPlayerId = !isTestSteamId(updated.steam_id) ? await bm.resolvePlayerId(updated.steam_id) : null;
     const infoEmbed = buildProspectInfoEmbed(member, updated, null, bmPlayerId);
     const components = buildProspectComponents(updated);
@@ -554,7 +568,7 @@ export async function unclaimProspect(prospect, actorId, guild, reason = null) {
 }
 
 export async function acceptProspect(prospect, acceptedById, guild) {
-  const { forumChannelId, periodDays, prospectRoleId } = config.prospects;
+  const { forumChannelId, periodDays, prospectRoleId, purgedRoleId } = config.prospects;
 
   const member = await guild.members.fetch(prospect.user_id).catch(() => null);
 
@@ -562,6 +576,26 @@ export async function acceptProspect(prospect, acceptedById, guild) {
     await member.roles.add(prospectRoleId).catch((err) =>
       log.error({ err, userId: prospect.user_id }, 'Failed to add prospect role')
     );
+  }
+
+  let purgedRoleRemoved = false;
+  if (purgedRoleId && member?.roles.cache.has(purgedRoleId)) {
+    try {
+      await member.roles.remove(purgedRoleId);
+      purgedRoleRemoved = true;
+    } catch (err) {
+      log.error({ err, userId: prospect.user_id }, 'Failed to remove Purged role');
+    }
+  }
+
+  // Guard against double-accept: reserve the row before creating the forum thread.
+  const reserveResult = await query(
+    'UPDATE prospects SET period_started_at = NOW() WHERE id = ? AND forum_thread_id IS NULL AND period_started_at IS NULL',
+    [prospect.id]
+  );
+  if (reserveResult.affectedRows === 0) {
+    log.warn({ prospectId: prospect.id, acceptedById }, 'Accept skipped: prospect already accepted');
+    return;
   }
 
   let forumThreadId = null;
@@ -576,10 +610,9 @@ export async function acceptProspect(prospect, acceptedById, guild) {
     forumThreadId = thread.id;
   }
 
-  await query(
-    'UPDATE prospects SET forum_thread_id = ?, period_started_at = NOW() WHERE id = ?',
-    [forumThreadId, prospect.id]
-  );
+  if (forumThreadId) {
+    await query('UPDATE prospects SET forum_thread_id = ? WHERE id = ?', [forumThreadId, prospect.id]);
+  }
 
   await query(
     'INSERT INTO prospect_events (prospect_id, event_type, actor_id, detail) VALUES (?, ?, ?, ?)',
@@ -590,7 +623,7 @@ export async function acceptProspect(prospect, acceptedById, guild) {
   if (staffChannel) {
     const forumUrl = forumThreadId ? `https://discord.com/channels/${guild.id}/${forumThreadId}` : null;
 
-    const updated = (await query('SELECT * FROM prospects WHERE id = ?', [prospect.id]))[0];
+    const updated = { ...prospect, forum_thread_id: forumThreadId, period_started_at: new Date() };
     const bmPlayerId = !isTestSteamId(updated.steam_id) ? await bm.resolvePlayerId(updated.steam_id) : null;
     const infoEmbed = buildProspectInfoEmbed(member, updated, forumUrl, bmPlayerId);
     const components = buildProspectAcceptedComponents(updated);
@@ -609,18 +642,34 @@ export async function acceptProspect(prospect, acceptedById, guild) {
       )
       .setColor(0x57f287);
     await staffChannel.send({ embeds: [notifEmbed] });
+
+    if (purgedRoleRemoved) {
+      const purgedEmbed = createEmbed('Prospect')
+        .setTitle('Purged Role Removed')
+        .setDescription(`Removed the <@&${purgedRoleId}> role from <@${prospect.user_id}>.`)
+        .setColor(0x57f287);
+      await staffChannel.send({ embeds: [purgedEmbed] });
+    }
   }
 
   if (member) {
-    try {
-      await member.setNickname(`P | ${member.displayName}`);
-    } catch (err) {
-      log.error({ err, userId: prospect.user_id }, 'Failed to set P | nickname');
-      if (staffChannel) {
-        staffChannel.send({ embeds: [createEmbed('Prospect')
-          .setTitle('Nickname Change Failed')
-          .setDescription(`Could not set nickname to **P | ${member.displayName}** for <@${prospect.user_id}>.\nError: ${err.message}`)
-          .setColor(0xed4245)] }).catch(() => null);
+    const NICK_PREFIX = 'P | ';
+    const MAX_NICK_LENGTH = 32;
+    const currentName = member.displayName;
+    const baseName = currentName.startsWith(NICK_PREFIX) ? currentName.slice(NICK_PREFIX.length) : currentName;
+    const available = MAX_NICK_LENGTH - NICK_PREFIX.length;
+    const desiredNick = `${NICK_PREFIX}${baseName.slice(0, available)}`;
+    if (currentName !== desiredNick) {
+      try {
+        await member.setNickname(desiredNick);
+      } catch (err) {
+        log.error({ err, userId: prospect.user_id }, 'Failed to set P | nickname');
+        if (staffChannel) {
+          staffChannel.send({ embeds: [createEmbed('Prospect')
+            .setTitle('Nickname Change Failed')
+            .setDescription(`Could not set nickname to **${desiredNick}** for <@${prospect.user_id}>.\nError: ${err.message}`)
+            .setColor(0xed4245)] }).catch(() => null);
+        }
       }
     }
   }
@@ -752,7 +801,7 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
         .setColor(0x95a5a6),
     };
     const dmEmbed = dmEmbeds[outcome] || dmEmbeds.closed;
-    await user.send({ embeds: [dmEmbed] }).catch(() => null);
+    await user.send({ embeds: [dmEmbed], allowedMentions: { parse: [] } }).catch(() => null);
   }
 
   log.info({ prospectId: prospect.id, closedBy: closedById, outcome }, 'Prospect closed');
@@ -762,19 +811,37 @@ export async function togglePause(prospect, actorId, guild) {
   const isPaused = !!prospect.paused_at;
 
   if (isPaused) {
+    // Atomic unpause: compute pausedDays from the stored paused_at in a single UPDATE so concurrent
+    // clicks can't both add the same days. Affects 0 rows if another caller already unpaused.
+    const result = await query(
+      `UPDATE prospects
+         SET extra_days = COALESCE(extra_days, 0) + CEIL(TIMESTAMPDIFF(SECOND, paused_at, NOW()) / 86400),
+             paused_at = NULL
+       WHERE id = ? AND paused_at IS NOT NULL`,
+      [prospect.id]
+    );
+    if (result.affectedRows === 0) {
+      log.warn({ prospectId: prospect.id }, 'Unpause skipped: prospect already unpaused');
+      await refreshStaffEmbed(prospect, guild);
+      return { paused: false };
+    }
     const pausedMs = Date.now() - new Date(prospect.paused_at).getTime();
     const pausedDays = Math.ceil(pausedMs / (24 * 60 * 60 * 1000));
-    await query(
-      'UPDATE prospects SET paused_at = NULL, extra_days = COALESCE(extra_days, 0) + ? WHERE id = ?',
-      [pausedDays, prospect.id]
-    );
     await query(
       'INSERT INTO prospect_events (prospect_id, event_type, actor_id, detail) VALUES (?, ?, ?, ?)',
       [prospect.id, 'unpaused', actorId, `Paused for ${pausedDays} day(s)`]
     );
     log.info({ prospectId: prospect.id, pausedDays }, 'Prospect unpaused');
   } else {
-    await query('UPDATE prospects SET paused_at = NOW() WHERE id = ?', [prospect.id]);
+    const result = await query(
+      'UPDATE prospects SET paused_at = NOW() WHERE id = ? AND paused_at IS NULL',
+      [prospect.id]
+    );
+    if (result.affectedRows === 0) {
+      log.warn({ prospectId: prospect.id }, 'Pause skipped: prospect already paused');
+      await refreshStaffEmbed(prospect, guild);
+      return { paused: true };
+    }
     await query(
       'INSERT INTO prospect_events (prospect_id, event_type, actor_id) VALUES (?, ?, ?)',
       [prospect.id, 'paused', actorId]
@@ -805,7 +872,7 @@ export async function refreshStaffEmbed(prospect, guild) {
   const staffChannel = await guild.channels.fetch(prospect.channel_id).catch(() => null);
   if (!staffChannel) return;
 
-  const updated = (await query('SELECT * FROM prospects WHERE id = ?', [prospect.id]))[0];
+  const updated = (await query(`SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE id = ?`, [prospect.id]))[0];
   const member = await guild.members.fetch(updated.user_id).catch(() => null);
   const forumUrl = updated.forum_thread_id
     ? `https://discord.com/channels/${guild.id}/${updated.forum_thread_id}`
@@ -827,7 +894,7 @@ async function refreshForumEmbed(prospect, guild) {
   const { forumChannelId } = config.prospects;
   if (!forumChannelId) return;
 
-  const updated = (await query('SELECT * FROM prospects WHERE id = ?', [prospect.id]))[0];
+  const updated = (await query(`SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE id = ?`, [prospect.id]))[0];
   if (!updated?.forum_thread_id) return;
 
   const forumChannel = await guild.channels.fetch(forumChannelId).catch(() => null);
