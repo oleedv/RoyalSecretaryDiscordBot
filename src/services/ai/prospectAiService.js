@@ -136,20 +136,26 @@ Analyze the prospect's application and all available data. Provide your response
 Keep it concise. Mentors are busy - give them actionable information at a glance.`
 }
 
+// Strip angle brackets so user-supplied text cannot close the <application_data> tag and inject instructions.
+function sanitize(value) {
+  if (value == null) return ''
+  return String(value).replace(/[<>]/g, '')
+}
+
 function buildUserMessage(prospect, statsContext) {
   return `Evaluate this prospect application:
 
 <application_data>
-Alias: ${prospect.alias}
-Country: ${prospect.nationality}
-Date of Birth: ${prospect.date_of_birth}
-Hours in Squad (self-reported): ${prospect.squad_hours}
-Preferred Roles: ${prospect.preferred_roles}
-Previous Clan: ${prospect.prev_clan}
-Why RB?: ${prospect.why_rb}
-Active Hours (UTC): ${prospect.active_hours}
-Competitive Interest: ${prospect.competitive}
-Steam ID: ${prospect.steam_id}
+Alias: ${sanitize(prospect.alias)}
+Country: ${sanitize(prospect.nationality)}
+Date of Birth: ${sanitize(prospect.date_of_birth)}
+Hours in Squad (self-reported): ${sanitize(prospect.squad_hours)}
+Preferred Roles: ${sanitize(prospect.preferred_roles)}
+Previous Clan: ${sanitize(prospect.prev_clan)}
+Why RB?: ${sanitize(prospect.why_rb)}
+Active Hours (UTC): ${sanitize(prospect.active_hours)}
+Competitive Interest: ${sanitize(prospect.competitive)}
+Steam ID: ${sanitize(prospect.steam_id)}
 </application_data>
 
 FETCHED DATA:

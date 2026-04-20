@@ -295,9 +295,14 @@ export async function escalateTicket(ticket, tier, channel, actorId = null) {
 
   // Rename the channel to match the new tier prefix
   const newPrefix = TIER_CHANNEL_PREFIX[tier] || '';
-  const baseName = channel.name.replace(/^(AO-|CO-|Comp-|WH-)/, '');
+  const knownPrefixes = Object.values(TIER_CHANNEL_PREFIX)
+    .filter(Boolean)
+    .map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|');
+  const stripRegex = new RegExp(`^(${knownPrefixes})`, 'i');
+  const baseName = channel.name.replace(stripRegex, '');
   const newName = `${newPrefix}${baseName}`;
-  if (newName !== channel.name) {
+  if (newName.toLowerCase() !== channel.name.toLowerCase()) {
     await channel.setName(newName).catch((err) => {
       log.error({ err, channelId: channel.id }, 'Failed to rename channel on escalation');
     });

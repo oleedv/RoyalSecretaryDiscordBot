@@ -3,7 +3,7 @@ import { createEmbed, errorEmbed, successEmbed } from '../utils/embed.js';
 import { validateDateOfBirth, validateSquadHours } from '../utils/validation.js';
 import { validateCountry } from '../utils/countries.js';
 import { validateSteamInput } from '../services/steamService.js';
-import { createProspect, getProspectByChannel, closeProspect, extendProspect } from '../services/prospect/prospectService.js';
+import { createProspect, getProspectByChannel, getProspectById, closeProspect, extendProspect } from '../services/prospect/prospectService.js';
 import { linkSteamId } from '../services/userService.js';
 import { upsertVote, getVoteCounts } from '../services/prospect/prospectVoting.js';
 import { buildVoteComponents } from '../services/prospect/prospectEmbeds.js';
@@ -142,6 +142,11 @@ export async function handleModal2(interaction) {
     });
   }
   pendingApplications.delete(interaction.user.id);
+  const part1Timer = pendingTimers.get(interaction.user.id);
+  if (part1Timer) {
+    clearTimeout(part1Timer);
+    pendingTimers.delete(interaction.user.id);
+  }
 
   const formData = {
     alias: part1.alias,
@@ -208,9 +213,17 @@ export async function handleExtendModal(interaction) {
 
 export async function handleVoteNoModal(interaction) {
   if (await requireRole(interaction, staffRoles())) return;
-  await interaction.deferUpdate();
   const prospectId = parseInt(interaction.customId.split(':')[1], 10);
-  if (isNaN(prospectId)) return;
+  if (Number.isNaN(prospectId)) {
+    return interaction.reply({ embeds: [errorEmbed('Invalid prospect reference.')], flags: ['Ephemeral'] });
+  }
+
+  const prospect = await getProspectById(prospectId);
+  if (!prospect) {
+    return interaction.reply({ embeds: [errorEmbed('That prospect no longer exists.')], flags: ['Ephemeral'] });
+  }
+
+  await interaction.deferUpdate();
 
   const reason = interaction.fields.getTextInputValue('vote_no_reason').trim();
   await upsertVote(prospectId, interaction.user.id, interaction.user.tag, 'no', reason);

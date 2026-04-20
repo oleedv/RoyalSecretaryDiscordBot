@@ -1,12 +1,19 @@
 import { query } from '../database/connection.js';
 import { parseAiSections, buildProspectAiEmbed, buildProspectAiTabRow } from '../services/prospect/prospectEmbeds.js';
+import { requireRole } from '../utils/permissions.js';
+import config from '../config.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'prospectAiButtons' });
 
+const staffRoles = () => config.prospects.roles || [];
+
 export async function handleTabSwitch(interaction) {
+  if (await requireRole(interaction, staffRoles())) return;
+
   const [, section, prospectIdRaw] = interaction.customId.split(':');
   const prospectId = parseInt(prospectIdRaw, 10);
+  if (Number.isNaN(prospectId)) return;
 
   await interaction.deferUpdate();
 
