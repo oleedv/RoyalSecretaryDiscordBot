@@ -136,6 +136,9 @@ export default {
       if (!handler && (interaction.customId.startsWith('logs_prev:') || interaction.customId.startsWith('logs_next:'))) {
         handler = ticketButtons.handleLogsPagination;
       }
+      if (!handler && (interaction.customId.startsWith('sugg_prev:') || interaction.customId.startsWith('sugg_next:'))) {
+        handler = ticketButtons.handleSuggestionPagination;
+      }
       if (!handler && interaction.customId.startsWith('verify_answer_')) {
         handler = verifyButtons.handleAnswer;
       }

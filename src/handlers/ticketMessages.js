@@ -6,7 +6,8 @@ import { trySendWithFiles } from '../utils/discord.js';
 import { getTicketByChannel, saveMessage, beginCloseGracePeriod, getClosedTicketsByUser, isAnonymousMode } from '../services/ticket/ticketService.js';
 import { hasAnyRole } from '../utils/permissions.js';
 import { isAvailable, generateTicketSuggestion, ALLOWED_USER_ID } from '../services/ai/aiService.js';
-import { buildSuggestionEmbed } from '../services/ai/aiEmbeds.js';
+import { buildSuggestionEmbed, buildSuggestionComponents, totalPagesOf } from '../services/ai/aiEmbeds.js';
+import { saveSuggestion } from '../services/ai/suggestionRepo.js';
 import { detectSteamIds, buildSteamEmbed, buildVanityEmbed } from '../services/steamService.js';
 import { resolvePlayerId } from '../services/battlemetricsService.js';
 import config from '../config.js';
@@ -132,7 +133,21 @@ export async function handleGuild(message) {
     if (result.error) {
       await message.channel.send({ embeds: [errorEmbed(result.error)] });
     } else {
-      await message.channel.send({ embeds: [buildSuggestionEmbed(result)] });
+      const totalPages = totalPagesOf(result);
+      const sent = await message.channel.send({ embeds: [buildSuggestionEmbed(result, 1)] });
+      try {
+        await saveSuggestion({
+          messageId: sent.id,
+          channelId: message.channel.id,
+          ticketId: ticket.id,
+          suggestion: result,
+        });
+      } catch (err) {
+        log.error({ err, ticketId: ticket.id }, 'Failed to persist AI suggestion');
+      }
+      if (totalPages > 1) {
+        await sent.edit({ components: buildSuggestionComponents(sent.id, 1, totalPages) });
+      }
     }
     return true;
   }

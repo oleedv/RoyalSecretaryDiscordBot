@@ -427,5 +427,19 @@ export async function initSchema() {
     )
   `);
 
+  // ── AI ticket suggestions (30-day retention, keyed by bot's response message id) ──
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS ai_suggestions (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      message_id VARCHAR(20) NOT NULL UNIQUE,
+      channel_id VARCHAR(20) NOT NULL,
+      ticket_id INT NULL,
+      suggestion JSON NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_ai_sugg_created (created_at)
+    )
+  `);
+
   log.info('Database schema initialized');
 }
