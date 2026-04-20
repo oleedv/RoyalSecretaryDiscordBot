@@ -396,7 +396,7 @@ export async function createProspect(userId, guild, formData) {
 
   const uuid = randomUUID();
   const shortId = uuid.slice(0, 6);
-  const { categoryId, roles, prospectRoleId, mentorRoleId } = config.prospects;
+  const { categoryId, roles, mentorRoleId } = config.prospects;
 
   const permissionOverwrites = buildPrivateChannelPermissions(guild, roles);
 
@@ -438,12 +438,6 @@ export async function createProspect(userId, guild, formData) {
 
   if (mentorRoleId) {
     await channel.send(`<@&${mentorRoleId}> New prospect application!`);
-  }
-
-  if (prospectRoleId && member) {
-    await member.roles.add(prospectRoleId).catch((err) =>
-      log.error({ err, userId }, 'Failed to add prospect role')
-    );
   }
 
   const user = await guild.client.users.fetch(userId).catch(() => null);
@@ -516,7 +510,7 @@ export async function claimProspect(prospect, mentorId, guild) {
   return {};
 }
 
-export async function unclaimProspect(prospect, actorId, guild) {
+export async function unclaimProspect(prospect, actorId, guild, reason = null) {
   if (!prospect.mentor_id) return { error: 'This prospect does not have a mentor.' };
 
   // Remove the team role before clearing mentor_id
@@ -545,9 +539,12 @@ export async function unclaimProspect(prospect, actorId, guild) {
 
     const actor = await guild.members.fetch(actorId).catch(() => null);
     const actorTag = actor?.user.tag || actorId;
+    const description = reason
+      ? `**${actorTag}** has been unclaimed from this prospect: ${reason}. DM relay is no longer active.`
+      : `**${actorTag}** has unclaimed this prospect. DM relay is no longer active.`;
     const notifEmbed = createEmbed('Prospect')
       .setTitle('Mentor Unclaimed')
-      .setDescription(`**${actorTag}** has unclaimed this prospect. DM relay is no longer active.`)
+      .setDescription(description)
       .setColor(0xed4245);
     await staffChannel.send({ embeds: [notifEmbed] });
   }
@@ -557,9 +554,15 @@ export async function unclaimProspect(prospect, actorId, guild) {
 }
 
 export async function acceptProspect(prospect, acceptedById, guild) {
-  const { forumChannelId, periodDays } = config.prospects;
+  const { forumChannelId, periodDays, prospectRoleId } = config.prospects;
 
   const member = await guild.members.fetch(prospect.user_id).catch(() => null);
+
+  if (prospectRoleId && member) {
+    await member.roles.add(prospectRoleId).catch((err) =>
+      log.error({ err, userId: prospect.user_id }, 'Failed to add prospect role')
+    );
+  }
 
   let forumThreadId = null;
   const forumChannel = forumChannelId ? await guild.channels.fetch(forumChannelId).catch(() => null) : null;
