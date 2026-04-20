@@ -66,3 +66,24 @@ const log = logger.child({ module: 'mymodule' });
 - Always use parameterized queries (`?` placeholders) for database access
 - Intents are explicit in `src/bot.js` — add new intents there when needed
 - Guild-scoped command deployment when `config.guild.id` is set, otherwise global
+
+## Seeding Config: Source of Truth
+
+Two features share the word "seeding":
+
+- **Seeding** (daily call + panel): `src/services/seeding/` — permanent panel with join-role button, scheduled daily-call post, live population monitor via SquadJS socket.io.
+- **Seed Tracker** (reward): `src/services/seedTracker/` — tracks who helps seed, grants 30-day whitelist after 10 seed days in 30, monthly leaderboard.
+
+Each setting has exactly one home — don't duplicate:
+
+| Setting | Master | Where | Editable from |
+|---|---|---|---|
+| `enabled`, `channel_id`, `role_id`, `seed_threshold`, `reset_threshold`, `daily_time`, `timezone`, `panel_message_id`, `last_daily_call_date`, `last_reset_date` | **DB** | `Royal_secretary.seeding_config` row id=1 | Website `/discord-bot` SeedingTab |
+| `seeding.seedingServer` (which SquadJS server key to monitor) | **Repo** | `settings.{env}.js` | Code deploy |
+| `seeding.schedulerCheckMs`, `seeding.default*` | **Repo** | `settings.{env}.js` | Code deploy |
+| `seedTracker.progressionChannelId`, `leaderboardChannelId`, reward rules | **Repo** | `settings.{env}.js` | Code deploy |
+| `SQUADJS_SERVERS` (name\|url\|token per server), DB credentials, `NODE_ENV` | **Env var** | Container env | Deploy secret |
+
+`seeding.seedingServer` MUST match a `name` in `SQUADJS_SERVERS` — if it doesn't, `getServerState()` falls back to the first connection (non-deterministic), which is the typical cause of "production showing staging data".
+
+Boot logs emit a single `[boot] bot environment` line with env, DB host/name, SquadJS server names/URLs, `seedingServer`, and `seedingChannelId` — check it after any deploy to verify the environment.

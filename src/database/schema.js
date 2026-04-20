@@ -236,6 +236,7 @@ export async function initSchema() {
   } catch { /* daily_hour column may not exist on fresh installs */ }
   await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS last_daily_call_date DATE NULL`);
   await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS panel_message_id VARCHAR(20) NULL`);
+  await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS last_reset_date DATE NULL`);
 
   // ── Admin / console tables ──
 
@@ -424,6 +425,20 @@ export async function initSchema() {
       is_dnd TINYINT(1) DEFAULT 0,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (user_id, guild_id)
+    )
+  `);
+
+  // ── AI ticket suggestions (30-day retention, keyed by bot's response message id) ──
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS ai_suggestions (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      message_id VARCHAR(20) NOT NULL UNIQUE,
+      channel_id VARCHAR(20) NOT NULL,
+      ticket_id INT NULL,
+      suggestion JSON NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_ai_sugg_created (created_at)
     )
   `);
 

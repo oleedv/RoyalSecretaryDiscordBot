@@ -45,6 +45,13 @@ export async function setPanelMessageId(messageId) {
   );
 }
 
+export async function setLastResetDate(date) {
+  await query(
+    'UPDATE seeding_config SET last_reset_date = ? WHERE id = 1',
+    [date]
+  );
+}
+
 // ── Sessions ──
 
 export async function getActiveSession() {
