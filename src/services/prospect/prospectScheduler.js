@@ -1,4 +1,4 @@
-import { getProspectsNeedingVote, isTestSteamId, getProspectDates } from './prospectService.js';
+import { getProspectsNeedingVote, isTestSteamId, getProspectDates, refreshAllOpenProspectStats } from './prospectService.js';
 import { postVote } from './prospectVoting.js';
 import { getPlaytime } from '../playtimeService.js';
 import { createEmbed } from '../../utils/embed.js';
@@ -9,6 +9,7 @@ const log = logger.child({ module: 'prospectScheduler' });
 
 let intervalId = null;
 let isRunning = false;
+let isRefreshing = false;
 
 /** Track prospect IDs that have already been warned about low playtime */
 const lowPlaytimeWarned = new Set();
@@ -19,10 +20,30 @@ export function startScheduler(client) {
     return;
   }
 
-  log.info('Starting prospect vote scheduler (1h interval)');
+  log.info('Starting prospect scheduler (1h interval: vote check + stats refresh)');
 
+  tick(client);
+  intervalId = setInterval(() => tick(client), 60 * 60 * 1000);
+}
+
+function tick(client) {
   runVoteCheck(client);
-  intervalId = setInterval(() => runVoteCheck(client), 60 * 60 * 1000);
+  runStatsRefresh(client);
+}
+
+async function runStatsRefresh(client) {
+  if (isRefreshing) {
+    log.warn('Stats refresh still running from previous tick, skipping');
+    return;
+  }
+  isRefreshing = true;
+  try {
+    await refreshAllOpenProspectStats(client);
+  } catch (err) {
+    log.error({ err }, 'Stats refresh failed');
+  } finally {
+    isRefreshing = false;
+  }
 }
 
 async function runVoteCheck(client) {

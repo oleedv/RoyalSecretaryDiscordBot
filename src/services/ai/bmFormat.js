@@ -19,7 +19,8 @@ export function formatBMFlags(flags) {
   for (const f of flags) {
     const name = f.name || 'Unnamed flag'
     const desc = (f.description || '').replace(/\s+/g, ' ').trim()
-    lines.push(desc ? `- ${name}: ${desc}` : `- ${name}`)
+    const date = f.addedAt ? new Date(f.addedAt).toISOString().slice(0, 10) : '?'
+    lines.push(desc ? `- [${date}] ${name}: ${desc}` : `- [${date}] ${name}`)
   }
   return lines.join('\n')
 }
