@@ -106,7 +106,8 @@ function formatBmFlags(bmFlags) {
   for (const f of shown) {
     const name = f.name || 'Unnamed flag';
     const desc = (f.description || '').replace(/\s+/g, ' ').trim();
-    lines.push(desc ? `**${name}** — ${desc}` : `**${name}**`);
+    const prefix = f.addedAt ? `<t:${Math.floor(new Date(f.addedAt).getTime() / 1000)}:d> — ` : '';
+    lines.push(desc ? `${prefix}**${name}** — ${desc}` : `${prefix}**${name}**`);
   }
   if (bmFlags.length > shown.length) {
     lines.push(`*…+${bmFlags.length - shown.length} more*`);
@@ -391,6 +392,36 @@ export async function backfillMissingAiEvaluations(client) {
       log.info({ prospectId: prospect.id }, 'AI backfill: dispatched regeneration');
     } catch (err) {
       log.error({ err, prospectId: prospect.id }, 'AI backfill failed for prospect');
+    }
+  }
+}
+
+export async function refreshAllOpenProspectStats(client) {
+  const prospects = await query(
+    `SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE status = 'open' AND channel_id IS NOT NULL`
+  );
+  if (prospects.length === 0) return;
+
+  log.info({ count: prospects.length }, 'Hourly prospect stats refresh starting');
+
+  for (const prospect of prospects) {
+    if (isTestSteamId(prospect.steam_id)) continue;
+    try {
+      const channel = await client.channels.fetch(prospect.channel_id).catch(() => null);
+      if (!channel) {
+        log.warn({ prospectId: prospect.id, channelId: prospect.channel_id }, 'Stats refresh: channel not found');
+        continue;
+      }
+      const topMsg = await findBotMessageByCustomId(channel, client.user.id, ['prospect_claim', 'prospect_accept', 'prospect_deny', 'prospect_unclaim']);
+      if (!topMsg) {
+        log.warn({ prospectId: prospect.id, channelId: prospect.channel_id }, 'Stats refresh: top prospect message not found');
+        continue;
+      }
+      await query('UPDATE prospects SET ai_evaluation = NULL WHERE id = ?', [prospect.id]);
+      const refreshed = { ...prospect, ai_evaluation: null };
+      appendAllStatsToMessage(topMsg, refreshed.steam_id, refreshed.user_id, refreshed);
+    } catch (err) {
+      log.error({ err, prospectId: prospect.id }, 'Stats refresh failed for prospect');
     }
   }
 }

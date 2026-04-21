@@ -349,14 +349,17 @@ export async function getPlayerProfile(steamId) {
         });
       } else if (item.type === 'flagPlayer') {
         const flagId = item.relationships?.playerFlag?.data?.id;
-        if (flagId) flagAssignments.push(flagId);
+        if (flagId) flagAssignments.push({ flagId, addedAt: item.attributes?.addedAt || null });
       }
     }
 
     notes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     const flags = flagAssignments
-      .map((id) => flagDefsById.get(id))
+      .map(({ flagId, addedAt }) => {
+        const def = flagDefsById.get(flagId);
+        return def ? { ...def, addedAt } : null;
+      })
       .filter(Boolean);
 
     const profile = { bans: bans ?? { activeBans: [], expiredBanCount: 0 }, notes, flags };
