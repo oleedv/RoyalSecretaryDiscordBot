@@ -310,7 +310,17 @@ function appendAllStatsToMessage(message, steamId, userId, prospect) {
 
     const editPayload = { embeds };
     if (aiTabRow) {
-      editPayload.components = [...(message.components || []), aiTabRow];
+      const getCustomId = (c) => c?.customId ?? c?.custom_id ?? c?.data?.custom_id ?? null;
+      const hasAiTab = (row) => row?.components?.some((c) => getCustomId(c)?.startsWith('prospect_ai_tab:'));
+      const kept = (message.components || []).filter((row) => !hasAiTab(row));
+      const rows = [...kept, aiTabRow];
+      const seen = new Set();
+      editPayload.components = rows.filter((row) => {
+        const ids = (row?.components || []).map(getCustomId).filter(Boolean);
+        if (ids.some((id) => seen.has(id))) return false;
+        ids.forEach((id) => seen.add(id));
+        return true;
+      });
     }
     message.edit(editPayload).catch((err) =>
       log.warn({ err }, 'Failed to append stats to prospect embed')
