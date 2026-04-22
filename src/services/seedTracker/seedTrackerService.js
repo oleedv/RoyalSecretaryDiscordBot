@@ -130,6 +130,11 @@ export async function processCompletedSession(data, client) {
       return;
     }
 
+    if (!data?.steamID) {
+      log.warn({ player: data?.playerName }, 'Seed session complete event missing steamID, skipping');
+      return;
+    }
+
     const requiredDays = seedTracker.requiredSeedDays || 10;
     const [stats, whitelist] = await Promise.all([
       getPlayerSeedStats(data.steamID, seedTracker.rollingWindowDays || 30),
