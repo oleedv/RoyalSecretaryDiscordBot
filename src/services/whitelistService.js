@@ -13,16 +13,16 @@ export function isConfigured() {
   }
 }
 
-export async function createEntry(steamId, name, clan, role, addedBy) {
+export async function createEntry(steamId, name, clan, role, addedBy, expiresAt = null) {
   if (!isConfigured()) return null;
   try {
     const id = generateId();
     await query(
-      'INSERT INTO WhitelistEntry (id, steamId, server, name, clan, role, addedBy, createdAt) VALUES (?, ?, \'main\', ?, ?, ?, ?, NOW())',
-      [id, steamId, name, clan, role, addedBy],
+      'INSERT INTO WhitelistEntry (id, steamId, server, name, clan, role, addedBy, expiresAt, createdAt) VALUES (?, ?, \'main\', ?, ?, ?, ?, ?, NOW())',
+      [id, steamId, name, clan, role, addedBy, expiresAt],
       'website'
     );
-    return { id, steamId, server: 'main', name, clan, role, addedBy };
+    return { id, steamId, server: 'main', name, clan, role, addedBy, expiresAt };
   } catch (err) {
     log.warn({ err, steamId }, 'Failed to create whitelist entry');
     return null;
@@ -108,21 +108,48 @@ export async function upsertSeederEntry(steamId, name, expiresAt) {
   }
 }
 
-export async function updateRole(steamId, fromRole, toRole) {
+export async function updateRole(steamId, fromRole, toRole, { clearExpiry = false } = {}) {
   if (!isConfigured()) return null;
   try {
     const entries = await findEntries(steamId);
     const matching = entries.filter((e) => e.role === fromRole);
     for (const entry of matching) {
+      if (clearExpiry) {
+        await query(
+          'UPDATE WhitelistEntry SET role = ?, expiresAt = NULL WHERE id = ?',
+          [toRole, entry.id],
+          'website'
+        );
+      } else {
+        await query(
+          'UPDATE WhitelistEntry SET role = ? WHERE id = ?',
+          [toRole, entry.id],
+          'website'
+        );
+      }
+    }
+    return matching.length;
+  } catch (err) {
+    log.warn({ err, steamId, fromRole, toRole }, 'Failed to update whitelist role');
+    return null;
+  }
+}
+
+export async function updateExpiryByRole(steamId, role, expiresAt) {
+  if (!isConfigured()) return null;
+  try {
+    const entries = await findEntries(steamId);
+    const matching = entries.filter((e) => e.role === role);
+    for (const entry of matching) {
       await query(
-        'UPDATE WhitelistEntry SET role = ? WHERE id = ?',
-        [toRole, entry.id],
+        'UPDATE WhitelistEntry SET expiresAt = ? WHERE id = ?',
+        [expiresAt, entry.id],
         'website'
       );
     }
     return matching.length;
   } catch (err) {
-    log.warn({ err, steamId, fromRole, toRole }, 'Failed to update whitelist role');
+    log.warn({ err, steamId, role }, 'Failed to update whitelist expiry by role');
     return null;
   }
 }
