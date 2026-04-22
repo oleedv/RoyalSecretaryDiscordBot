@@ -199,7 +199,7 @@ export function connect(client) {
     for (const [name, conn] of connections) {
       if (!conn.state.connected) continue;
       const staleSec = (now - conn.state.lastEventTime) / 1000;
-      if (staleSec > 120) {
+      if (staleSec > 300) {
         log.warn({ name, staleSec: Math.round(staleSec) }, 'No events received, forcing reconnect');
         conn.socket.disconnect();
         conn.socket.connect();
@@ -218,7 +218,7 @@ export function connect(client) {
           lastEventSec: staleSec,
         });
       }
-      log.info({ servers: summary }, 'SquadJS connection state summary');
+      log.debug({ servers: summary }, 'SquadJS connection state summary');
     }
   }, 60_000);
 }

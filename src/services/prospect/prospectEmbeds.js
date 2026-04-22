@@ -162,28 +162,43 @@ export function buildVoteAnnouncementEmbed(member, prospect, forumUrl) {
 export function buildAcceptedAnnouncementEmbed(member, prospect) {
   const { memberHubChannelId, meetTheMembersChannelId, goingAwayChannelId, feedbackChannelId } = config.prospects;
 
-  const lines = [
-    `Please join us in welcoming our newest member <@${prospect.user_id}>!\n`,
-    'You can now view and vote on prospect tickets and you have been added to the whitelist.',
-    feedbackChannelId
-      ? `Also don\'t forget to give us feedback about your process in <#${feedbackChannelId}>.\n`
-      : '',
-    memberHubChannelId
-      ? `📋 Check out <#${memberHubChannelId}> to know what we expect of you`
-      : '',
-    meetTheMembersChannelId
-      ? `📝 Fill out <#${meetTheMembersChannelId}> so we can get to know a little about you`
-      : '',
-    goingAwayChannelId
-      ? `✈️ Going away? Let us know in <#${goingAwayChannelId}> if you'll be away`
-      : '',
-  ].filter(Boolean).join('\n');
+  const descriptionLines = [
+    `Please welcome our newest member <@${prospect.user_id}>!`,
+    'You now have prospect voting access and have been added to the whitelist.',
+  ];
+  if (feedbackChannelId) {
+    descriptionLines.push(`Don't forget to share feedback about your process in <#${feedbackChannelId}>.`);
+  }
 
-  return createEmbed('Prospect')
+  const embed = createEmbed('Prospect')
     .setTitle(`Welcome to Royal Battalion, ${prospect.alias}!`)
-    .setDescription(lines)
+    .setDescription(descriptionLines.join('\n\n'))
     .setColor(0x57f287)
     .setThumbnail(member?.user.displayAvatarURL() || null);
+
+  if (memberHubChannelId) {
+    embed.addFields({
+      name: 'Check out',
+      value: `<#${memberHubChannelId}> to know what we expect of you`,
+      inline: true,
+    });
+  }
+  if (meetTheMembersChannelId) {
+    embed.addFields({
+      name: 'Fill out',
+      value: `<#${meetTheMembersChannelId}> so we can get to know a little about you`,
+      inline: true,
+    });
+  }
+  if (goingAwayChannelId) {
+    embed.addFields({
+      name: 'Going away?',
+      value: `Let us know in <#${goingAwayChannelId}> if you'll be away`,
+      inline: true,
+    });
+  }
+
+  return embed;
 }
 
 export function buildVoteEmbed(prospect, playtimeStats = null) {

@@ -310,7 +310,17 @@ function appendAllStatsToMessage(message, steamId, userId, prospect) {
 
     const editPayload = { embeds };
     if (aiTabRow) {
-      editPayload.components = [...(message.components || []), aiTabRow];
+      const getCustomId = (c) => c?.customId ?? c?.custom_id ?? c?.data?.custom_id ?? null;
+      const hasAiTab = (row) => row?.components?.some((c) => getCustomId(c)?.startsWith('prospect_ai_tab:'));
+      const kept = (message.components || []).filter((row) => !hasAiTab(row));
+      const rows = [...kept, aiTabRow];
+      const seen = new Set();
+      editPayload.components = rows.filter((row) => {
+        const ids = (row?.components || []).map(getCustomId).filter(Boolean);
+        if (ids.some((id) => seen.has(id))) return false;
+        ids.forEach((id) => seen.add(id));
+        return true;
+      });
     }
     message.edit(editPayload).catch((err) =>
       log.warn({ err }, 'Failed to append stats to prospect embed')
@@ -790,12 +800,39 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
     }
 
     if (outcome === 'accepted') {
-      whitelistService.updateRole(prospect.steam_id, 'Prospect', 'RBMembers')
+      whitelistService.updateRole(prospect.steam_id, 'Prospect', 'RBMembers', { clearExpiry: true })
         .catch((err) => log.warn({ err }, 'Failed to update whitelist role to member'));
     } else {
       whitelistService.expireByRole(prospect.steam_id, 'Prospect')
         .catch((err) => log.warn({ err }, 'Failed to expire prospect whitelist entry'));
     }
+  }
+
+  const staffChannel = await guild.channels.fetch(prospect.channel_id).catch(() => null);
+  if (staffChannel) {
+    const roleMention = whitelistRoleId ? `<@&${whitelistRoleId}>` : 'the prospect whitelist role';
+    const userMention = `<@${prospect.user_id}>`;
+    const dbNote = isTestSteamId(prospect.steam_id) ? ' (test steam ID, no DB entry was present)' : '';
+    let wlEmbed = null;
+    if (outcome === 'accepted') {
+      wlEmbed = createEmbed('Prospect')
+        .setTitle('Whitelist Promoted')
+        .setDescription(`Prospect whitelist upgraded to RBMembers (permanent)${dbNote}. Removed ${roleMention} from ${userMention}.`)
+        .setColor(0x57f287);
+    } else if (outcome === 'denied') {
+      wlEmbed = createEmbed('Prospect')
+        .setTitle('Whitelist Revoked')
+        .setDescription(`Prospect whitelist entry expired${dbNote}. Removed ${roleMention} from ${userMention}.`)
+        .setColor(0xed4245);
+    } else {
+      wlEmbed = createEmbed('Prospect')
+        .setTitle('Whitelist Revoked')
+        .setDescription(`Prospect whitelist entry expired${dbNote}. Removed ${roleMention} from ${userMention}.`)
+        .setColor(0x95a5a6);
+    }
+    await staffChannel.send({ embeds: [wlEmbed], allowedMentions: { parse: [] } }).catch((err) =>
+      log.warn({ err, prospectId: prospect.id }, 'Failed to post whitelist-outcome embed to staff channel')
+    );
   }
 
   if (outcome === 'accepted') {
@@ -863,6 +900,8 @@ export async function togglePause(prospect, actorId, guild) {
       [prospect.id, 'unpaused', actorId, `Paused for ${pausedDays} day(s)`]
     );
     log.info({ prospectId: prospect.id, pausedDays }, 'Prospect unpaused');
+
+    await slideProspectWhitelistExpiry(prospect.id, guild, 'unpause');
   } else {
     const result = await query(
       'UPDATE prospects SET paused_at = NOW() WHERE id = ? AND paused_at IS NULL',
@@ -895,8 +934,37 @@ export async function extendProspect(prospect, days, actorId, guild) {
   );
   log.info({ prospectId: prospect.id, days }, 'Prospect extended');
 
+  await slideProspectWhitelistExpiry(prospect.id, guild, 'extended');
+
   await refreshStaffEmbed(prospect, guild);
   await refreshForumEmbed(prospect, guild);
+}
+
+async function slideProspectWhitelistExpiry(prospectId, guild, cause) {
+  const rows = await query(`SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE id = ?`, [prospectId]);
+  const updated = rows[0];
+  if (!updated || !updated.vote_posted_at) return;
+
+  const { periodEnd } = getProspectDates(updated);
+  const expiryUnix = Math.floor(periodEnd.getTime() / 1000);
+
+  if (!isTestSteamId(updated.steam_id)) {
+    await whitelistService.updateExpiryByRole(updated.steam_id, 'Prospect', periodEnd)
+      .catch((err) => log.warn({ err, prospectId }, 'Failed to slide prospect whitelist expiry'));
+  }
+
+  const staffChannel = await guild.channels.fetch(updated.channel_id).catch(() => null);
+  if (staffChannel) {
+    const title = cause === 'unpause' ? 'Whitelist Expiry Slid (Unpause)' : 'Whitelist Expiry Extended';
+    const description = `Prospect whitelist expiry updated to <t:${expiryUnix}:R> (<t:${expiryUnix}:F>).`;
+    const embed = createEmbed('Prospect')
+      .setTitle(title)
+      .setDescription(description)
+      .setColor(0xfee75c);
+    await staffChannel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch((err) =>
+      log.warn({ err, prospectId }, 'Failed to post whitelist-slide embed to staff channel')
+    );
+  }
 }
 
 export async function refreshStaffEmbed(prospect, guild) {

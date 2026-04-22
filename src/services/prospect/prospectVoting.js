@@ -1,6 +1,6 @@
 import { createEmbed } from '../../utils/embed.js';
 import { buildVoteEmbed, buildVoteComponents, buildVoteAnnouncementEmbed, buildEndVoteComponents } from './prospectEmbeds.js';
-import { isTestSteamId } from './prospectService.js';
+import { isTestSteamId, getProspectDates } from './prospectService.js';
 import { query } from '../../database/connection.js';
 import { getPlaytime } from '../playtimeService.js';
 import * as whitelistService from '../whitelistService.js';
@@ -69,8 +69,9 @@ export async function postVote(prospect, client) {
     }
   }
 
+  const { periodEnd } = getProspectDates(prospect);
   if (!isTestSteamId(prospect.steam_id)) {
-    whitelistService.createEntry(prospect.steam_id, prospect.alias, 'RB', 'Prospect', client.user.id)
+    whitelistService.createEntry(prospect.steam_id, prospect.alias, 'RB', 'Prospect', client.user.id, periodEnd)
       .catch((err) => log.warn({ err }, 'Failed to create prospect whitelist entry'));
   }
 
@@ -98,12 +99,19 @@ export async function postVote(prospect, client) {
 
   const staffChannel = await guild.channels.fetch(prospect.channel_id).catch(() => null);
   if (staffChannel) {
+    const expiryUnix = Math.floor(periodEnd.getTime() / 1000);
+    const whitelistLine = whitelistRoleId
+      ? `\nProspect whitelist granted (<@&${whitelistRoleId}>), auto-expires <t:${expiryUnix}:R>.`
+      : '';
     const notifEmbed = createEmbed('Prospect')
       .setTitle('Vote Started')
-      .setDescription(`A vote has been posted in the [forum thread](https://discord.com/channels/${guild.id}/${prospect.forum_thread_id}/${voteMsg.id}).`)
+      .setDescription(
+        `A vote has been posted in the [forum thread](https://discord.com/channels/${guild.id}/${prospect.forum_thread_id}/${voteMsg.id}).` +
+        whitelistLine
+      )
       .setColor(0xfee75c);
     const endVoteComponents = buildEndVoteComponents();
-    await staffChannel.send({ embeds: [notifEmbed], components: endVoteComponents });
+    await staffChannel.send({ embeds: [notifEmbed], components: endVoteComponents, allowedMentions: { parse: [] } });
   }
 
   const { loungeChannelId } = config.prospects;

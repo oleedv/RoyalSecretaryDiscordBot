@@ -35,7 +35,7 @@ export async function handleMentorLeave(userId, guild) {
   const prospects = await getOpenProspectsByMentor(userId);
   for (const prospect of prospects) {
     await removeTeamRole(prospect.user_id, userId, guild)
-    await unclaimProspect(prospect, userId, guild);
+    await unclaimProspect(prospect, userId, guild, 'they left the server');
     log.info({ prospectId: prospect.id, mentorId: userId }, 'Auto-unclaimed mentor who left server');
   }
   // Delete the team role since the mentor is gone
