@@ -18,7 +18,13 @@ import { buildTicketComponents } from '../services/ticket/ticketEmbeds.js';
 import { errorEmbed, infoEmbed } from '../utils/embed.js';
 import { requireRole } from '../utils/permissions.js';
 import { isAvailable, generateTicketSuggestion, ALLOWED_USER_ID } from '../services/ai/aiService.js';
-import { buildSuggestionEmbed } from '../services/ai/aiEmbeds.js';
+import {
+  buildSuggestionEmbed,
+  buildSuggestionComponents,
+  totalPagesOf,
+  parseSuggestionCustomId,
+} from '../services/ai/aiEmbeds.js';
+import { saveSuggestion, getSuggestion } from '../services/ai/suggestionRepo.js';
 import { buildLogsPage } from './ticketMessages.js';
 import config from '../config.js';
 import logger from '../logger.js';
@@ -225,8 +231,45 @@ export async function handleSuggest(interaction) {
     return interaction.editReply({ embeds: [errorEmbed(result.error)] });
   }
 
-  await interaction.editReply({ embeds: [buildSuggestionEmbed(result)] });
-  log.info({ ticketId: ticket.id, staffId: interaction.user.id }, 'AI suggestion generated via button');
+  const totalPages = totalPagesOf(result);
+  const sent = await interaction.editReply({ embeds: [buildSuggestionEmbed(result, 1)] });
+  try {
+    await saveSuggestion({
+      messageId: sent.id,
+      channelId: interaction.channel.id,
+      ticketId: ticket.id,
+      suggestion: result,
+    });
+  } catch (err) {
+    log.error({ err, ticketId: ticket.id }, 'Failed to persist AI suggestion');
+  }
+  if (totalPages > 1) {
+    await interaction.editReply({ components: buildSuggestionComponents(sent.id, 1, totalPages) });
+  }
+  log.info({ ticketId: ticket.id, staffId: interaction.user.id, totalPages }, 'AI suggestion generated via button');
+}
+
+export async function handleSuggestionPagination(interaction) {
+  const parsed = parseSuggestionCustomId(interaction.customId);
+  if (!parsed) return;
+
+  await interaction.deferUpdate();
+
+  const cached = await getSuggestion(interaction.message.id);
+  if (!cached) {
+    await interaction.followUp({
+      content: 'This suggestion has expired or is unavailable. Run the command again.',
+      flags: ['Ephemeral'],
+    });
+    return;
+  }
+
+  const totalPages = totalPagesOf(cached);
+  const targetPage = Math.min(Math.max(1, parsed.targetPage), totalPages);
+  await interaction.message.edit({
+    embeds: [buildSuggestionEmbed(cached, targetPage)],
+    components: buildSuggestionComponents(interaction.message.id, targetPage, totalPages),
+  });
 }
 
 export async function handleLogsPagination(interaction) {

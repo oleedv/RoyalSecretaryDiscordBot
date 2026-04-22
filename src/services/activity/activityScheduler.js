@@ -1,5 +1,6 @@
 import { flushActiveSessions } from './voiceTracker.js';
 import { query } from '../../database/connection.js';
+import { deleteExpiredSuggestions } from '../ai/suggestionRepo.js';
 import logger from '../../logger.js';
 import { createScheduler } from '../../utils/scheduler.js';
 
@@ -40,10 +41,16 @@ async function runCleanup() {
       'DELETE FROM user_reactions_daily WHERE reaction_date < DATE_SUB(CURDATE(), INTERVAL ? DAY)',
       [RETENTION_DAYS]
     );
+    const r4 = await deleteExpiredSuggestions();
 
-    const total = (r1.affectedRows || 0) + (r2.affectedRows || 0) + (r3.affectedRows || 0);
+    const total = (r1.affectedRows || 0) + (r2.affectedRows || 0) + (r3.affectedRows || 0) + (r4.affectedRows || 0);
     if (total > 0) {
-      log.info({ voice: r1.affectedRows, messages: r2.affectedRows, reactions: r3.affectedRows }, `Cleaned up ${total} old activity row(s)`);
+      log.info({
+        voice: r1.affectedRows,
+        messages: r2.affectedRows,
+        reactions: r3.affectedRows,
+        suggestions: r4.affectedRows,
+      }, `Cleaned up ${total} old activity row(s)`);
     }
   } catch (err) {
     log.error({ err }, 'Activity cleanup failed');
