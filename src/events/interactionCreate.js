@@ -50,6 +50,7 @@ const buttonHandlers = {
   ticket_timeout: ticketButtons.handleTimeout,
   ticket_anonymous: ticketButtons.handleAnonymousToggle,
   ticket_suggest: ticketButtons.handleSuggest,
+  ticket_combat_stats: ticketButtons.handleCombatStats,
   prospect_apply: prospectButtons.handleApply,
   prospect_modal_2_open: (interaction) => {
     // Extract Part 1 data from the embed before showing modal 2

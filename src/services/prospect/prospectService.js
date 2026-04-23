@@ -279,10 +279,37 @@ function appendAllStatsToMessage(message, steamId, userId, prospect) {
 
     const embeds = [];
 
+    const existingCount = updated.data.fields?.length ?? 0;
+    const EMBED_FIELD_LIMIT = 25;
+    const remaining = Math.max(0, EMBED_FIELD_LIMIT - existingCount);
+
     if (fields.length > 0) {
-      updated.addFields(fields);
+      if (fields.length <= remaining) {
+        updated.addFields(fields);
+        embeds.push(updated);
+      } else {
+        const primary = fields.slice(0, remaining);
+        const overflow = fields.slice(remaining);
+        if (primary.length > 0) updated.addFields(primary);
+        embeds.push(updated);
+
+        const overflowEmbed = new EmbedBuilder().setTitle('Additional Stats');
+        const color = updated.data.color;
+        if (color !== undefined && color !== null) overflowEmbed.setColor(color);
+
+        for (let i = 0; i < overflow.length; i += EMBED_FIELD_LIMIT) {
+          const chunk = overflow.slice(i, i + EMBED_FIELD_LIMIT);
+          const chunkEmbed = i === 0 ? overflowEmbed : new EmbedBuilder().setTitle('Additional Stats (cont.)');
+          if (i !== 0 && color !== undefined && color !== null) chunkEmbed.setColor(color);
+          chunkEmbed.addFields(chunk);
+          embeds.push(chunkEmbed);
+        }
+
+        log.warn({ steamId, existingCount, added: fields.length, overflow: overflow.length }, 'prospect embed fields overflowed 25 — spilled into second embed');
+      }
+    } else {
+      embeds.push(updated);
     }
-    embeds.push(updated);
 
     // AI Assessment as a separate embed with tab buttons.
     // Only generate if not already stored; otherwise reuse the cached evaluation.
