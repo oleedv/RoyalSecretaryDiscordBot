@@ -88,7 +88,12 @@ export function buildTicketComponents(tier, anonymousMode = false) {
     new ButtonBuilder()
       .setCustomId('ticket_suggest')
       .setLabel('Suggest')
-      .setStyle(ButtonStyle.Primary)
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId('ticket_combat_stats')
+      .setLabel('Combat Stats')
+      .setEmoji('\u{1F5E1}\u{FE0F}')
+      .setStyle(ButtonStyle.Secondary)
   );
 
   const transferButtons = TRANSFER_BUTTONS

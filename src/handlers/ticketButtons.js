@@ -26,6 +26,8 @@ import {
 } from '../services/ai/aiEmbeds.js';
 import { saveSuggestion, getSuggestion } from '../services/ai/suggestionRepo.js';
 import { buildLogsPage } from './ticketMessages.js';
+import { getCombatStats } from '../services/squadStats/combatStatsService.js';
+import { createEmbed } from '../utils/embed.js';
 import config from '../config.js';
 import logger from '../logger.js';
 
@@ -247,6 +249,80 @@ export async function handleSuggest(interaction) {
     await interaction.editReply({ components: buildSuggestionComponents(sent.id, 1, totalPages) });
   }
   log.info({ ticketId: ticket.id, staffId: interaction.user.id, totalPages }, 'AI suggestion generated via button');
+}
+
+function buildCombatStatsEmbed(stats, steamId) {
+  const embed = createEmbed('Combat Stats').setTitle(`Combat Stats (last ${stats.windowDays}d)`);
+
+  if (!stats.player) {
+    embed.setDescription(`No SquadJS combat data found for Steam ID \`${steamId}\` on our server.`);
+    return embed;
+  }
+
+  embed.setDescription(`**${stats.player.name || '(unknown)'}** — [${stats.player.steamId}](https://steamcommunity.com/profiles/${stats.player.steamId})\n*Our server only — cross-server TK history is not reflected here.*`);
+
+  embed.addFields({
+    name: 'Overview',
+    value: [
+      `Kills: **${stats.kills}** | Deaths: **${stats.deaths}** | K/D: **${stats.kd}**`,
+      `TKs committed: **${stats.tksCommitted}** | TKs received: **${stats.tksReceived}**`,
+      `Team damage dealt: **${stats.teamDamageDealt}** | received: **${stats.teamDamageReceived}**`,
+    ].join('\n'),
+  });
+
+  if (stats.topWeapons.length > 0) {
+    embed.addFields({
+      name: 'Top Weapons (by kills)',
+      value: stats.topWeapons.map((w) => `\`${w.weapon}\` — ${w.count}`).join('\n'),
+      inline: true,
+    });
+  }
+  if (stats.topTkVictims.length > 0) {
+    embed.addFields({
+      name: 'Most-teamkilled teammates',
+      value: stats.topTkVictims.map((t) => `${t.name || t.steamId || '?'} — ${t.count}`).join('\n'),
+      inline: true,
+    });
+  }
+  if (stats.topTkAttackers.length > 0) {
+    embed.addFields({
+      name: 'Most frequent TK attackers',
+      value: stats.topTkAttackers.map((t) => `${t.name || t.steamId || '?'} — ${t.count}`).join('\n'),
+      inline: true,
+    });
+  }
+
+  if (stats.firstEvent && stats.lastEvent) {
+    const first = new Date(stats.firstEvent).toISOString().slice(0, 10);
+    const last = new Date(stats.lastEvent).toISOString().slice(0, 10);
+    embed.setFooter({ text: `Activity: ${first} to ${last}` });
+  }
+
+  return embed;
+}
+
+export async function handleCombatStats(interaction) {
+  if (await requireRole(interaction, allTicketStaffRoles())) return;
+  await interaction.deferReply();
+
+  const ticket = await getTicketByChannel(interaction.channel.id);
+  if (!ticket) {
+    return interaction.editReply({ embeds: [errorEmbed('No open ticket found for this channel.')] });
+  }
+
+  const steamId = await getStoredSteamId(ticket.user_id);
+  if (!steamId) {
+    return interaction.editReply({ embeds: [errorEmbed('No Steam ID is linked to this user — cannot look up combat stats.')] });
+  }
+
+  try {
+    const stats = await getCombatStats(steamId, 30);
+    await interaction.editReply({ embeds: [buildCombatStatsEmbed(stats, steamId)] });
+    log.info({ ticketId: ticket.id, steamId, staffId: interaction.user.id, found: !!stats.player }, 'Combat stats viewed');
+  } catch (err) {
+    log.error({ err, ticketId: ticket.id, steamId }, 'Failed to fetch combat stats');
+    await interaction.editReply({ embeds: [errorEmbed('Failed to fetch combat stats. Check logs for details.')] });
+  }
 }
 
 export async function handleSuggestionPagination(interaction) {

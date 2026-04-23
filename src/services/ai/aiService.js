@@ -12,6 +12,7 @@ import { formatBMNotes, formatBMFlags } from './bmFormat.js'
 import { fetchImagesAsBase64 } from '../../utils/attachments.js'
 import { getAnthropicClient, isAnthropicAvailable } from './anthropicClient.js'
 import { formatDate } from '../../utils/formatters.js'
+import { getCombatStats, formatCombatStatsForAi } from '../squadStats/combatStatsService.js'
 
 const log = logger.child({ module: 'ai' })
 
@@ -126,7 +127,7 @@ function buildSimilarCasesSection(cases) {
   return lines.join('\n')
 }
 
-function buildExternalDataSection({ steamId, cblData, steamProfile, steamBans, bmBans, bmNotes, bmFlags }) {
+function buildExternalDataSection({ steamId, cblData, steamProfile, steamBans, bmBans, bmNotes, bmFlags, combatStats }) {
   if (!steamId) return 'No Steam ID linked to this user - external data unavailable.'
 
   const sections = []
@@ -186,6 +187,15 @@ function buildExternalDataSection({ steamId, cblData, steamProfile, steamBans, b
   if (bmFlags && bmFlags.length > 0) {
     const rendered = formatBMFlags(bmFlags)
     sections.push('BATTLEMETRICS FLAGS:\n' + rendered.split('\n').map((l) => `  ${l}`).join('\n'))
+  }
+
+  if (combatStats && combatStats.player) {
+    const rendered = formatCombatStatsForAi(combatStats)
+    if (rendered) {
+      sections.push(`COMBAT STATS (last ${combatStats.windowDays}d, OUR server only):\n` + rendered.split('\n').map((l) => `  ${l}`).join('\n'))
+    }
+  } else if (combatStats && !combatStats.player && steamId) {
+    sections.push('COMBAT STATS:\n  No SquadJS combat data found for this Steam ID on our server.')
   }
 
   return sections.join('\n\n')
@@ -328,7 +338,7 @@ export async function generateTicketSuggestion(ticket) {
   const anthropic = getAnthropicClient()
   const steamId = await getStoredSteamId(ticket.user_id)
 
-  const [messages, userHistory, similarCases, cblData, steamProfile, steamBans, bmProfile] = await Promise.all([
+  const [messages, userHistory, similarCases, cblData, steamProfile, steamBans, bmProfile, combatStats] = await Promise.all([
     getTicketMessages(ticket.id),
     getUserTicketHistory(ticket.user_id),
     findSimilarTickets(ticket.reason, ticket.id, ticket.user_id),
@@ -336,6 +346,7 @@ export async function generateTicketSuggestion(ticket) {
     steamId ? getSteamProfile(steamId).catch(() => null) : null,
     steamId ? getSteamBans(steamId).catch(() => null) : null,
     steamId ? getPlayerProfile(steamId).catch(() => null) : null,
+    steamId ? getCombatStats(steamId, 30).catch((err) => { log.warn({ err, steamId }, 'combat stats fetch failed'); return null }) : null,
   ])
 
   const bmBans = bmProfile?.bans || null
@@ -346,7 +357,7 @@ export async function generateTicketSuggestion(ticket) {
     return { error: 'No messages found in this ticket.' }
   }
 
-  const externalDataSection = buildExternalDataSection({ steamId, cblData, steamProfile, steamBans, bmBans, bmNotes, bmFlags })
+  const externalDataSection = buildExternalDataSection({ steamId, cblData, steamProfile, steamBans, bmBans, bmNotes, bmFlags, combatStats })
   const systemPrompt = buildSystemPrompt()
   const ticketContextText = buildTicketContextBlock(ticket, userHistory, similarCases, externalDataSection)
   const conversationMessages = await buildConversationMessages(messages, ticketContextText)
