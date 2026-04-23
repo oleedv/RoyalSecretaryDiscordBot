@@ -62,4 +62,10 @@ export default {
     logChannelId: '',                                    // Staff channel for verification logs
     roleId: '',                                          // Role assigned on successful verification
   },
+  alerts: {
+    channelId: '',                                       // Leave empty in dev so local runs stay silent
+    dedupeWindowMs: 60000,
+    startupNotice: false,
+    shutdownNotice: false,
+  },
 };

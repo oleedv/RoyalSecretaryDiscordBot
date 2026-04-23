@@ -3,6 +3,7 @@ import { query } from '../../database/connection.js';
 import { deleteExpiredSuggestions } from '../ai/suggestionRepo.js';
 import logger from '../../logger.js';
 import { createScheduler } from '../../utils/scheduler.js';
+import { reportError } from '../admin/errorAlertService.js';
 
 const log = logger.child({ module: 'activityScheduler' });
 
@@ -54,6 +55,7 @@ async function runCleanup() {
     }
   } catch (err) {
     log.error({ err }, 'Activity cleanup failed');
+    reportError(err, { source: 'scheduler:activity:cleanup' }).catch(() => {});
     lastCleanupDate = null; // retry next hour
   }
 }

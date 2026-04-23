@@ -2,6 +2,7 @@ import { ChannelType, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
 import * as db from './tempvoiceService.js';
 import { buildControlPanelMessage } from './tempvoiceEmbeds.js';
 import logger from '../../logger.js';
+import { reportError } from '../admin/errorAlertService.js';
 
 const log = logger.child({ module: 'tempvoice' });
 
@@ -467,6 +468,7 @@ export function startCleanupScheduler(client) {
       if (cleaned > 0) log.info({ cleaned }, 'Auto-cleanup complete');
     } catch (err) {
       log.error({ err }, 'Auto-cleanup scheduler error');
+      reportError(err, { source: 'scheduler:tempvoice:cleanup' }).catch(() => {});
     }
   };
 

@@ -18,6 +18,8 @@ import { stopScheduler as stopActivityScheduler } from './services/activity/acti
 import { flushLogs } from './services/admin/logTransport.js';
 import { stopActionProcessor } from './services/actionProcessor.js';
 import { stopCleanupScheduler as stopTempVoiceCleanup } from './services/tempvoice/tempvoiceManager.js';
+import * as errorAlert from './services/admin/errorAlertService.js';
+import * as dmLog from './services/admin/dmLogService.js';
 
 const log = logger.child({ module: 'main' });
 
@@ -66,18 +68,31 @@ async function main() {
     await new Promise((resolve) => client.once(Events.ClientReady, resolve));
   }
 
+  errorAlert.init(client);
+  dmLog.init(client);
+
+  const bootMs = Date.now() - startedAt;
   printReadyBanner({
     client,
     commandCount,
     eventCount,
     dbStatus,
-    bootMs: Date.now() - startedAt,
+    bootMs,
   });
+
+  await errorAlert.postStartupNotice({
+    env: process.env.NODE_ENV,
+    commit: process.env.GIT_COMMIT || process.env.RAILWAY_GIT_COMMIT_SHA || 'unknown',
+    bootMs,
+    commandCount,
+    eventCount,
+  }).catch(() => {});
 
   const shutdown = async (signal) => {
     if (shuttingDown) return;
     shuttingDown = true;
     log.info(`Received ${signal}, shutting down gracefully...`);
+    await errorAlert.postShutdownNotice({ signal, uptimeMs: Date.now() - startedAt }).catch(() => {});
     stopScheduler();
     stopSeedingScheduler();
     stopSeedTrackerScheduler();
@@ -103,7 +118,12 @@ async function main() {
 
 process.on('unhandledRejection', (err) => {
   console.error('Unhandled rejection:', err);
-  log.fatal({ err }, 'Unhandled rejection');
+  errorAlert.reportError(err, { source: 'unhandledRejection', severity: 'fatal' }).catch(() => {});
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err);
+  errorAlert.reportError(err, { source: 'uncaughtException', severity: 'fatal' }).catch(() => {});
 });
 
 main().catch((err) => {

@@ -13,6 +13,7 @@ import {
 import { createScheduler } from '../../utils/scheduler.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
+import { reportError } from '../admin/errorAlertService.js';
 
 const log = logger.child({ module: 'seedingScheduler' });
 
@@ -194,6 +195,7 @@ async function ensureSeedingPanel(client) {
     log.info('Seeding panel posted');
   } catch (err) {
     log.error({ err }, 'Failed to ensure seeding panel');
+    reportError(err, { source: 'scheduler:seeding:ensurePanel' }).catch(() => {});
   }
 }
 
@@ -279,6 +281,7 @@ async function checkDailyCall(client) {
     await postSeedingCall(client, cfg);
   } catch (err) {
     log.error({ err }, 'Daily call check failed');
+    reportError(err, { source: 'scheduler:seeding:dailyCall' }).catch(() => {});
   }
 }
 
@@ -387,6 +390,7 @@ async function updateSeedingState(client) {
     await updateCallMessage(client, cfg, session, state);
   } catch (err) {
     log.error({ err }, 'Seeding state update failed');
+    reportError(err, { source: 'scheduler:seeding:stateUpdate' }).catch(() => {});
   } finally {
     stateUpdateInProgress = false;
   }

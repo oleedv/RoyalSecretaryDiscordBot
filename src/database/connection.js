@@ -1,6 +1,7 @@
 import { createPool } from 'mariadb';
 import config from '../config.js';
 import logger from '../logger.js';
+import { reportError } from '../services/admin/errorAlertService.js';
 
 const log = logger.child({ module: 'database' });
 
@@ -19,6 +20,12 @@ function createPoolForDb(name, database) {
     acquireTimeout: 10000,
     connectTimeout: 10000,
   });
+
+  if (typeof pool.on === 'function') {
+    pool.on('error', (err) => {
+      reportError(err, { source: `dbPool:${name}`, severity: 'error' }).catch(() => {});
+    });
+  }
 
   pools[name] = pool;
   log.info(`Connection pool created for "${database}" (as "${name}")`);
