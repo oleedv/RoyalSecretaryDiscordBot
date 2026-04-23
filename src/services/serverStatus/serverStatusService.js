@@ -5,6 +5,7 @@ import { getAllServerStates } from '../seeding/seedingSocket.js';
 import { getSeedingConfig } from '../seeding/seedingService.js';
 import { buildServerStatusEmbed } from './serverStatusEmbeds.js';
 import { getServerStats } from './serverStatusQueries.js';
+import { reportError } from '../admin/errorAlertService.js';
 
 const log = logger.child({ module: 'serverStatus' });
 
@@ -134,6 +135,7 @@ async function updateMessages(channel, client) {
     lastSuccessfulUpdate = Date.now();
   } catch (err) {
     log.error({ err }, 'Failed to update server status messages');
+    reportError(err, { source: 'scheduler:serverStatus:update' }).catch(() => {});
   }
 
   // Staleness warning

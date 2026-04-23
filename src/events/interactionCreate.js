@@ -11,6 +11,8 @@ import * as prospectAiButtons from '../handlers/prospectAiButtons.js';
 import * as tempvoiceButtons from '../handlers/tempvoiceButtons.js';
 import * as tempvoiceModals from '../handlers/tempvoiceModals.js';
 import { errorEmbed } from '../utils/embed.js';
+import { reportError } from '../services/admin/errorAlertService.js';
+import { logDmInteraction } from '../services/admin/dmLogService.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'interactions' });
@@ -117,6 +119,12 @@ export default {
   name: Events.InteractionCreate,
 
   async execute(interaction) {
+    if (!interaction.guild) {
+      if (interaction.isButton()) logDmInteraction(interaction, 'button').catch(() => {});
+      else if (interaction.isModalSubmit()) logDmInteraction(interaction, 'modal').catch(() => {});
+      else if (interaction.isAnySelectMenu?.()) logDmInteraction(interaction, 'select').catch(() => {});
+    }
+
     if (interaction.isChatInputCommand()) {
       return handleCommand(interaction);
     }
@@ -153,7 +161,14 @@ export default {
         try {
           await handler(interaction);
         } catch (err) {
-          log.error({ err, customId: interaction.customId }, 'Button interaction failed');
+          reportError(err, {
+            source: `interactionCreate:button:${interaction.customId}`,
+            userId: interaction.user?.id,
+            userTag: interaction.user?.tag,
+            guildId: interaction.guildId,
+            channelId: interaction.channel?.id,
+            customId: interaction.customId,
+          }).catch(() => {});
           await safeReply(interaction, { embeds: [errorEmbed('Something went wrong.')], flags: ['Ephemeral'] });
         }
       }
@@ -170,7 +185,14 @@ export default {
         try {
           await handler(interaction);
         } catch (err) {
-          log.error({ err, customId: interaction.customId }, 'Modal interaction failed');
+          reportError(err, {
+            source: `interactionCreate:modal:${interaction.customId}`,
+            userId: interaction.user?.id,
+            userTag: interaction.user?.tag,
+            guildId: interaction.guildId,
+            channelId: interaction.channel?.id,
+            customId: interaction.customId,
+          }).catch(() => {});
           await safeReply(interaction, { embeds: [errorEmbed('Something went wrong.')], flags: ['Ephemeral'] });
         }
       }
@@ -198,7 +220,13 @@ async function handleCommand(interaction) {
     );
     await command.execute(interaction);
   } catch (err) {
-    log.error({ err, command: interaction.commandName }, 'Command execution failed');
+    reportError(err, {
+      source: `interactionCreate:command:${interaction.commandName}`,
+      userId: interaction.user?.id,
+      userTag: interaction.user?.tag,
+      guildId: interaction.guildId,
+      channelId: interaction.channel?.id,
+    }).catch(() => {});
 
     await safeReply(interaction, { embeds: [errorEmbed('There was an error executing this command.')], flags: ['Ephemeral'] });
   }

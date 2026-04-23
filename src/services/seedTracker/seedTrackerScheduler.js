@@ -4,6 +4,7 @@ import { createScheduler } from '../../utils/scheduler.js';
 import { getTopSeeders, getPlayerSeedStats } from './seedTrackerService.js';
 import { buildLeaderboardEmbed, buildExpiryWarningEmbed } from './seedTrackerEmbeds.js';
 import { query } from '../../database/connection.js';
+import { reportError } from '../admin/errorAlertService.js';
 
 const log = logger.child({ module: 'seedTrackerScheduler' });
 
@@ -56,6 +57,7 @@ async function postLeaderboard(client, seedTracker) {
     }
   } catch (err) {
     log.error({ err }, 'Failed to post seeder leaderboard');
+    reportError(err, { source: 'scheduler:seedTracker:leaderboard' }).catch(() => {});
   }
 }
 

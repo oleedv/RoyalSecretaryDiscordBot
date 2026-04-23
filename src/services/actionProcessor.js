@@ -3,6 +3,7 @@ import { beginCloseGracePeriod, escalateTicket, reopenTicket, forceCloseTicket }
 import { reassignMentor } from './prospect/teamRoleService.js'
 import config from '../config.js'
 import logger from '../logger.js'
+import { reportError } from './admin/errorAlertService.js'
 
 const log = logger.child({ module: 'actionProcessor' })
 
@@ -34,6 +35,7 @@ async function processPending(client) {
     )
   } catch (err) {
     log.error({ err }, 'Failed to poll pending_actions')
+    reportError(err, { source: 'scheduler:actionProcessor:poll' }).catch(() => {})
     return
   }
 
@@ -71,6 +73,7 @@ async function processAction(action, guild, client) {
       ['failed', detail, id]
     ).catch(() => null)
     log.error({ err, actionId: id, action_type }, 'Action failed')
+    reportError(err, { source: `scheduler:actionProcessor:${action_type}` }).catch(() => {})
   }
 }
 

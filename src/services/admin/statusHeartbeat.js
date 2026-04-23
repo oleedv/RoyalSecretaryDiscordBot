@@ -3,6 +3,7 @@ import { isConnected as isSquadJsConnected } from '../seeding/seedingSocket.js';
 import { isSchedulerActive as isSeedingActive } from '../seeding/seedingScheduler.js';
 import { isSchedulerActive as isProspectActive } from '../prospect/prospectScheduler.js';
 import logger from '../../logger.js';
+import { reportError } from './errorAlertService.js';
 
 const log = logger.child({ module: 'statusHeartbeat' });
 
@@ -45,6 +46,7 @@ async function retryTick(client) {
     log.info('Heartbeat retry succeeded');
   } catch (err) {
     log.error({ err: err.message }, 'Heartbeat retry also failed');
+    reportError(err, { source: 'scheduler:statusHeartbeat' }).catch(() => {});
   }
 }
 

@@ -6,6 +6,8 @@ import * as prospectMessages from '../handlers/prospectMessages.js';
 import { infoEmbed, createEmbed, errorEmbed } from '../utils/embed.js';
 import { logMessage } from '../services/admin/messageLogger.js';
 import { incrementMessageCount } from '../services/activity/activityService.js';
+import { reportError } from '../services/admin/errorAlertService.js';
+import { logUnmatchedDm } from '../services/admin/dmLogService.js';
 import config from '../config.js';
 import logger from '../logger.js';
 
@@ -33,7 +35,13 @@ export default {
         await handleGuild(message);
       }
     } catch (err) {
-      log.error({ err, userId: message.author?.id, channelId: message.channel?.id }, 'Error handling message');
+      reportError(err, {
+        source: 'messageCreate',
+        userId: message.author?.id,
+        userTag: message.author?.tag,
+        guildId: message.guild?.id,
+        channelId: message.channel?.id,
+      }).catch(() => {});
       if (!message.guild) {
         message.reply({ embeds: [errorEmbed('Something went wrong. Please try again later, or contact a server administrator if this keeps happening.')] }).catch(() => {});
       }
@@ -99,6 +107,8 @@ async function handleDM(message) {
   }
 
   log.debug({ userId: message.author.id }, 'handleDM: sending welcome menu');
+
+  logUnmatchedDm(message).catch(() => {});
 
   const embed = createEmbed()
     .setTitle('Royal Battalion')

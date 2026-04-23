@@ -3,6 +3,7 @@ import { createScheduler } from '../../utils/scheduler.js';
 import { ConfigGuardian } from './configGuardianService.js';
 import { runBackup } from './configGuardianBackup.js';
 import config from '../../config.js';
+import { reportError } from '../admin/errorAlertService.js';
 
 const log = logger.child({ module: 'configGuardian' });
 
@@ -46,6 +47,7 @@ async function poll(client) {
     if (repoUrl) await runBackup(guardian, repoUrl);
   } catch (err) {
     log.error({ err }, 'Poll cycle error');
+    reportError(err, { source: 'scheduler:configGuardian:poll' }).catch(() => {});
   }
 }
 
@@ -96,6 +98,7 @@ export async function startScheduler(client) {
     log.info('Config Guardian started (1-minute polling)');
   } catch (err) {
     log.error({ err }, 'Failed to initialize Config Guardian');
+    reportError(err, { source: 'scheduler:configGuardian:init', severity: 'fatal' }).catch(() => {});
   }
 }
 

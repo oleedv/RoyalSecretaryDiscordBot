@@ -79,6 +79,12 @@ export default {
   configGuardian: {
     channelId: '1490634013503656006',                      // Config Guardian alerts channel
   },
+  alerts: {
+    channelId: '1423733551257489501',                      // Error alerts + unhandled-DM log (same channel)
+    dedupeWindowMs: 60000,                                 // Collapse identical errors within this window
+    startupNotice: true,                                   // Post "Bot online" embed on ready
+    shutdownNotice: true,                                  // Post "Bot shutting down" embed on SIGTERM/SIGINT
+  },
   purged: {
     roleId: '1125873310182428693',                         // Purged member role
     channelId: '1268287942284148817',                      // Purged members info channel

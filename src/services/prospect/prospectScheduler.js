@@ -4,6 +4,7 @@ import { getPlaytime } from '../playtimeService.js';
 import { createEmbed } from '../../utils/embed.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
+import { reportError } from '../admin/errorAlertService.js';
 
 const log = logger.child({ module: 'prospectScheduler' });
 
@@ -41,6 +42,7 @@ async function runStatsRefresh(client) {
     await refreshAllOpenProspectStats(client);
   } catch (err) {
     log.error({ err }, 'Stats refresh failed');
+    reportError(err, { source: 'scheduler:prospect:statsRefresh' }).catch(() => {});
   } finally {
     isRefreshing = false;
   }
@@ -91,10 +93,12 @@ async function runVoteCheck(client) {
         await postVote(prospect, client);
       } catch (err) {
         log.error({ err, prospectId: prospect.id }, 'Failed to post vote for prospect');
+        reportError(err, { source: 'scheduler:prospect:postVote' }).catch(() => {});
       }
     }
   } catch (err) {
     log.error({ err }, 'Vote check failed');
+    reportError(err, { source: 'scheduler:prospect:voteCheck' }).catch(() => {});
   } finally {
     isRunning = false;
   }
