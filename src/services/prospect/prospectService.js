@@ -19,6 +19,17 @@ import logger from '../../logger.js';
 
 const log = logger.child({ module: 'prospects' });
 
+const STAT_FIELD_NAMES = new Set([
+  'Game Activity (90d)',
+  'Seeding (30d)',
+  'Discord Activity (90d)',
+  'Community Ban List',
+  'BattleMetrics Bans',
+  'BattleMetrics Flags',
+  'BattleMetrics Staff Notes',
+  'Steam Bans',
+]);
+
 const PROSPECT_COLUMNS = [
   'id', 'uuid', 'channel_id', 'forum_thread_id', 'user_id', 'status',
   'alias', 'nationality', 'date_of_birth', 'squad_hours', 'preferred_roles',
@@ -184,6 +195,9 @@ function appendAllStatsToMessage(message, steamId, userId, prospect) {
     if (!embed) return;
 
     const updated = EmbedBuilder.from(embed);
+    const existingFields = updated.data.fields || [];
+    const kept = existingFields.filter((f) => !STAT_FIELD_NAMES.has(f.name));
+    updated.setFields(kept);
     const fields = [];
 
     // Game Activity
