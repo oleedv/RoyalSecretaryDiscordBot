@@ -454,9 +454,7 @@ export async function refreshAllOpenProspectStats(client) {
         log.warn({ prospectId: prospect.id, channelId: prospect.channel_id }, 'Stats refresh: top prospect message not found');
         continue;
       }
-      await query('UPDATE prospects SET ai_evaluation = NULL WHERE id = ?', [prospect.id]);
-      const refreshed = { ...prospect, ai_evaluation: null };
-      appendAllStatsToMessage(topMsg, refreshed.steam_id, refreshed.user_id, refreshed);
+      appendAllStatsToMessage(topMsg, prospect.steam_id, prospect.user_id, prospect);
     } catch (err) {
       log.error({ err, prospectId: prospect.id }, 'Stats refresh failed for prospect');
     }
