@@ -68,4 +68,16 @@ export default {
     startupNotice: false,
     shutdownNotice: false,
   },
+  moderation: {
+    enabled: false,                                       // Off in dev; use /modreport to test on demand
+    channelId: '',
+    productionServerName: null,
+    dailyTime: '08:00',
+    timezone: 'UTC',
+    schedulerCheckMs: 60000,
+    windowHours: 24,
+    chunkThresholdMessages: 3500,
+    maxOutputTokens: 4000,
+    repeatOffenderLookbackDays: 30,
+  },
 };

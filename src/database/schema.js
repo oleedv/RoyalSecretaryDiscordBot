@@ -442,5 +442,45 @@ export async function initSchema() {
     )
   `);
 
+  // ── Moderation: AI-flagged in-game chat (daily report) ──
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS moderation_flags (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      run_date DATE NOT NULL,
+      server_id INT NOT NULL,
+      squadjs_message_id BIGINT NOT NULL,
+      player_id INT NULL,
+      eos_id VARCHAR(40) NULL,
+      steam_id VARCHAR(20) NULL,
+      player_name VARCHAR(100) NOT NULL,
+      chat_type ENUM('ChatAll','ChatTeam','ChatSquad','ChatAdmin') NOT NULL,
+      message_time TIMESTAMP NOT NULL,
+      message_text TEXT NOT NULL,
+      severity ENUM('definite','possible') NOT NULL,
+      category ENUM('racism','recruiting','abuse','harassment','threats','advertising','drama','other') NOT NULL,
+      rule_cited VARCHAR(255) NULL,
+      recommended_action VARCHAR(500) NULL,
+      ai_reasoning TEXT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_modflag_run_msg (run_date, squadjs_message_id),
+      INDEX idx_modflag_steam (steam_id),
+      INDEX idx_modflag_eos (eos_id),
+      INDEX idx_modflag_run (run_date),
+      INDEX idx_modflag_severity (severity)
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS moderation_state (
+      id INT PRIMARY KEY DEFAULT 1,
+      last_run_date DATE NULL,
+      last_run_at TIMESTAMP NULL,
+      last_run_status ENUM('ok','no_chat','ai_failed','db_failed','partial') NULL,
+      last_run_message TEXT NULL,
+      CHECK (id = 1)
+    )
+  `);
+
   log.info('Database schema initialized');
 }

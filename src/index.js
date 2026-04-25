@@ -13,6 +13,7 @@ import { stopHeartbeat } from './services/admin/statusHeartbeat.js';
 import { stopScheduler as stopSeedTrackerScheduler } from './services/seedTracker/seedTrackerScheduler.js';
 import { stopStatusUpdater } from './services/serverStatus/serverStatusService.js';
 import { stopScheduler as stopConfigGuardian } from './services/configGuardian/configGuardianScheduler.js';
+import { stopScheduler as stopModerationScheduler } from './services/moderation/moderationScheduler.js';
 import { finalizeAllSessions } from './services/activity/voiceTracker.js';
 import { stopScheduler as stopActivityScheduler } from './services/activity/activityScheduler.js';
 import { flushLogs } from './services/admin/logTransport.js';
@@ -56,6 +57,10 @@ async function main() {
       seedThreshold: seedingCfg?.seed_threshold ?? null,
       seedTrackerProgressionChannelId: config.seedTracker?.progressionChannelId ?? null,
       seedTrackerLeaderboardChannelId: config.seedTracker?.leaderboardChannelId ?? null,
+      moderationEnabled: !!config.moderation?.enabled,
+      moderationChannelId: config.moderation?.channelId || null,
+      moderationServerName: config.moderation?.productionServerName || null,
+      moderationDailyTime: config.moderation?.dailyTime || null,
     }, '[boot] bot environment');
   } catch (err) {
     log.warn({ err }, '[boot] failed to log environment assertion');
@@ -99,6 +104,7 @@ async function main() {
     disconnectSquadJS();
     stopStatusUpdater();
     stopConfigGuardian();
+    stopModerationScheduler();
     stopActivityScheduler();
     stopActionProcessor();
     stopTempVoiceCleanup();
