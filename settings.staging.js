@@ -92,4 +92,16 @@ export default {
     logChannelId: '1478305794813460490',                                    // Staff channel for verification logs
     roleId: '1478305879307845725',                                          // Role assigned on successful verification
   },
+  moderation: {
+    enabled: false,                                       // Off in staging until a channel is set
+    channelId: '',
+    productionServerName: null,                           // Fall back to latest-match server in staging
+    dailyTime: '08:00',
+    timezone: 'UTC',
+    schedulerCheckMs: 60000,
+    windowHours: 24,
+    chunkThresholdMessages: 3500,
+    maxOutputTokens: 4000,
+    repeatOffenderLookbackDays: 30,
+  },
 };

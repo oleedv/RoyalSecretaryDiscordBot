@@ -94,4 +94,16 @@ export default {
     logChannelId: '1478305637921460334',                                    // Staff channel for verification logs
     roleId: '1164520968421646419',                                          // Role assigned on successful verification
   },
+  moderation: {
+    enabled: true,
+    channelId: '1497185678281408592',                    // Daily moderation report destination
+    productionServerName: 'RB | Royal Battalion [ENG] discord.gg/royalbattalion', // exact squadjs_servers.name; null = use latest-match fallback
+    dailyTime: '08:00',                                  // HH:MM in `timezone`
+    timezone: 'UTC',
+    schedulerCheckMs: 60000,
+    windowHours: 24,
+    chunkThresholdMessages: 3500,                        // chunk before sending to Claude above this
+    maxOutputTokens: 4000,
+    repeatOffenderLookbackDays: 30,
+  },
 };

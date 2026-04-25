@@ -13,6 +13,7 @@ import { resumeClosingTimers, restoreAnonymousModes } from '../services/ticket/t
 import { startStatusUpdater } from '../services/serverStatus/serverStatusService.js';
 import { startActionProcessor } from '../services/actionProcessor.js';
 import { startScheduler as startConfigGuardian } from '../services/configGuardian/configGuardianScheduler.js';
+import { startScheduler as startModerationScheduler } from '../services/moderation/moderationScheduler.js';
 import { recoverActiveSessions } from '../services/activity/voiceTracker.js';
 import { startScheduler as startActivityScheduler } from '../services/activity/activityScheduler.js';
 import { initFromDb as initTempVoice, startCleanupScheduler as startTempVoiceCleanup } from '../services/tempvoice/tempvoiceManager.js';
@@ -48,6 +49,7 @@ export default {
     await safeInit('statusUpdater', () => startStatusUpdater(client));
     await safeInit('actionProcessor', () => startActionProcessor(client));
     await safeInit('configGuardian', () => startConfigGuardian(client));
+    await safeInit('moderationScheduler', () => startModerationScheduler(client));
     await safeInit('voiceRecovery', () => recoverActiveSessions(client));
     await safeInit('activityScheduler', () => startActivityScheduler());
     await safeInit('tempVoiceRecovery', () => initTempVoice(client));
