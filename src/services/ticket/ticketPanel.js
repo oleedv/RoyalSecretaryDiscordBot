@@ -40,7 +40,7 @@ export function buildPanelMessage() {
       {
         name: 'Steam ID',
         value:
-          'The first time you create a ticket, you will need to provide your **Steam64 ID**. ' +
+          'The first time you create a ticket, you will need to provide **your own Steam64 ID** - not the ID of anyone you are reporting. ' +
           'You can find it by entering your Steam profile name or URL at [steamid.io](https://steamid.io/).',
       },
     );

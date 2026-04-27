@@ -52,8 +52,8 @@ export async function handleCreate(interaction) {
 
   if (!storedSteamId) {
     components.push(
-      labelComponent('Steam ID (Steam64 or profile URL)', textInput('ticket_steam_id', 'short', {
-        placeholder: 'e.g. 76561198012345678',
+      labelComponent('Your Steam ID (Steam64 or profile URL)', textInput('ticket_steam_id', 'short', {
+        placeholder: 'Your own Steam64 - not the ID of anyone you are reporting',
         required: true,
       }))
     );
@@ -79,8 +79,8 @@ export async function handlePurgedCreate(interaction) {
 
   if (!storedSteamId) {
     components.push(
-      labelComponent('Steam ID (Steam64 or profile URL)', textInput('ticket_steam_id', 'short', {
-        placeholder: 'e.g. 76561198012345678',
+      labelComponent('Your Steam ID (Steam64 or profile URL)', textInput('ticket_steam_id', 'short', {
+        placeholder: 'Your own Steam64 - not the ID of anyone you are reporting',
         required: true,
       }))
     );
