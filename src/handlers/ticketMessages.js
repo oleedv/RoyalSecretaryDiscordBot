@@ -5,9 +5,6 @@ import { parseTextCommand } from '../utils/commands.js';
 import { trySendWithFiles } from '../utils/discord.js';
 import { getTicketByChannel, saveMessage, beginCloseGracePeriod, getClosedTicketsByUser, isAnonymousMode } from '../services/ticket/ticketService.js';
 import { hasAnyRole } from '../utils/permissions.js';
-import { isAvailable, generateTicketSuggestion, ALLOWED_USER_ID } from '../services/ai/aiService.js';
-import { buildSuggestionEmbed, buildSuggestionComponents, totalPagesOf } from '../services/ai/aiEmbeds.js';
-import { saveSuggestion } from '../services/ai/suggestionRepo.js';
 import { detectSteamIds, buildSteamEmbed, buildVanityEmbed } from '../services/steamService.js';
 import { resolvePlayerId } from '../services/battlemetricsService.js';
 import config from '../config.js';
@@ -117,38 +114,6 @@ export async function handleGuild(message) {
   if (cmd?.type === 'anonymous_reply') {
     if (!hasAnyRole(message.member, allTicketStaffRoles())) return true;
     await sendStaffReply(message, ticket, cmd.content, true);
-    return true;
-  }
-
-  if (cmd?.type === 'suggest') {
-    if (message.author.id !== ALLOWED_USER_ID) return true;
-    if (!isAvailable()) {
-      await message.reply('AI suggestions are not configured.').then((m) => setTimeout(() => m.delete().catch(() => null), 5000));
-      await message.delete().catch(() => null);
-      return true;
-    }
-    await message.channel.sendTyping();
-    await message.delete().catch(() => null);
-    const result = await generateTicketSuggestion(ticket);
-    if (result.error) {
-      await message.channel.send({ embeds: [errorEmbed(result.error)] });
-    } else {
-      const totalPages = totalPagesOf(result);
-      const sent = await message.channel.send({ embeds: [buildSuggestionEmbed(result, 1)] });
-      try {
-        await saveSuggestion({
-          messageId: sent.id,
-          channelId: message.channel.id,
-          ticketId: ticket.id,
-          suggestion: result,
-        });
-      } catch (err) {
-        log.error({ err, ticketId: ticket.id }, 'Failed to persist AI suggestion');
-      }
-      if (totalPages > 1) {
-        await sent.edit({ components: buildSuggestionComponents(sent.id, 1, totalPages) });
-      }
-    }
     return true;
   }
 

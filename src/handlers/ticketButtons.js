@@ -17,17 +17,14 @@ import {
 import { buildTicketComponents } from '../services/ticket/ticketEmbeds.js';
 import { errorEmbed, infoEmbed } from '../utils/embed.js';
 import { requireRole } from '../utils/permissions.js';
-import { isAvailable, generateTicketSuggestion, ALLOWED_USER_ID } from '../services/ai/aiService.js';
 import {
   buildSuggestionEmbed,
   buildSuggestionComponents,
   totalPagesOf,
   parseSuggestionCustomId,
 } from '../services/ai/aiEmbeds.js';
-import { saveSuggestion, getSuggestion } from '../services/ai/suggestionRepo.js';
+import { getSuggestion } from '../services/ai/suggestionRepo.js';
 import { buildLogsPage } from './ticketMessages.js';
-import { getCombatStats } from '../services/squadStats/combatStatsService.js';
-import { createEmbed } from '../utils/embed.js';
 import config from '../config.js';
 import logger from '../logger.js';
 
@@ -210,119 +207,6 @@ export async function handleAnonymousToggle(interaction) {
   await interaction.message.edit({ components });
 
   log.info({ ticketId: ticket.id, anonymousMode: newMode, staffId: interaction.user.id }, 'Anonymous mode toggled');
-}
-
-export async function handleSuggest(interaction) {
-  if (interaction.user.id !== ALLOWED_USER_ID) {
-    return interaction.reply({ embeds: [errorEmbed('You are not authorized to use AI suggestions.')], flags: ['Ephemeral'] });
-  }
-
-  if (!isAvailable()) {
-    return interaction.reply({ embeds: [errorEmbed('AI suggestions are not configured.')], flags: ['Ephemeral'] });
-  }
-
-  await interaction.deferReply();
-
-  const ticket = await getTicketByChannel(interaction.channel.id);
-  if (!ticket) {
-    return interaction.editReply({ embeds: [errorEmbed('No open ticket found for this channel.')] });
-  }
-
-  const result = await generateTicketSuggestion(ticket);
-  if (result.error) {
-    return interaction.editReply({ embeds: [errorEmbed(result.error)] });
-  }
-
-  const totalPages = totalPagesOf(result);
-  const sent = await interaction.editReply({ embeds: [buildSuggestionEmbed(result, 1)] });
-  try {
-    await saveSuggestion({
-      messageId: sent.id,
-      channelId: interaction.channel.id,
-      ticketId: ticket.id,
-      suggestion: result,
-    });
-  } catch (err) {
-    log.error({ err, ticketId: ticket.id }, 'Failed to persist AI suggestion');
-  }
-  if (totalPages > 1) {
-    await interaction.editReply({ components: buildSuggestionComponents(sent.id, 1, totalPages) });
-  }
-  log.info({ ticketId: ticket.id, staffId: interaction.user.id, totalPages }, 'AI suggestion generated via button');
-}
-
-function buildCombatStatsEmbed(stats, steamId) {
-  const embed = createEmbed('Combat Stats').setTitle(`Combat Stats (last ${stats.windowDays}d)`);
-
-  if (!stats.player) {
-    embed.setDescription(`No SquadJS combat data found for Steam ID \`${steamId}\` on our server.`);
-    return embed;
-  }
-
-  embed.setDescription(`**${stats.player.name || '(unknown)'}** — [${stats.player.steamId}](https://steamcommunity.com/profiles/${stats.player.steamId})\n*Our server only — cross-server TK history is not reflected here.*`);
-
-  embed.addFields({
-    name: 'Overview',
-    value: [
-      `Kills: **${stats.kills}** | Deaths: **${stats.deaths}** | K/D: **${stats.kd}**`,
-      `TKs committed: **${stats.tksCommitted}** | TKs received: **${stats.tksReceived}**`,
-      `Team damage dealt: **${stats.teamDamageDealt}** | received: **${stats.teamDamageReceived}**`,
-    ].join('\n'),
-  });
-
-  if (stats.topWeapons.length > 0) {
-    embed.addFields({
-      name: 'Top Weapons (by kills)',
-      value: stats.topWeapons.map((w) => `\`${w.weapon}\` — ${w.count}`).join('\n'),
-      inline: true,
-    });
-  }
-  if (stats.topTkVictims.length > 0) {
-    embed.addFields({
-      name: 'Most-teamkilled teammates',
-      value: stats.topTkVictims.map((t) => `${t.name || t.steamId || '?'} — ${t.count}`).join('\n'),
-      inline: true,
-    });
-  }
-  if (stats.topTkAttackers.length > 0) {
-    embed.addFields({
-      name: 'Most frequent TK attackers',
-      value: stats.topTkAttackers.map((t) => `${t.name || t.steamId || '?'} — ${t.count}`).join('\n'),
-      inline: true,
-    });
-  }
-
-  if (stats.firstEvent && stats.lastEvent) {
-    const first = new Date(stats.firstEvent).toISOString().slice(0, 10);
-    const last = new Date(stats.lastEvent).toISOString().slice(0, 10);
-    embed.setFooter({ text: `Activity: ${first} to ${last}` });
-  }
-
-  return embed;
-}
-
-export async function handleCombatStats(interaction) {
-  if (await requireRole(interaction, allTicketStaffRoles())) return;
-  await interaction.deferReply();
-
-  const ticket = await getTicketByChannel(interaction.channel.id);
-  if (!ticket) {
-    return interaction.editReply({ embeds: [errorEmbed('No open ticket found for this channel.')] });
-  }
-
-  const steamId = await getStoredSteamId(ticket.user_id);
-  if (!steamId) {
-    return interaction.editReply({ embeds: [errorEmbed('No Steam ID is linked to this user — cannot look up combat stats.')] });
-  }
-
-  try {
-    const stats = await getCombatStats(steamId, 30);
-    await interaction.editReply({ embeds: [buildCombatStatsEmbed(stats, steamId)] });
-    log.info({ ticketId: ticket.id, steamId, staffId: interaction.user.id, found: !!stats.player }, 'Combat stats viewed');
-  } catch (err) {
-    log.error({ err, ticketId: ticket.id, steamId }, 'Failed to fetch combat stats');
-    await interaction.editReply({ embeds: [errorEmbed('Failed to fetch combat stats. Check logs for details.')] });
-  }
 }
 
 export async function handleSuggestionPagination(interaction) {
