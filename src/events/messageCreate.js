@@ -126,10 +126,6 @@ async function handleDM(message) {
       .setCustomId('prospect_apply')
       .setLabel('Join RB')
       .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId('seed_progression')
-      .setLabel('Seed Progression')
-      .setStyle(ButtonStyle.Secondary),
   );
 
   const infoChannelId = config.dm?.infoChannelId;
