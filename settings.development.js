@@ -27,6 +27,10 @@ export default {
     categoryId: '1473786285943685190',
     panelChannelId: '1473761516888264805',
     forumChannelId: '1473786537975222354',
+    forumTags: {
+      needFeedback: null,                                // TODO: populate from staging forum tag IDs
+      openForVote: null,                                 // TODO: populate from staging forum tag IDs
+    },
     loungeChannelId: '',
     periodDays: 28,
     voteDaysBefore: 14,

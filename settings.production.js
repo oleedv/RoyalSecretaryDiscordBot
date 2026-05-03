@@ -29,6 +29,11 @@ export default {
     categoryId: '660070542271053844',                    // Prospect staff category
     panelChannelId: '1476956067882864671',               // "Join RB" panel channel
     forumChannelId: '1237525233770958898',               // Forum channel for public prospect posts
+    forumTags: {
+      needFeedback: '1237529250542784542',               // Applied during prospect period
+      openForVote: '1237529349255860274',                // Applied when vote starts
+      // closed: '1238847921332551810',                  // Unused - threads deleted on rejection
+    },
     loungeChannelId: '460898033794809856',              // Public announcements (voting, accepted)
     periodDays: 28,
     voteDaysBefore: 14,

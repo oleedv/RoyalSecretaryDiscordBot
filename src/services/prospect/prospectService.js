@@ -682,10 +682,19 @@ export async function acceptProspect(prospect, acceptedById, guild) {
   const forumChannel = forumChannelId ? await guild.channels.fetch(forumChannelId).catch(() => null) : null;
   if (forumChannel) {
     const introEmbed = buildForumIntroEmbed(member, prospect);
+    const { whitelistRoleId, forumTags } = config.prospects;
+    const needFeedbackTagId = forumTags?.needFeedback ?? null;
 
     const thread = await forumChannel.threads.create({
       name: `${prospect.alias} - Prospect Application`,
-      message: { embeds: [introEmbed] },
+      appliedTags: needFeedbackTagId ? [needFeedbackTagId] : undefined,
+      message: {
+        content: whitelistRoleId
+          ? `<@&${whitelistRoleId}> New prospect **${prospect.alias}**`
+          : `New prospect **${prospect.alias}**`,
+        embeds: [introEmbed],
+        allowedMentions: whitelistRoleId ? { roles: [whitelistRoleId] } : { parse: [] },
+      },
     });
     forumThreadId = thread.id;
   }
