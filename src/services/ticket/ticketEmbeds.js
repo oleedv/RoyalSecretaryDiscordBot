@@ -63,10 +63,10 @@ export function buildTicketInfoEmbed(userTag, userId, uuid, tier, previousCount 
 
 const TRANSFER_BUTTONS = [
   { tier: 'normal', customId: 'ticket_escalate_normal', label: 'Normal', emoji: '\u{1F4E5}', style: ButtonStyle.Secondary },
-  { tier: 'community_officer', customId: 'ticket_escalate_co', label: 'CO', emoji: '\u{2B06}\u{FE0F}', style: ButtonStyle.Primary },
-  { tier: 'admin_officer', customId: 'ticket_escalate_admin', label: 'Admin', emoji: '\u{1F6E1}\u{FE0F}', style: ButtonStyle.Danger },
-  { tier: 'comp_team', customId: 'ticket_escalate_comp', label: 'Comp', emoji: '\u{2694}\u{FE0F}', style: ButtonStyle.Primary },
-  { tier: 'whitelist', customId: 'ticket_escalate_wl', label: 'Whitelist', emoji: '\u{1F4CB}', style: ButtonStyle.Secondary },
+  { tier: 'admin_officer', customId: 'ticket_escalate_admin', label: 'AO', emoji: '\u{1F6E1}\u{FE0F}', style: ButtonStyle.Primary },
+  { tier: 'community_officer', customId: 'ticket_escalate_co', label: 'CO', emoji: '\u{1F91D}', style: ButtonStyle.Primary },
+  { tier: 'whitelist', customId: 'ticket_escalate_wl', label: 'WL', emoji: '\u{1F4CB}', style: ButtonStyle.Primary },
+  { tier: 'comp_team', customId: 'ticket_escalate_comp', label: 'Comp', emoji: '\u{2694}\u{FE0F}', style: ButtonStyle.Success },
 ];
 
 export function buildTicketComponents(tier, anonymousMode = false) {
