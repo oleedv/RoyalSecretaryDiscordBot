@@ -102,7 +102,7 @@ export function buildReportPayload({ runDate, server, stats, definite, possible,
       { name: 'Top categories', value: topCategories([...definite, ...possible]), inline: true },
       { name: 'Repeat offenders (30d)', value: repeatSummary, inline: true },
     )
-    .setFooter({ text: `Full report attached • ${model}` })
+    .setFooter({ text: 'Full report attached' })
     .setTimestamp();
 
   const text = buildReportTextFile({ runDate, server, stats, definite, possible, repeatOffenders });
@@ -126,8 +126,11 @@ export function buildZeroViolationsPayload({ runDate, server, stats, model }) {
       { name: 'Definite', value: '0', inline: true },
       { name: 'Possible', value: '0', inline: true },
     )
-    .setFooter({ text: stats.totalMessages === 0 ? 'No AI call made (no chat)' : `${model}` })
     .setTimestamp();
+
+  if (stats.totalMessages === 0) {
+    embed.setFooter({ text: 'No AI call made (no chat)' });
+  }
 
   return { embeds: [embed], files: [] };
 }

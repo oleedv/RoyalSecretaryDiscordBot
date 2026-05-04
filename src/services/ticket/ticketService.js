@@ -248,7 +248,13 @@ async function _createTicket(userId, guild, { steamId, reason, tier = 'normal' }
   const embed = buildTicketInfoEmbed(userTag, userId, uuid, tier, previousTickets.length, { steamId, reason, bmPlayerId });
   const components = buildTicketComponents(tier);
 
-  const infoMsg = await channel.send({ embeds: [embed], components });
+  const displayName = member?.displayName || member?.user.username || userId;
+  const tierLabel = TIER_LABELS[tier] || tier;
+  const notifContent = tier === 'normal'
+    ? `New ticket from ${displayName}`
+    : `New ${tierLabel} ticket from ${displayName}`;
+
+  const infoMsg = await channel.send({ content: notifContent, embeds: [embed], components, allowedMentions: { parse: [] } });
   await query('UPDATE tickets SET info_message_id = ? WHERE id = ?', [infoMsg.id, ticket.id]);
 
   // Ping staff roles so they get a notification

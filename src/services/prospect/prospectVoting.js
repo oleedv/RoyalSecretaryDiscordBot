@@ -50,6 +50,18 @@ export async function postVote(prospect, client) {
   const thread = await forumChannel.threads.fetch(prospect.forum_thread_id).catch(() => null);
   if (!thread) return;
 
+  const { forumTags } = config.prospects;
+  const openForVoteTagId = forumTags?.openForVote ?? null;
+  if (openForVoteTagId && !thread.appliedTags?.includes(openForVoteTagId)) {
+    const needFeedbackTagId = forumTags?.needFeedback ?? null;
+    const next = (thread.appliedTags ?? [])
+      .filter((id) => id !== needFeedbackTagId)
+      .concat(openForVoteTagId);
+    await thread.setAppliedTags(next).catch((err) =>
+      log.warn({ err, threadId: thread.id }, 'Failed to set Open for Vote tag')
+    );
+  }
+
   let playtimeStats = null;
   if (!isTestSteamId(prospect.steam_id)) {
     playtimeStats = await getPlaytime(prospect.steam_id, prospect.period_started_at || prospect.created_at).catch(() => null);

@@ -11,10 +11,10 @@ export const TIER_LABELS = {
 
 export const TIER_COLORS = {
   normal: 0x5865f2,
-  community_officer: 0xfee75c,
-  admin_officer: 0xed4245,
+  community_officer: 0xaaa600,
+  admin_officer: 0x4bffc0,
   comp_team: 0x57f287,
-  whitelist: 0x3498db,
+  whitelist: 0x6bb8f0,
 };
 
 export const TIER_CHANNEL_PREFIX = {
@@ -26,8 +26,10 @@ export const TIER_CHANNEL_PREFIX = {
 };
 
 export function buildTicketInfoEmbed(userTag, userId, uuid, tier, previousCount = 0, { steamId, reason, bmPlayerId } = {}) {
+  const tierLabel = TIER_LABELS[tier] || tier;
+  const title = tier === 'normal' ? 'Ticket' : `${tierLabel} Ticket`;
   const embed = createEmbed('Ticket')
-    .setTitle('Ticket')
+    .setTitle(title)
     .setDescription(`Opened by **${userTag}** (<@${userId}>)`)
     .addFields(
       { name: 'Ticket ID', value: uuid, inline: true },
@@ -63,10 +65,10 @@ export function buildTicketInfoEmbed(userTag, userId, uuid, tier, previousCount 
 
 const TRANSFER_BUTTONS = [
   { tier: 'normal', customId: 'ticket_escalate_normal', label: 'Normal', emoji: '\u{1F4E5}', style: ButtonStyle.Secondary },
-  { tier: 'community_officer', customId: 'ticket_escalate_co', label: 'CO', emoji: '\u{2B06}\u{FE0F}', style: ButtonStyle.Primary },
-  { tier: 'admin_officer', customId: 'ticket_escalate_admin', label: 'Admin', emoji: '\u{1F6E1}\u{FE0F}', style: ButtonStyle.Danger },
-  { tier: 'comp_team', customId: 'ticket_escalate_comp', label: 'Comp', emoji: '\u{2694}\u{FE0F}', style: ButtonStyle.Primary },
-  { tier: 'whitelist', customId: 'ticket_escalate_wl', label: 'Whitelist', emoji: '\u{1F4CB}', style: ButtonStyle.Secondary },
+  { tier: 'admin_officer', customId: 'ticket_escalate_admin', label: 'AO', emoji: '\u{1F6E1}\u{FE0F}', style: ButtonStyle.Primary },
+  { tier: 'community_officer', customId: 'ticket_escalate_co', label: 'CO', emoji: '\u{1F91D}', style: ButtonStyle.Primary },
+  { tier: 'whitelist', customId: 'ticket_escalate_wl', label: 'WL', emoji: '\u{1F4CB}', style: ButtonStyle.Primary },
+  { tier: 'comp_team', customId: 'ticket_escalate_comp', label: 'Comp', emoji: '\u{2694}\u{FE0F}', style: ButtonStyle.Success },
 ];
 
 export function buildTicketComponents(tier, anonymousMode = false) {
