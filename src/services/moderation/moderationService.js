@@ -12,7 +12,7 @@ import {
 
 const log = logger.child({ module: 'moderation' });
 
-const MODEL = 'claude-sonnet-4-6';
+const MODEL = 'claude-haiku-4-5-20251001';
 const MAX_DAILY_RETRIES = 3;
 
 const VALID_CATEGORIES = new Set([
