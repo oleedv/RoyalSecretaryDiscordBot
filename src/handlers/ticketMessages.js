@@ -84,10 +84,12 @@ export async function handleGuild(message) {
   const cmd = parseTextCommand(message.content);
 
   if (cmd?.type === 'close') {
-    if (!hasAnyRole(message.member, allTicketStaffRoles())) return true;
-    await beginCloseGracePeriod(ticket, message.author.id, message.channel, message.client);
     await message.delete().catch(() => null);
-    log.info({ ticketId: ticket.id, closedBy: message.author.id }, 'Ticket closed via !close');
+    const notice = await message.channel.send({
+      content: `<@${message.author.id}> \`!close\` is disabled. Please use the **Close** button on the ticket info embed.`,
+      allowedMentions: { users: [message.author.id] },
+    }).catch(() => null);
+    if (notice) setTimeout(() => notice.delete().catch(() => null), 10000);
     return true;
   }
 

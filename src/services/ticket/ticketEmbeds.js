@@ -11,10 +11,10 @@ export const TIER_LABELS = {
 
 export const TIER_COLORS = {
   normal: 0x5865f2,
-  community_officer: 0xfee75c,
-  admin_officer: 0xed4245,
+  community_officer: 0xaaa600,
+  admin_officer: 0x4bffc0,
   comp_team: 0x57f287,
-  whitelist: 0x3498db,
+  whitelist: 0x6bb8f0,
 };
 
 export const TIER_CHANNEL_PREFIX = {
@@ -26,8 +26,10 @@ export const TIER_CHANNEL_PREFIX = {
 };
 
 export function buildTicketInfoEmbed(userTag, userId, uuid, tier, previousCount = 0, { steamId, reason, bmPlayerId } = {}) {
+  const tierLabel = TIER_LABELS[tier] || tier;
+  const title = tier === 'normal' ? 'Ticket' : `${tierLabel} Ticket`;
   const embed = createEmbed('Ticket')
-    .setTitle('Ticket')
+    .setTitle(title)
     .setDescription(`Opened by **${userTag}** (<@${userId}>)`)
     .addFields(
       { name: 'Ticket ID', value: uuid, inline: true },
