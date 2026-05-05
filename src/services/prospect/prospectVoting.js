@@ -70,7 +70,12 @@ export async function postVote(prospect, client) {
   const voteEmbed = buildVoteEmbed(prospect, playtimeStats);
   const counts = { yes: 0, no: 0, unsure: 0 };
   const components = buildVoteComponents(counts);
-  const voteMsg = await thread.send({ embeds: [voteEmbed], components });
+  const voteMsg = await thread.send({
+    content: whitelistRoleId ? `<@&${whitelistRoleId}>` : undefined,
+    embeds: [voteEmbed],
+    components,
+    allowedMentions: { roles: whitelistRoleId ? [whitelistRoleId] : [] },
+  });
 
   if (whitelistRoleId) {
     const member = await guild.members.fetch(prospect.user_id).catch(() => null);
