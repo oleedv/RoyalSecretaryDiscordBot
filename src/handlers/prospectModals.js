@@ -8,6 +8,7 @@ import { linkSteamId } from '../services/userService.js';
 import { upsertVote, getVoteCounts } from '../services/prospect/prospectVoting.js';
 import { buildVoteComponents } from '../services/prospect/prospectEmbeds.js';
 import { requireRole } from '../utils/permissions.js';
+import { logProspectVote } from '../services/admin/dmLogService.js';
 import config from '../config.js';
 import logger from '../logger.js';
 
@@ -241,5 +242,6 @@ export async function handleVoteNoModal(interaction) {
   if (interaction.message) {
     await interaction.message.edit({ components });
   }
+  logProspectVote({ voter: interaction.user, prospect, vote: 'no', reason }).catch(() => null);
   log.info({ prospectId, voterId: interaction.user.id, vote: 'no' }, 'No vote recorded with reason');
 }

@@ -14,6 +14,7 @@ import { getPlaytime } from '../services/playtimeService.js';
 import { query } from '../database/connection.js';
 import { errorEmbed, successEmbed, infoEmbed } from '../utils/embed.js';
 import { requireRole } from '../utils/permissions.js';
+import { logProspectVote } from '../services/admin/dmLogService.js';
 import config from '../config.js';
 import logger from '../logger.js';
 
@@ -238,6 +239,7 @@ export async function handleVoteYes(interaction) {
   const counts = await getVoteCounts(prospect.id);
   const components = buildVoteComponents(counts);
   await interaction.message.edit({ components });
+  logProspectVote({ voter: interaction.user, prospect, vote: 'yes' }).catch(() => null);
   log.info({ prospectId: prospect.id, voterId: interaction.user.id, vote: 'yes' }, 'Vote recorded');
 }
 
@@ -256,6 +258,7 @@ export async function handleVoteUnsure(interaction) {
   const counts = await getVoteCounts(prospect.id);
   const components = buildVoteComponents(counts);
   await interaction.message.edit({ components });
+  logProspectVote({ voter: interaction.user, prospect, vote: 'unsure' }).catch(() => null);
   log.info({ prospectId: prospect.id, voterId: interaction.user.id, vote: 'unsure' }, 'Vote recorded');
 }
 

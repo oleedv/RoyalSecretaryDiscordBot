@@ -37,6 +37,44 @@ export async function logDmInteraction(interaction, kind) {
   }
 }
 
+export async function logProspectVote({ voter, prospect, vote, reason }) {
+  if (!client || !channelId) return;
+  const channel = await client.channels.fetch(channelId).catch(() => null);
+  if (!channel) return;
+  try {
+    const embed = buildProspectVoteEmbed({ voter, prospect, vote, reason });
+    await channel.send({ embeds: [embed] });
+  } catch (err) {
+    log.warn({ err, voterId: voter?.id, prospectId: prospect?.id, vote }, 'Failed to send prospect vote log embed');
+  }
+}
+
+function buildProspectVoteEmbed({ voter, prospect, vote, reason }) {
+  const colors = { yes: 0x57f287, no: 0xed4245, unsure: 0xfee75c };
+  const labels = { yes: 'Yes', no: 'No', unsure: 'Unsure' };
+  const threadUrl = prospect.forum_thread_id
+    ? `https://discord.com/channels/${config.guild.id}/${prospect.forum_thread_id}`
+    : null;
+
+  const embed = new EmbedBuilder()
+    .setColor(colors[vote] ?? 0x5865f2)
+    .setAuthor({ name: `Vote ${labels[vote] ?? vote} - ${voter.tag}`, iconURL: voter.displayAvatarURL?.() })
+    .addFields(
+      { name: 'Voter', value: `<@${voter.id}> \`${voter.id}\``, inline: false },
+      { name: 'Prospect', value: threadUrl ? `[${prospect.alias}](${threadUrl})` : prospect.alias, inline: false },
+      { name: 'Vote', value: labels[vote] ?? vote, inline: true },
+    )
+    .setFooter({ text: 'Royal Secretary - prospect vote log' })
+    .setTimestamp();
+
+  if (vote === 'no' && reason) {
+    const quoted = String(reason).split('\n').map(l => `> ${l}`).join('\n');
+    embed.addFields({ name: 'Reason', value: truncate(quoted, 1800), inline: false });
+  }
+
+  return embed;
+}
+
 async function buildUnmatchedDmEmbed(message) {
   const user = message.author;
   const attachments = [...message.attachments.values()];
