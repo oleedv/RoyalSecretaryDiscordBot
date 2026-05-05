@@ -14,6 +14,11 @@ import logger from '../logger.js';
 const log = logger.child({ module: 'prospectModals' });
 
 const staffRoles = () => config.prospects.roles || [];
+const voterRoles = () => {
+  const staff = config.prospects.roles || [];
+  const member = config.prospects.whitelistRoleId;
+  return member ? [...staff, member] : staff;
+};
 
 // In-memory store for Part 1 data between the two modals (keyed by userId)
 const pendingApplications = new Map();
@@ -212,7 +217,7 @@ export async function handleExtendModal(interaction) {
 }
 
 export async function handleVoteNoModal(interaction) {
-  if (await requireRole(interaction, staffRoles())) return;
+  if (await requireRole(interaction, voterRoles())) return;
   const prospectId = parseInt(interaction.customId.split(':')[1], 10);
   if (Number.isNaN(prospectId)) {
     return interaction.reply({ embeds: [errorEmbed('Invalid prospect reference.')], flags: ['Ephemeral'] });
@@ -221,6 +226,9 @@ export async function handleVoteNoModal(interaction) {
   const prospect = await getProspectById(prospectId);
   if (!prospect) {
     return interaction.reply({ embeds: [errorEmbed('That prospect no longer exists.')], flags: ['Ephemeral'] });
+  }
+  if (prospect.user_id === interaction.user.id) {
+    return interaction.reply({ embeds: [errorEmbed('You cannot vote on your own application.')], flags: ['Ephemeral'] });
   }
 
   await interaction.deferUpdate();
