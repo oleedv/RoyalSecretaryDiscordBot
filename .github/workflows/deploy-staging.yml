@@ -140,8 +140,8 @@ jobs:
               \"color\": ${COLOR},
               \"fields\": [
                 { \"name\": \"Environment\", \"value\": \"Staging\", \"inline\": true },
-                { \"name\": \"Commit\", \"value\": \"[\`${GITHUB_SHA::7}\`](https://github.com/${{ github.repository }}/commit/${GITHUB_SHA})\", \"inline\": true },
-                { \"name\": \"By\", \"value\": \"${{ github.actor }}\", \"inline\": true },
+                { \"name\": \"Commit\", \"value\": \"\`${GITHUB_SHA::7}\`\", \"inline\": true },
+                { \"name\": \"By\", \"value\": \"Ole\", \"inline\": true },
                 { \"name\": \"Message\", \"value\": $(echo '${{ github.event.head_commit.message }}' | head -1 | jq -Rs .) }
               ],
               \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
