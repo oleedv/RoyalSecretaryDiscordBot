@@ -38,25 +38,41 @@ export async function reportError(err, ctx = {}) {
     entry.count += 1;
     if (entry.messageId) {
       try {
-        const channel = await client.channels.fetch(channelId).catch(() => null);
-        const msg = channel ? await channel.messages.fetch(entry.messageId).catch(() => null) : null;
+        const channel = await client.channels.fetch(channelId).catch((fetchErr) => {
+          log.warn({ err: fetchErr, channelId }, 'Failed to fetch alert channel for dedupe edit');
+          return null;
+        });
+        const msg = channel ? await channel.messages.fetch(entry.messageId).catch((fetchErr) => {
+          log.warn({ err: fetchErr, messageId: entry.messageId }, 'Failed to fetch alert message for dedupe edit');
+          return null;
+        }) : null;
         if (msg) {
           const orig = msg.embeds[0];
           if (orig) {
             const updated = EmbedBuilder.from(orig).setTitle(`${baseTitle(orig.title)} (x${entry.count})`);
-            await msg.edit({ embeds: [updated] }).catch(() => {});
+            await msg.edit({ embeds: [updated] }).catch((editErr) => {
+              log.warn({ err: editErr, messageId: entry.messageId }, 'Failed to edit alert dedupe count');
+            });
           }
         }
-      } catch {}
+      } catch (dedupeErr) {
+        log.warn({ err: dedupeErr }, 'Alert dedupe block threw');
+      }
     }
     return;
   }
 
-  const channel = await client.channels.fetch(channelId).catch(() => null);
+  const channel = await client.channels.fetch(channelId).catch((fetchErr) => {
+    log.error({ err: fetchErr, channelId }, 'Failed to fetch alert channel - error alerts will not post');
+    return null;
+  });
   if (!channel) return;
 
   const embed = buildErrorEmbed(err, ctx, severity);
-  const sent = await channel.send({ embeds: [embed] }).catch(() => null);
+  const sent = await channel.send({ embeds: [embed] }).catch((sendErr) => {
+    log.error({ err: sendErr, channelId }, 'Failed to send error alert to channel');
+    return null;
+  });
 
   const record = { count: 1, firstSeen: now, messageId: sent?.id || null };
   recent.set(key, record);

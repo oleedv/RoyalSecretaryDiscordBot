@@ -21,7 +21,25 @@ async function safeReply(interaction, payload) {
   try {
     if (interaction.replied || interaction.deferred) await interaction.followUp(payload);
     else await interaction.reply(payload);
-  } catch {}
+  } catch (err) {
+    log.warn({
+      err,
+      interactionId: interaction.id,
+      customId: interaction.customId,
+      userId: interaction.user?.id,
+      code: err?.code,
+    }, 'safeReply failed');
+  }
+}
+
+function describeInteractionType(interaction) {
+  if (interaction.isChatInputCommand()) return 'command';
+  if (interaction.isButton()) return 'button';
+  if (interaction.isModalSubmit()) return 'modal';
+  if (interaction.isAnySelectMenu?.()) return 'select';
+  if (interaction.isAutocomplete?.()) return 'autocomplete';
+  if (interaction.isContextMenuCommand?.()) return 'context_menu';
+  return 'other';
 }
 
 // Rate limiting: per-user cooldown for button/modal interactions
@@ -118,10 +136,21 @@ export default {
   name: Events.InteractionCreate,
 
   async execute(interaction) {
+    log.info({
+      interactionId: interaction.id,
+      type: describeInteractionType(interaction),
+      customId: interaction.customId ?? null,
+      commandName: interaction.commandName ?? null,
+      userId: interaction.user?.id,
+      userTag: interaction.user?.tag,
+      channelId: interaction.channel?.id,
+      guildId: interaction.guildId,
+    }, 'Interaction received');
+
     if (!interaction.guild) {
-      if (interaction.isButton()) logDmInteraction(interaction, 'button').catch(() => {});
-      else if (interaction.isModalSubmit()) logDmInteraction(interaction, 'modal').catch(() => {});
-      else if (interaction.isAnySelectMenu?.()) logDmInteraction(interaction, 'select').catch(() => {});
+      if (interaction.isButton()) logDmInteraction(interaction, 'button').catch((err) => log.warn({ err }, 'logDmInteraction button failed'));
+      else if (interaction.isModalSubmit()) logDmInteraction(interaction, 'modal').catch((err) => log.warn({ err }, 'logDmInteraction modal failed'));
+      else if (interaction.isAnySelectMenu?.()) logDmInteraction(interaction, 'select').catch((err) => log.warn({ err }, 'logDmInteraction select failed'));
     }
 
     if (interaction.isChatInputCommand()) {
@@ -134,7 +163,17 @@ export default {
         const now = Date.now();
         const last = cooldowns.get(interaction.user.id) || 0;
         if (now - last < COOLDOWN_MS) {
-          return interaction.reply({ content: 'Please wait before clicking again.', flags: ['Ephemeral'] }).catch(() => {});
+          log.info({
+            interactionId: interaction.id,
+            userId: interaction.user.id,
+            userTag: interaction.user.tag,
+            customId: interaction.customId,
+            channelId: interaction.channel?.id,
+            sinceLastMs: now - last,
+          }, 'Button rate-limited by cooldown');
+          return interaction.reply({ content: 'Please wait before clicking again.', flags: ['Ephemeral'] }).catch((err) => {
+            log.warn({ err, interactionId: interaction.id, customId: interaction.customId }, 'Cooldown reply failed');
+          });
         }
         cooldowns.set(interaction.user.id, now);
       }
@@ -167,9 +206,18 @@ export default {
             guildId: interaction.guildId,
             channelId: interaction.channel?.id,
             customId: interaction.customId,
-          }).catch(() => {});
+          }).catch((reportErr) => log.error({ err: reportErr, originalErr: err, customId: interaction.customId }, 'reportError failed for button'));
           await safeReply(interaction, { embeds: [errorEmbed('Something went wrong.')], flags: ['Ephemeral'] });
         }
+      } else {
+        log.warn({
+          interactionId: interaction.id,
+          userId: interaction.user.id,
+          userTag: interaction.user.tag,
+          customId: interaction.customId,
+          channelId: interaction.channel?.id,
+          messageId: interaction.message?.id,
+        }, 'Unmatched button customId');
       }
       return;
     }
@@ -191,9 +239,17 @@ export default {
             guildId: interaction.guildId,
             channelId: interaction.channel?.id,
             customId: interaction.customId,
-          }).catch(() => {});
+          }).catch((reportErr) => log.error({ err: reportErr, originalErr: err, customId: interaction.customId }, 'reportError failed for modal'));
           await safeReply(interaction, { embeds: [errorEmbed('Something went wrong.')], flags: ['Ephemeral'] });
         }
+      } else {
+        log.warn({
+          interactionId: interaction.id,
+          userId: interaction.user.id,
+          userTag: interaction.user.tag,
+          customId: interaction.customId,
+          channelId: interaction.channel?.id,
+        }, 'Unmatched modal customId');
       }
     }
   },
@@ -225,7 +281,7 @@ async function handleCommand(interaction) {
       userTag: interaction.user?.tag,
       guildId: interaction.guildId,
       channelId: interaction.channel?.id,
-    }).catch(() => {});
+    }).catch((reportErr) => log.error({ err: reportErr, originalErr: err, commandName: interaction.commandName }, 'reportError failed for command'));
 
     await safeReply(interaction, { embeds: [errorEmbed('There was an error executing this command.')], flags: ['Ephemeral'] });
   }

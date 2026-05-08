@@ -27,6 +27,8 @@ export async function createBot() {
 
   client.commands = new Collection();
 
+  attachClientDiagnostics(client);
+
   // Workaround: discord.js may silently drop DM messageCreate events when
   // the DM channel isn't cached, even with Partials.Channel. Detect this
   // via the raw gateway event and manually fetch + re-emit.
@@ -50,6 +52,41 @@ export async function createBot() {
   const eventCount = await loadEvents(client);
 
   return { client, commandCount, eventCount };
+}
+
+function attachClientDiagnostics(client) {
+  const diag = logger.child({ module: 'discordClient' });
+
+  client.on('error', (err) => diag.error({ err }, 'Client error'));
+  client.on('warn', (msg) => diag.warn({ msg }, 'Client warn'));
+  client.on('invalidated', () => diag.error('Client session invalidated - bot must restart'));
+
+  client.rest.on('rateLimited', (info) => diag.warn({
+    timeToReset: info?.timeToReset,
+    limit: info?.limit,
+    method: info?.method,
+    url: info?.url,
+    route: info?.route,
+    majorParameter: info?.majorParameter,
+    global: info?.global,
+  }, 'Discord REST rate limit hit'));
+  client.rest.on('invalidRequestWarning', (info) => diag.warn({
+    count: info?.count,
+    remainingTime: info?.remainingTime,
+  }, 'Discord REST invalid request warning'));
+
+  client.on('shardError', (err, shardId) => diag.error({ err, shardId }, 'Shard error'));
+  client.on('shardDisconnect', (event, shardId) => diag.warn({
+    shardId,
+    code: event?.code,
+    reason: event?.reason,
+  }, 'Shard disconnected'));
+  client.on('shardReconnecting', (shardId) => diag.warn({ shardId }, 'Shard reconnecting'));
+  client.on('shardResume', (shardId, replayedEvents) => diag.info({ shardId, replayedEvents }, 'Shard resumed'));
+  client.on('shardReady', (shardId, unavailableGuilds) => diag.info({
+    shardId,
+    unavailableGuilds: unavailableGuilds?.size ?? 0,
+  }, 'Shard ready'));
 }
 
 async function loadCommands(client) {

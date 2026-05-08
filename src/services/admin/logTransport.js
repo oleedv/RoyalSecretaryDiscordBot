@@ -17,6 +17,10 @@ async function getQuery() {
   return _query;
 }
 
+let flushFailureCount = 0;
+let lastFlushFailureNotice = 0;
+const FLUSH_FAILURE_NOTICE_INTERVAL_MS = 60000;
+
 async function flush() {
   if (buffer.length === 0) return;
   const batch = buffer.splice(0, MAX_BATCH);
@@ -29,8 +33,17 @@ async function flush() {
       `INSERT INTO bot_logs (level, level_label, module, message, data) VALUES ${placeholders}`,
       values
     );
-  } catch {
-    // Drop logs silently if DB is unavailable - avoid infinite recursion
+    if (flushFailureCount > 0) {
+      process.stderr.write(`[logTransport] DB log writes recovered after ${flushFailureCount} failures\n`);
+      flushFailureCount = 0;
+    }
+  } catch (err) {
+    flushFailureCount += 1;
+    const now = Date.now();
+    if (now - lastFlushFailureNotice >= FLUSH_FAILURE_NOTICE_INTERVAL_MS) {
+      lastFlushFailureNotice = now;
+      process.stderr.write(`[logTransport] DB log write failed (${flushFailureCount} consecutive): ${err?.code || err?.message || err}\n`);
+    }
   }
 }
 
