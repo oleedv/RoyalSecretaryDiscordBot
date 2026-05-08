@@ -67,7 +67,7 @@ async function main() {
   }
 
   const { client, commandCount, eventCount } = await createBot();
-  await client.login(config.discord.token);
+  await loginWithRetry(client, config.discord.token);
 
   if (!client.isReady()) {
     await new Promise((resolve) => client.once(Events.ClientReady, resolve));
@@ -131,6 +131,32 @@ process.on('uncaughtException', (err) => {
   console.error('Uncaught exception:', err);
   errorAlert.reportError(err, { source: 'uncaughtException', severity: 'fatal' }).catch(() => {});
 });
+
+async function loginWithRetry(client, token, maxAttempts = 6) {
+  const TRANSIENT_CODES = new Set(['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'UND_ERR_SOCKET', 'UND_ERR_CONNECT_TIMEOUT']);
+  let delayMs = 2000;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await client.login(token);
+      return;
+    } catch (err) {
+      const status = typeof err?.status === 'number' ? err.status : null;
+      const isAuth = status === 401;
+      const isTransient =
+        (status !== null && status >= 500 && status < 600) ||
+        status === 408 ||
+        status === 429 ||
+        TRANSIENT_CODES.has(err?.code);
+      if (isAuth || !isTransient || attempt === maxAttempts) throw err;
+      log.warn(
+        { err: { name: err?.name, message: err?.message, status, code: err?.code }, attempt, nextDelayMs: delayMs },
+        'client.login transient failure, retrying',
+      );
+      await new Promise((r) => setTimeout(r, delayMs));
+      delayMs = Math.min(delayMs * 2, 30000);
+    }
+  }
+}
 
 main().catch((err) => {
   console.error('Fatal startup error:', err);
