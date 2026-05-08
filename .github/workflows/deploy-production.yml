@@ -14,6 +14,8 @@ jobs:
     name: Build & Push Image
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     permissions:
       contents: read
       packages: write
@@ -148,6 +150,7 @@ jobs:
               \"color\": ${COLOR},
               \"fields\": [
                 { \"name\": \"Environment\", \"value\": \"Production\", \"inline\": true },
+                { \"name\": \"Version\", \"value\": \"v${{ needs.build.outputs.version }}\", \"inline\": true },
                 { \"name\": \"Commit\", \"value\": \"\`${GITHUB_SHA::7}\`\", \"inline\": true },
                 { \"name\": \"By\", \"value\": \"Ole\", \"inline\": true },
                 { \"name\": \"Message\", \"value\": ${COMMIT_MSG} }
