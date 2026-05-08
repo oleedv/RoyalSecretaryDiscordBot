@@ -153,6 +153,4 @@ jobs:
             }]
           }"
 
-          for URL in "${{ secrets.DISCORD_DEPLOY_WEBHOOK }}" "https://discord.com/api/webhooks/1502434855017775246/Wlv3rZEE8oiU7Ne3qcoJwQ8wZXpmcxyXgByy_N6YIgXz3Z1x5WKU6sHnes6W8B8WFRA-"; do
-            curl -s -H "Content-Type: application/json" -d "$PAYLOAD" "$URL"
-          done
+          curl -s -H "Content-Type: application/json" -d "$PAYLOAD" "https://discord.com/api/webhooks/1502434855017775246/Wlv3rZEE8oiU7Ne3qcoJwQ8wZXpmcxyXgByy_N6YIgXz3Z1x5WKU6sHnes6W8B8WFRA-"
