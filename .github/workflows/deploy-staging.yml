@@ -13,11 +13,17 @@ jobs:
   build:
     name: Build & Push Image
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        run: echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -34,6 +40,7 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging-${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v${{ steps.version.outputs.version }}-staging
 
   deploy:
     name: Deploy to Server
@@ -129,16 +136,21 @@ jobs:
             STATUS="Failed (${FAILED})"
           fi
 
-          curl -s -H "Content-Type: application/json" -d "{
+          COMMIT_MSG=$(echo '${{ github.event.head_commit.message }}' | head -1 | jq -Rs .)
+
+          PAYLOAD="{
             \"embeds\": [{
               \"title\": \"${STATUS}\",
               \"color\": ${COLOR},
               \"fields\": [
                 { \"name\": \"Environment\", \"value\": \"Staging\", \"inline\": true },
-                { \"name\": \"Commit\", \"value\": \"[\`${GITHUB_SHA::7}\`](https://github.com/${{ github.repository }}/commit/${GITHUB_SHA})\", \"inline\": true },
-                { \"name\": \"By\", \"value\": \"${{ github.actor }}\", \"inline\": true },
-                { \"name\": \"Message\", \"value\": $(echo '${{ github.event.head_commit.message }}' | head -1 | jq -Rs .) }
+                { \"name\": \"Version\", \"value\": \"v${{ needs.build.outputs.version }}-staging\", \"inline\": true },
+                { \"name\": \"Commit\", \"value\": \"\`${GITHUB_SHA::7}\`\", \"inline\": true },
+                { \"name\": \"By\", \"value\": \"Ole\", \"inline\": true },
+                { \"name\": \"Message\", \"value\": ${COMMIT_MSG} }
               ],
               \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
             }]
-          }" "${{ secrets.DISCORD_DEPLOY_WEBHOOK }}"
+          }"
+
+          curl -s -H "Content-Type: application/json" -d "$PAYLOAD" "https://discord.com/api/webhooks/1502434855017775246/Wlv3rZEE8oiU7Ne3qcoJwQ8wZXpmcxyXgByy_N6YIgXz3Z1x5WKU6sHnes6W8B8WFRA-"
