@@ -682,18 +682,18 @@ export async function acceptProspect(prospect, acceptedById, guild) {
   const forumChannel = forumChannelId ? await guild.channels.fetch(forumChannelId).catch(() => null) : null;
   if (forumChannel) {
     const introEmbed = buildForumIntroEmbed(member, prospect);
-    const { whitelistRoleId, forumTags } = config.prospects;
+    const { memberRoleId, forumTags } = config.prospects;
     const needFeedbackTagId = forumTags?.needFeedback ?? null;
 
     const thread = await forumChannel.threads.create({
       name: `${prospect.alias} - Prospect Application`,
       appliedTags: needFeedbackTagId ? [needFeedbackTagId] : undefined,
       message: {
-        content: whitelistRoleId
-          ? `<@&${whitelistRoleId}> New prospect **${prospect.alias}**`
+        content: memberRoleId
+          ? `<@&${memberRoleId}> New prospect **${prospect.alias}**`
           : `New prospect **${prospect.alias}**`,
         embeds: [introEmbed],
-        allowedMentions: whitelistRoleId ? { roles: [whitelistRoleId] } : { parse: [] },
+        allowedMentions: memberRoleId ? { roles: [memberRoleId] } : { parse: [] },
       },
     });
     forumThreadId = thread.id;
@@ -747,7 +747,9 @@ export async function acceptProspect(prospect, acceptedById, guild) {
     const currentName = member.displayName;
     const baseName = currentName.startsWith(NICK_PREFIX) ? currentName.slice(NICK_PREFIX.length) : currentName;
     const available = MAX_NICK_LENGTH - NICK_PREFIX.length;
-    const desiredNick = `${NICK_PREFIX}${baseName.slice(0, available)}`;
+    // Slice by code points (not UTF-16 units) so emoji/surrogate pairs aren't split into invalid halves.
+    const truncatedBase = [...baseName].slice(0, available).join('');
+    const desiredNick = `${NICK_PREFIX}${truncatedBase}`;
     if (currentName !== desiredNick) {
       try {
         await member.setNickname(desiredNick);
@@ -779,16 +781,25 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
   const statusMap = { accepted: 'accepted', denied: 'denied', closed: 'closed' };
   const status = statusMap[outcome] || 'closed';
 
-  await transaction(async (conn) => {
-    await conn.query(
-      'UPDATE prospects SET status = ?, closed_at = NOW(), closed_by = ? WHERE id = ?',
+  // Atomic close: only proceed if the prospect is still open. Affects 0 rows on a duplicate call,
+  // preventing duplicate role grants, DMs, lounge announcements, and BM flag changes from concurrent
+  // or repeated end-vote / deny clicks.
+  const claimed = await transaction(async (conn) => {
+    const result = await conn.query(
+      "UPDATE prospects SET status = ?, closed_at = NOW(), closed_by = ? WHERE id = ? AND status = 'open'",
       [status, closedById, prospect.id]
     );
+    if (result.affectedRows === 0) return false;
     await conn.query(
       'INSERT INTO prospect_events (prospect_id, event_type, actor_id, detail) VALUES (?, ?, ?, ?)',
       [prospect.id, status === 'closed' ? 'closed' : status, closedById, reason || null]
     );
+    return true;
   });
+  if (!claimed) {
+    log.warn({ prospectId: prospect.id, outcome, closedById }, 'closeProspect skipped: prospect already closed');
+    return;
+  }
 
   if (prospect.forum_thread_id) {
     const { forumChannelId } = config.prospects;
@@ -803,7 +814,7 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
     }
   }
 
-  const { prospectRoleId, whitelistRoleId } = config.prospects;
+  const { prospectRoleId, memberRoleId } = config.prospects;
 
   // Remove team role if mentor was assigned
   if (prospect.mentor_id) {
@@ -813,7 +824,17 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
   const member = await guild.members.fetch(prospect.user_id).catch(() => null);
   if (member) {
     if (prospectRoleId) await member.roles.remove(prospectRoleId).catch(() => null);
-    if (whitelistRoleId) await member.roles.remove(whitelistRoleId).catch(() => null);
+
+    if (outcome === 'accepted') {
+      if (memberRoleId) {
+        await member.roles.add(memberRoleId).catch((err) =>
+          log.error({ err, userId: prospect.user_id }, 'Failed to add member role on accept')
+        );
+      }
+    } else if (memberRoleId) {
+      // Defensive: strip the member role if it was ever granted (e.g. manually) for non-accepted outcomes.
+      await member.roles.remove(memberRoleId).catch(() => null);
+    }
 
     if (outcome === 'accepted') {
       const strippedName = member.displayName.replace(/^P \| /, '');
@@ -858,14 +879,14 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
 
   const staffChannel = await guild.channels.fetch(prospect.channel_id).catch(() => null);
   if (staffChannel) {
-    const roleMention = whitelistRoleId ? `<@&${whitelistRoleId}>` : 'the prospect whitelist role';
+    const roleMention = memberRoleId ? `<@&${memberRoleId}>` : 'the member role';
     const userMention = `<@${prospect.user_id}>`;
     const dbNote = isTestSteamId(prospect.steam_id) ? ' (test steam ID, no DB entry was present)' : '';
     let wlEmbed = null;
     if (outcome === 'accepted') {
       wlEmbed = createEmbed('Prospect')
         .setTitle('Whitelist Promoted')
-        .setDescription(`Prospect whitelist upgraded to RBMembers (permanent)${dbNote}. Removed ${roleMention} from ${userMention}.`)
+        .setDescription(`Prospect whitelist upgraded to RBMembers (permanent)${dbNote}. Added ${roleMention} to ${userMention}.`)
         .setColor(0x57f287);
     } else if (outcome === 'denied') {
       wlEmbed = createEmbed('Prospect')

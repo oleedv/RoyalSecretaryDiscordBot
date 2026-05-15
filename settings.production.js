@@ -40,7 +40,7 @@ export default {
     roles: ['1204763136830218260', '654022866261770270', '1213958671843860552', '1295470787934814259', '989894740642263082'],                      // Staff roles, trainee mentor, mentor, seniro mentor, recruitment officer, comm officer, rb managers
     prospectRoleId: '706053335106715650',               // Prospect role
     purgedRoleId: '1125873310182428693',                // Purged role (removed on accept)
-    whitelistRoleId: '528574587747958794',              // Whitelist role aka rb member
+    memberRoleId: '528574587747958794',                 // RB member role (granted on vote accept; pinged for vote)
     mentorRoleId: '654022866261770270',                 // Mentor role
     voiceChannelId: '1476956237110186195',               // Voice channel for invites
     memberHubChannelId: '1051879922643255306',            // Member hub channel
