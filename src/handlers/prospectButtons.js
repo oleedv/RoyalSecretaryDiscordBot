@@ -23,7 +23,7 @@ const log = logger.child({ module: 'prospectButtons' });
 const staffRoles = () => config.prospects.roles || [];
 const voterRoles = () => {
   const staff = config.prospects.roles || [];
-  const member = config.prospects.whitelistRoleId;
+  const member = config.prospects.memberRoleId;
   return member ? [...staff, member] : staff;
 };
 

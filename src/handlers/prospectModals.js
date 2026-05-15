@@ -6,7 +6,7 @@ import { validateSteamInput } from '../services/steamService.js';
 import { createProspect, getProspectByChannel, getProspectById, closeProspect, extendProspect } from '../services/prospect/prospectService.js';
 import { linkSteamId } from '../services/userService.js';
 import { upsertVote, getVoteCounts } from '../services/prospect/prospectVoting.js';
-import { buildVoteComponents } from '../services/prospect/prospectEmbeds.js';
+import { buildVoteComponents, buildCloseTicketComponents } from '../services/prospect/prospectEmbeds.js';
 import { requireRole } from '../utils/permissions.js';
 import { logProspectVote } from '../services/admin/dmLogService.js';
 import config from '../config.js';
@@ -17,7 +17,7 @@ const log = logger.child({ module: 'prospectModals' });
 const staffRoles = () => config.prospects.roles || [];
 const voterRoles = () => {
   const staff = config.prospects.roles || [];
-  const member = config.prospects.whitelistRoleId;
+  const member = config.prospects.memberRoleId;
   return member ? [...staff, member] : staff;
 };
 
@@ -197,7 +197,12 @@ export async function handleDenyModal(interaction) {
   const reason = interaction.fields.getTextInputValue('deny_reason').trim();
   await closeProspect(prospect, interaction.user.id, 'denied', interaction.guild, reason);
   log.info({ prospectId: prospect.id, deniedBy: interaction.user.id, reason }, 'Prospect denied via button');
-  await interaction.channel.delete().catch(() => null);
+
+  await interaction.editReply({ embeds: [successEmbed(`**${prospect.alias}** has been denied.`)] });
+  await interaction.channel.send({
+    embeds: [successEmbed(`**${prospect.alias}** has been denied. Reviewers can close this ticket when ready.`)],
+    components: buildCloseTicketComponents(),
+  }).catch(() => null);
 }
 
 export async function handleExtendModal(interaction) {

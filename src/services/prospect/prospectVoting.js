@@ -41,7 +41,8 @@ export async function postVote(prospect, client) {
   const guild = await client.guilds.fetch(config.guild.id);
   if (!guild) return;
 
-  const { forumChannelId, whitelistRoleId } = config.prospects;
+  const { forumChannelId, memberRoleId } = config.prospects;
+  // memberRoleId is intentionally NOT granted here — see closeProspect for member-role assignment on accept.
   if (!forumChannelId || !prospect.forum_thread_id) return;
 
   const forumChannel = await guild.channels.fetch(forumChannelId).catch(() => null);
@@ -71,24 +72,19 @@ export async function postVote(prospect, client) {
   const counts = { yes: 0, no: 0, unsure: 0 };
   const components = buildVoteComponents(counts);
   const voteMsg = await thread.send({
-    content: whitelistRoleId ? `<@&${whitelistRoleId}>` : undefined,
+    content: memberRoleId ? `<@&${memberRoleId}>` : undefined,
     embeds: [voteEmbed],
     components,
-    allowedMentions: { roles: whitelistRoleId ? [whitelistRoleId] : [] },
+    allowedMentions: { roles: memberRoleId ? [memberRoleId] : [] },
   });
 
-  if (whitelistRoleId) {
-    const member = await guild.members.fetch(prospect.user_id).catch(() => null);
-    if (member) {
-      await member.roles.add(whitelistRoleId).catch((err) =>
-        log.error({ err, userId: prospect.user_id }, 'Failed to add whitelist role')
-      );
-    }
-  }
-
   const { periodEnd } = getProspectDates(prospect);
+  // Guarantee the whitelist entry covers the full vote window even if the vote starts late
+  // (force-vote or delayed by low playtime). Anchor expiry to max(periodEnd, now + voteDaysBefore).
+  const minExpiry = new Date(Date.now() + (config.prospects.voteDaysBefore || 14) * 24 * 60 * 60 * 1000);
+  const whitelistExpiry = periodEnd > minExpiry ? periodEnd : minExpiry;
   if (!isTestSteamId(prospect.steam_id)) {
-    whitelistService.createEntry(prospect.steam_id, prospect.alias, 'RB', 'Prospect', client.user.id, periodEnd)
+    whitelistService.createEntry(prospect.steam_id, prospect.alias, 'RB', 'Prospect', client.user.id, whitelistExpiry)
       .catch((err) => log.warn({ err }, 'Failed to create prospect whitelist entry'));
   }
 
@@ -116,10 +112,8 @@ export async function postVote(prospect, client) {
 
   const staffChannel = await guild.channels.fetch(prospect.channel_id).catch(() => null);
   if (staffChannel) {
-    const expiryUnix = Math.floor(periodEnd.getTime() / 1000);
-    const whitelistLine = whitelistRoleId
-      ? `\nProspect whitelist granted (<@&${whitelistRoleId}>), auto-expires <t:${expiryUnix}:R>.`
-      : '';
+    const expiryUnix = Math.floor(whitelistExpiry.getTime() / 1000);
+    const whitelistLine = `\nProspect whitelist granted on the game server, auto-expires <t:${expiryUnix}:R>.`;
     const notifEmbed = createEmbed('Prospect')
       .setTitle('Vote Started')
       .setDescription(

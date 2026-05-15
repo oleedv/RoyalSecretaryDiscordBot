@@ -37,7 +37,7 @@ export default {
     voteDaysBefore: 14,
     roles: ['1406672908641894400', '1406672908641894400'],
     prospectRoleId: '1410750309940072568',
-    whitelistRoleId: '1406672770242449458',
+    memberRoleId: '1406672770242449458',
     mentorRoleId: '1406672908641894400',
     voiceChannelId: '1143282482150654126',
     memberHubChannelId: '1051879922643255306',
