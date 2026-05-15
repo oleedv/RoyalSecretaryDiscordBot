@@ -14,7 +14,7 @@ import {
   setAnonymousMode,
   rebuildTicketInfoEmbed,
 } from '../services/ticket/ticketService.js';
-import { buildTicketComponents } from '../services/ticket/ticketEmbeds.js';
+import { buildTicketComponents, buildDonationEmbed } from '../services/ticket/ticketEmbeds.js';
 import { errorEmbed, infoEmbed } from '../utils/embed.js';
 import { requireRole } from '../utils/permissions.js';
 import {
@@ -190,6 +190,16 @@ export async function handleTimeout(interaction) {
 
   await interaction.deleteReply();
   log.info({ ticketId: ticket.id, targetUserId: ticket.user_id, staffId: interaction.user.id }, 'User timed out via ticket button');
+}
+
+export async function handleDonate(interaction) {
+  if (await requireRole(interaction, allTicketStaffRoles())) return;
+  const ticket = await getTicketByChannel(interaction.channel.id);
+  if (!ticket) {
+    return interaction.reply({ embeds: [errorEmbed('No open ticket found for this channel.')], flags: ['Ephemeral'] });
+  }
+  await interaction.reply({ embeds: [buildDonationEmbed()] });
+  log.info({ ticketId: ticket.id, staffId: interaction.user.id }, 'Donation info posted in whitelist ticket');
 }
 
 export async function handleAnonymousToggle(interaction) {

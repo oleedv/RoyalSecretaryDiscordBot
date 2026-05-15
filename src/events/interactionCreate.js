@@ -67,6 +67,7 @@ const buttonHandlers = {
   ticket_force_close: ticketButtons.handleForceClose,
   ticket_timeout: ticketButtons.handleTimeout,
   ticket_anonymous: ticketButtons.handleAnonymousToggle,
+  ticket_donate: ticketButtons.handleDonate,
   prospect_apply: prospectButtons.handleApply,
   prospect_modal_2_open: (interaction) => {
     // Extract Part 1 data from the embed before showing modal 2
