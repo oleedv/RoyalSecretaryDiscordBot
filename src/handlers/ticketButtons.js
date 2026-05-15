@@ -194,12 +194,31 @@ export async function handleTimeout(interaction) {
 
 export async function handleDonate(interaction) {
   if (await requireRole(interaction, allTicketStaffRoles())) return;
+  await interaction.deferReply({ flags: ['Ephemeral'] });
   const ticket = await getTicketByChannel(interaction.channel.id);
   if (!ticket) {
-    return interaction.reply({ embeds: [errorEmbed('No open ticket found for this channel.')], flags: ['Ephemeral'] });
+    return interaction.editReply({ embeds: [errorEmbed('No open ticket found for this channel.')] });
   }
-  await interaction.reply({ embeds: [buildDonationEmbed()] });
-  log.info({ ticketId: ticket.id, staffId: interaction.user.id }, 'Donation info posted in whitelist ticket');
+
+  const embed = buildDonationEmbed();
+  const user = await interaction.client.users.fetch(ticket.user_id).catch(() => null);
+  const dmOk = user ? await user.send({ embeds: [embed] }).then(() => true).catch(() => false) : false;
+
+  if (dmOk) {
+    await interaction.channel.send({
+      content: `<@${ticket.user_id}>`,
+      embeds: [embed],
+    });
+    await interaction.editReply({ embeds: [infoEmbed(`Donation info sent to <@${ticket.user_id}> via DM and posted here.`)] });
+  } else {
+    await interaction.channel.send({
+      content: `<@${ticket.user_id}> (couldn't DM you — please see below)`,
+      embeds: [embed],
+    });
+    await interaction.editReply({ embeds: [infoEmbed(`Couldn't DM <@${ticket.user_id}>; posted in channel instead.`)] });
+  }
+
+  log.info({ ticketId: ticket.id, staffId: interaction.user.id, dmDelivered: dmOk }, 'Donation info sent in whitelist ticket');
 }
 
 export async function handleAnonymousToggle(interaction) {
