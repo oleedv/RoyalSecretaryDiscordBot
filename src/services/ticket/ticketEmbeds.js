@@ -71,6 +71,23 @@ const TRANSFER_BUTTONS = [
   { tier: 'comp_team', customId: 'ticket_escalate_comp', label: 'Comp', emoji: '\u{2694}\u{FE0F}', style: ButtonStyle.Success },
 ];
 
+export const DONATE_PAYPAL_URL = 'https://www.paypal.com/paypalme/royalbattalionclan';
+
+export function buildDonationEmbed() {
+  return createEmbed('Donation')
+    .setTitle('Support Royal Battalion')
+    .setDescription(`Get **30 days of whitelist for £5** by donating via PayPal:\n[paypal.me/royalbattalionclan](${DONATE_PAYPAL_URL})`)
+    .addFields({
+      name: 'After donating, reply here with:',
+      value: [
+        '- Donation amount',
+        '- PayPal transaction ID',
+        '- Your SteamID64',
+      ].join('\n'),
+    })
+    .setColor(TIER_COLORS.whitelist);
+}
+
 export function buildTicketComponents(tier, anonymousMode = false) {
   const closeRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -88,6 +105,16 @@ export function buildTicketComponents(tier, anonymousMode = false) {
       .setLabel(anonymousMode ? 'Anonymous: ON' : 'Anonymous')
       .setStyle(anonymousMode ? ButtonStyle.Success : ButtonStyle.Secondary)
   );
+
+  if (tier === 'whitelist') {
+    closeRow.addComponents(
+      new ButtonBuilder()
+        .setCustomId('ticket_donate')
+        .setLabel('Donate')
+        .setEmoji('\u{1F4B7}')
+        .setStyle(ButtonStyle.Success)
+    );
+  }
 
   const transferButtons = TRANSFER_BUTTONS
     .filter((b) => b.tier !== tier)
