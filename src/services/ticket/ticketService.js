@@ -61,11 +61,15 @@ export async function findTicketInfoMessage(channel, botUserId, ticket) {
 async function deleteLogsEmbeds(channel, botId) {
   const messages = await channel.messages.fetch({ limit: 50 }).catch(() => null);
   if (!messages) return;
-  for (const msg of messages.values()) {
-    if (msg.author.id !== botId) continue;
-    const isLogsEmbed = msg.embeds.some((e) => e.title?.startsWith('Previous Tickets'));
-    if (isLogsEmbed) await msg.delete().catch(() => null);
+  const toDelete = messages.filter((msg) =>
+    msg.author.id === botId && msg.embeds.some((e) => e.title?.startsWith('Previous Tickets'))
+  );
+  if (toDelete.size === 0) return;
+  if (toDelete.size === 1) {
+    await toDelete.first().delete().catch(() => null);
+    return;
   }
+  await channel.bulkDelete(toDelete, true).catch(() => null);
 }
 
 // ── DB Accessors ──
@@ -282,20 +286,23 @@ export async function escalateTicket(ticket, tier, channel, actorId = null) {
   };
   const rolesToKeep = new Set(tierRoleMap[tier]);
 
-  for (const roleId of allRoles) {
-    if (rolesToKeep.has(roleId)) {
-      log.debug({ roleId, action: 'allow' }, 'Escalation: keeping role with access');
-      await channel.permissionOverwrites.edit(roleId, {
-        ViewChannel: true,
-        SendMessages: true,
-      });
-    } else {
-      log.debug({ roleId, action: 'delete' }, 'Escalation: removing role access');
-      await channel.permissionOverwrites.delete(roleId).catch((err) => {
-        log.error({ err, roleId }, 'Failed to delete permission overwrite');
-      });
-    }
-  }
+  // Build the full overwrite array in one PUT to avoid 5+ sequential REST calls.
+  // Preserve any overwrites we don't manage (e.g. manual member additions, bot, @everyone).
+  const preserved = channel.permissionOverwrites.cache
+    .filter((ow) => !allRoles.has(ow.id))
+    .map((ow) => ({
+      id: ow.id,
+      type: ow.type,
+      allow: ow.allow.bitfield,
+      deny: ow.deny.bitfield,
+    }));
+  const tierOverwrites = [...rolesToKeep].map((roleId) => ({
+    id: roleId,
+    allow: ['ViewChannel', 'SendMessages'],
+  }));
+  await channel.permissionOverwrites.set([...preserved, ...tierOverwrites]).catch((err) => {
+    log.error({ err, channelId: channel.id }, 'Failed to update channel permission overwrites');
+  });
 
   await query('UPDATE tickets SET tier = ? WHERE id = ?', [tier, ticket.id]);
 
@@ -346,12 +353,14 @@ export async function escalateTicket(ticket, tier, channel, actorId = null) {
     .setDescription(`This ticket has been transferred to **${tierLabel}** by **${actorName}**.`)
     .setColor(TIER_COLORS[tier] || 0x5865f2);
 
-  await channel.send({ embeds: [notifEmbed] });
-
-  // Ping the escalation target roles so they get a notification
+  // Send notification embed + role ping in a single message
   const targetRoles = tierRoleMap[tier];
   const escalatePing = targetRoles.map((r) => `<@&${r}>`).join(' ');
-  await channel.send({ content: escalatePing, allowedMentions: { roles: targetRoles } }).then((m) => m.delete().catch(() => null));
+  await channel.send({
+    content: escalatePing,
+    embeds: [notifEmbed],
+    allowedMentions: { roles: targetRoles },
+  });
 
   log.info({ ticketId: ticket.id, tier }, 'Ticket escalated');
   return {};

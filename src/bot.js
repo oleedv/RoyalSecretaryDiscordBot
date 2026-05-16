@@ -61,15 +61,22 @@ function attachClientDiagnostics(client) {
   client.on('warn', (msg) => diag.warn({ msg }, 'Client warn'));
   client.on('invalidated', () => diag.error('Client session invalidated - bot must restart'));
 
-  client.rest.on('rateLimited', (info) => diag.warn({
-    timeToReset: info?.timeToReset,
-    limit: info?.limit,
-    method: info?.method,
-    url: info?.url,
-    route: info?.route,
-    majorParameter: info?.majorParameter,
-    global: info?.global,
-  }, 'Discord REST rate limit hit'));
+  client.rest.on('rateLimited', (info) => {
+    // Channel PATCH (name/topic edits) is capped at 2/10min per channel by Discord —
+    // unavoidable, the REST client just waits it out. Log at debug to keep the warn
+    // channel clean; other routes still surface as warnings.
+    const isChannelEdit = info?.method === 'PATCH' && /^\/channels\/\d+$/.test(info?.url ?? '');
+    const level = isChannelEdit ? 'debug' : 'warn';
+    diag[level]({
+      timeToReset: info?.timeToReset,
+      limit: info?.limit,
+      method: info?.method,
+      url: info?.url,
+      route: info?.route,
+      majorParameter: info?.majorParameter,
+      global: info?.global,
+    }, 'Discord REST rate limit hit');
+  });
   client.rest.on('invalidRequestWarning', (info) => diag.warn({
     count: info?.count,
     remainingTime: info?.remainingTime,
