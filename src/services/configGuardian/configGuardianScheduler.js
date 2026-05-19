@@ -19,6 +19,40 @@ function getRepoUrl() {
   return null;
 }
 
+const MAX_EMBEDS_PER_MESSAGE = 10;
+const MAX_TOTAL_EMBED_CHARS = 5800;
+
+function embedCharCount(embed) {
+  const data = typeof embed.toJSON === 'function' ? embed.toJSON() : embed;
+  let n = 0;
+  if (data.title) n += data.title.length;
+  if (data.description) n += data.description.length;
+  if (data.footer?.text) n += data.footer.text.length;
+  if (data.author?.name) n += data.author.name.length;
+  if (Array.isArray(data.fields)) {
+    for (const f of data.fields) n += (f.name?.length ?? 0) + (f.value?.length ?? 0);
+  }
+  return n;
+}
+
+function batchEmbeds(embeds) {
+  const batches = [];
+  let current = [];
+  let currentChars = 0;
+  for (const embed of embeds) {
+    const chars = embedCharCount(embed);
+    if (current.length >= MAX_EMBEDS_PER_MESSAGE || currentChars + chars > MAX_TOTAL_EMBED_CHARS) {
+      if (current.length > 0) batches.push(current);
+      current = [];
+      currentChars = 0;
+    }
+    current.push(embed);
+    currentChars += chars;
+  }
+  if (current.length > 0) batches.push(current);
+  return batches;
+}
+
 async function poll(client) {
   if (!guardian) return;
   try {
@@ -32,15 +66,10 @@ async function poll(client) {
       return;
     }
     for (const msg of messages) {
-      const MAX_EMBEDS = 10;
-      if (msg.embeds.length <= MAX_EMBEDS) {
-        await channel.send({ embeds: msg.embeds, files: msg.files });
-      } else {
-        for (let i = 0; i < msg.embeds.length; i += MAX_EMBEDS) {
-          const batch = msg.embeds.slice(i, i + MAX_EMBEDS);
-          const files = i === 0 ? msg.files : [];
-          await channel.send({ embeds: batch, files });
-        }
+      const batches = batchEmbeds(msg.embeds);
+      for (let i = 0; i < batches.length; i++) {
+        const files = i === 0 ? msg.files : [];
+        await channel.send({ embeds: batches[i], files });
       }
     }
     const repoUrl = getRepoUrl();
