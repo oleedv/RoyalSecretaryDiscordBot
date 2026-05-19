@@ -1,5 +1,5 @@
-import { getProspectsNeedingVote, isTestSteamId, getProspectDates, refreshAllOpenProspectStats } from './prospectService.js';
-import { postVote } from './prospectVoting.js';
+import { getProspectsNeedingVote, getProspectsNeedingVoteEnd, isTestSteamId, getProspectDates, refreshAllOpenProspectStats } from './prospectService.js';
+import { postVote, finalizeVote } from './prospectVoting.js';
 import { getPlaytime } from '../playtimeService.js';
 import { createEmbed } from '../../utils/embed.js';
 import config from '../../config.js';
@@ -11,6 +11,7 @@ const log = logger.child({ module: 'prospectScheduler' });
 let intervalId = null;
 let isRunning = false;
 let isRefreshing = false;
+let isEndingVote = false;
 
 /** Track prospect IDs that have already been warned about low playtime */
 const lowPlaytimeWarned = new Set();
@@ -29,6 +30,7 @@ export function startScheduler(client) {
 
 function tick(client) {
   runVoteCheck(client);
+  runVoteEndCheck(client);
   runStatsRefresh(client);
 }
 
@@ -101,6 +103,40 @@ async function runVoteCheck(client) {
     reportError(err, { source: 'scheduler:prospect:voteCheck' }).catch(() => {});
   } finally {
     isRunning = false;
+  }
+}
+
+async function runVoteEndCheck(client) {
+  if (isEndingVote) {
+    log.warn('Vote-end check still running from previous tick, skipping');
+    return;
+  }
+  isEndingVote = true;
+  try {
+    const prospects = await getProspectsNeedingVoteEnd();
+    if (prospects.length === 0) return;
+
+    log.info(`Found ${prospects.length} prospect(s) with vote period ended`);
+
+    const guild = await client.guilds.fetch(config.guild.id).catch(() => null);
+    if (!guild) {
+      log.warn('Vote-end check: guild fetch failed, skipping');
+      return;
+    }
+
+    for (const prospect of prospects) {
+      try {
+        await finalizeVote(prospect, client.user.id, client, guild);
+      } catch (err) {
+        log.error({ err, prospectId: prospect.id }, 'Failed to auto-finalize vote');
+        reportError(err, { source: 'scheduler:prospect:finalizeVote' }).catch(() => {});
+      }
+    }
+  } catch (err) {
+    log.error({ err }, 'Vote-end check failed');
+    reportError(err, { source: 'scheduler:prospect:voteEndCheck' }).catch(() => {});
+  } finally {
+    isEndingVote = false;
   }
 }
 

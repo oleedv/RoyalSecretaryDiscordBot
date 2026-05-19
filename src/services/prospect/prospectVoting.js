@@ -1,6 +1,8 @@
-import { createEmbed } from '../../utils/embed.js';
-import { buildVoteEmbed, buildVoteComponents, buildVoteAnnouncementEmbed, buildEndVoteComponents } from './prospectEmbeds.js';
-import { isTestSteamId, getProspectDates } from './prospectService.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { createEmbed, infoEmbed, successEmbed } from '../../utils/embed.js';
+import { buildVoteEmbed, buildVoteComponents, buildVoteAnnouncementEmbed, buildEndVoteComponents, buildCloseTicketComponents } from './prospectEmbeds.js';
+import { isTestSteamId, getProspectDates, closeProspect } from './prospectService.js';
+import { findBotMessageByCustomId } from '../../utils/messageSearch.js';
 import { query } from '../../database/connection.js';
 import { getPlaytime } from '../playtimeService.js';
 import * as whitelistService from '../whitelistService.js';
@@ -139,4 +141,55 @@ export async function postVote(prospect, client) {
   }
 
   log.info({ prospectId: prospect.id, voteMessageId: voteMsg.id }, 'Vote posted');
+}
+
+export async function finalizeVote(prospect, actorId, client, guild) {
+  const counts = await getVoteCounts(prospect.id);
+
+  const MIN_VOTES = config.prospects?.minYesVotes ?? 10;
+  const MIN_RATE = config.prospects?.minYesRate ?? 0.80;
+
+  const totalVotes = counts.yes + counts.no;
+  const yesRate = totalVotes > 0 ? counts.yes / totalVotes : 0;
+  const meetsMinimum = counts.yes >= MIN_VOTES;
+  const meetsRate = yesRate >= MIN_RATE;
+  const outcome = (meetsMinimum && meetsRate) ? 'accepted' : 'denied';
+
+  const staffChannel = await guild.channels.fetch(prospect.channel_id).catch(() => null);
+
+  if (outcome === 'denied' && staffChannel) {
+    const warnings = [];
+    if (!meetsMinimum) warnings.push(`${counts.yes}/${MIN_VOTES} minimum yes votes`);
+    if (!meetsRate) warnings.push(`${Math.round(yesRate * 100)}% of ${Math.round(MIN_RATE * 100)}% required yes rate`);
+    if (warnings.length > 0) {
+      await staffChannel.send({
+        embeds: [infoEmbed(`Thresholds not met: ${warnings.join(', ')}. Prospect will be **denied**.`)],
+      }).catch(() => null);
+    }
+  }
+
+  const reason = outcome === 'denied' ? 'The membership vote did not pass.' : undefined;
+  await closeProspect(prospect, actorId, outcome, guild, reason);
+
+  if (staffChannel) {
+    const endVoteMsg = await findBotMessageByCustomId(staffChannel, client.user.id, ['vote_end']);
+    if (endVoteMsg) {
+      const disabledRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('vote_end')
+          .setLabel('Vote Ended')
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(true),
+      );
+      await endVoteMsg.edit({ components: [disabledRow] }).catch(() => null);
+    }
+
+    await staffChannel.send({
+      embeds: [successEmbed(`Vote ended for **${prospect.alias}** - result: ${counts.yes} yes, ${counts.no} no, ${counts.unsure} unsure - outcome: **${outcome}**.`)],
+      components: buildCloseTicketComponents(),
+    }).catch(() => null);
+  }
+
+  log.info({ prospectId: prospect.id, outcome, counts, actorId }, 'Vote finalized');
+  return { outcome, counts };
 }
