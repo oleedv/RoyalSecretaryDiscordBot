@@ -842,11 +842,19 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
     }
   }
 
-  const { prospectRoleId, memberRoleId } = config.prospects;
+  const { prospectRoleId, memberRoleId, voiceChannelId } = config.prospects;
 
   // Remove team role if mentor was assigned
   if (prospect.mentor_id) {
     await removeTeamRole(prospect.user_id, prospect.mentor_id, guild)
+  }
+
+  if (voiceChannelId) {
+    const voiceChannel = await guild.channels.fetch(voiceChannelId).catch(() => null);
+    if (voiceChannel?.permissionOverwrites.cache.has(prospect.user_id)) {
+      await voiceChannel.permissionOverwrites.delete(prospect.user_id, `Prospect ${outcome}`)
+        .catch((err) => log.warn({ err, prospectId: prospect.id, voiceChannelId }, 'Failed to remove prospect voice channel overwrite'));
+    }
   }
 
   const member = await guild.members.fetch(prospect.user_id).catch(() => null);

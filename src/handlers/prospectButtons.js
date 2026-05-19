@@ -167,11 +167,25 @@ export async function handleVoiceInvite(interaction) {
   const user = await interaction.client.users.fetch(prospect.user_id).catch(() => null);
   if (!user) return interaction.reply({ embeds: [errorEmbed('Could not find the prospect user.')], flags: ['Ephemeral'] });
 
+  const voiceChannel = await interaction.guild.channels.fetch(voiceChannelId).catch(() => null);
+  if (!voiceChannel) return interaction.reply({ embeds: [errorEmbed(`Configured voice channel (${voiceChannelId}) not found.`)], flags: ['Ephemeral'] });
+
+  try {
+    await voiceChannel.permissionOverwrites.edit(prospect.user_id, {
+      ViewChannel: true,
+      Connect: true,
+      Speak: true,
+    }, { reason: `Prospect voice invite by ${interaction.user.tag}` });
+  } catch (err) {
+    log.error({ err, prospectId: prospect.id, voiceChannelId }, 'Failed to grant voice channel access to prospect');
+    return interaction.reply({ embeds: [errorEmbed(`Failed to grant voice access: ${err.message}`)], flags: ['Ephemeral'] });
+  }
+
   const voiceLink = `https://discord.com/channels/${interaction.guild.id}/${voiceChannelId}`;
   await user.send({ embeds: [infoEmbed(`You've been invited to join a voice chat with a mentor! Click here to join: ${voiceLink}`)] }).catch(() => null);
 
-  await interaction.reply({ embeds: [successEmbed(`Voice invite sent to **${prospect.alias}**.`)] });
-  log.info({ prospectId: prospect.id, invitedBy: interaction.user.id }, 'Voice invite sent to prospect');
+  await interaction.reply({ embeds: [successEmbed(`Voice invite sent to **${prospect.alias}** (access granted to <#${voiceChannelId}>).`)] });
+  log.info({ prospectId: prospect.id, invitedBy: interaction.user.id, voiceChannelId }, 'Voice invite sent to prospect');
 }
 
 export async function handleExtend(interaction) {
