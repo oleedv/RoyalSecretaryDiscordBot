@@ -853,15 +853,10 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
   if (member) {
     if (prospectRoleId) await member.roles.remove(prospectRoleId).catch(() => null);
 
-    if (outcome === 'accepted') {
-      if (memberRoleId) {
-        await member.roles.add(memberRoleId).catch((err) =>
-          log.error({ err, userId: prospect.user_id }, 'Failed to add member role on accept')
-        );
-      }
-    } else if (memberRoleId) {
-      // Defensive: strip the member role if it was ever granted (e.g. manually) for non-accepted outcomes.
-      await member.roles.remove(memberRoleId).catch(() => null);
+    if (outcome === 'accepted' && memberRoleId) {
+      await member.roles.add(memberRoleId).catch((err) =>
+        log.error({ err, userId: prospect.user_id }, 'Failed to add member role on accept')
+      );
     }
 
     if (outcome === 'accepted') {
