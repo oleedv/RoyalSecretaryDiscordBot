@@ -3,13 +3,11 @@ import {
   TextInputBuilder,
   TextInputStyle,
   ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
 } from 'discord.js';
 import { rawModal, labelComponent, textInput, radioGroup } from '../utils/modalComponents.js';
 import { getOpenProspectByUser, getProspectByChannel, getProspectByChannelAnyStatus, claimProspect, unclaimProspect, acceptProspect, extendProspect, closeProspect } from '../services/prospect/prospectService.js';
-import { postVote, getProspectByVoteMessage, upsertVote, getVoteCounts } from '../services/prospect/prospectVoting.js';
-import { buildVoteComponents, buildCloseTicketComponents } from '../services/prospect/prospectEmbeds.js';
+import { postVote, getProspectByVoteMessage, upsertVote, getVoteCounts, finalizeVote } from '../services/prospect/prospectVoting.js';
+import { buildVoteComponents } from '../services/prospect/prospectEmbeds.js';
 import { getPlaytime } from '../services/playtimeService.js';
 import { query } from '../database/connection.js';
 import { errorEmbed, successEmbed, infoEmbed } from '../utils/embed.js';
@@ -268,49 +266,9 @@ export async function handleEndVote(interaction) {
   const prospect = await getProspectByChannel(interaction.channel.id);
   if (!prospect) return interaction.editReply({ embeds: [errorEmbed('No open prospect found for this channel.')] });
 
-  const counts = await getVoteCounts(prospect.id);
-
-  const MIN_VOTES = config.prospects?.minYesVotes ?? 10;
-  const MIN_RATE = config.prospects?.minYesRate ?? 0.80;
-
-  // Design: "unsure" votes are intentionally excluded from the pass/fail ratio -- only yes/no determine outcome
-  const totalVotes = counts.yes + counts.no;
-  const yesRate = totalVotes > 0 ? counts.yes / totalVotes : 0;
-  const meetsMinimum = counts.yes >= MIN_VOTES;
-  const meetsRate = yesRate >= MIN_RATE;
-  const outcome = (meetsMinimum && meetsRate) ? 'accepted' : 'denied';
-
-  if (outcome === 'denied' && (!meetsMinimum || !meetsRate)) {
-    const warnings = [];
-    if (!meetsMinimum) warnings.push(`${counts.yes}/${MIN_VOTES} minimum yes votes`);
-    if (!meetsRate) warnings.push(`${Math.round(yesRate * 100)}% of ${Math.round(MIN_RATE * 100)}% required yes rate`);
-    await interaction.channel.send({
-      embeds: [infoEmbed(`Thresholds not met: ${warnings.join(', ')}. Prospect will be **denied**.`)],
-    }).catch(() => null);
-  }
-
-  const reason = outcome === 'denied' ? 'The membership vote did not pass.' : undefined;
-
-  await closeProspect(prospect, interaction.user.id, outcome, interaction.guild, reason);
-
-  // Disable the End Vote button on the staff channel message
-  const disabledRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('vote_end')
-      .setLabel('Vote Ended')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(true),
-  );
-  await interaction.message.edit({ components: [disabledRow] }).catch(() => null);
-
-  const closeComponents = buildCloseTicketComponents();
-  await interaction.channel.send({
-    embeds: [successEmbed(`Vote ended for **${prospect.alias}** - result: ${counts.yes} yes, ${counts.no} no, ${counts.unsure} unsure - outcome: **${outcome}**.`)],
-    components: closeComponents,
-  }).catch(() => null);
+  const { outcome } = await finalizeVote(prospect, interaction.user.id, interaction.client, interaction.guild);
 
   await interaction.editReply({ embeds: [successEmbed(`Vote ended for **${prospect.alias}** - outcome: **${outcome}**.`)] });
-  log.info({ prospectId: prospect.id, outcome, counts, actorId: interaction.user.id }, 'Vote ended');
 }
 
 export async function handleVoteNo(interaction) {

@@ -418,6 +418,14 @@ export async function getProspectsNeedingVote() {
   );
 }
 
+export async function getProspectsNeedingVoteEnd() {
+  const { periodDays } = config.prospects;
+  return await query(
+    `SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE status = ? AND vote_posted_at IS NOT NULL AND paused_at IS NULL AND TIMESTAMPDIFF(DAY, COALESCE(period_started_at, created_at), NOW()) >= (? + COALESCE(extra_days, 0))`,
+    ['open', periodDays]
+  );
+}
+
 export async function backfillMissingAiEvaluations(client) {
   const prospects = await query(
     `SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE status = 'open' AND ai_evaluation IS NULL AND channel_id IS NOT NULL`
@@ -802,13 +810,33 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
   }
 
   if (prospect.forum_thread_id) {
-    const { forumChannelId } = config.prospects;
+    const { forumChannelId, forumTags } = config.prospects;
     const forumChannel = forumChannelId ? await guild.channels.fetch(forumChannelId).catch(() => null) : null;
     if (forumChannel) {
       const thread = await forumChannel.threads.fetch(prospect.forum_thread_id).catch(() => null);
       if (thread) {
-        await thread.delete().catch((err) =>
-          log.error({ err, threadId: prospect.forum_thread_id }, 'Failed to delete forum thread')
+        if (prospect.vote_message_id) {
+          const voteMsg = await thread.messages.fetch(prospect.vote_message_id).catch(() => null);
+          if (voteMsg) {
+            await voteMsg.edit({ components: [] }).catch((err) =>
+              log.warn({ err, threadId: prospect.forum_thread_id }, 'Failed to clear vote buttons')
+            );
+          }
+        }
+
+        const openForVoteTagId = forumTags?.openForVote ?? null;
+        if (openForVoteTagId && thread.appliedTags?.includes(openForVoteTagId)) {
+          const next = thread.appliedTags.filter((id) => id !== openForVoteTagId);
+          await thread.setAppliedTags(next).catch((err) =>
+            log.warn({ err, threadId: prospect.forum_thread_id }, 'Failed to remove openForVote tag')
+          );
+        }
+
+        await thread.setLocked(true).catch((err) =>
+          log.warn({ err, threadId: prospect.forum_thread_id }, 'Failed to lock forum thread')
+        );
+        await thread.setArchived(true).catch((err) =>
+          log.warn({ err, threadId: prospect.forum_thread_id }, 'Failed to archive forum thread')
         );
       }
     }
