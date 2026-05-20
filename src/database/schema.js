@@ -172,6 +172,24 @@ export async function initSchema() {
     )
   `);
 
+  await query(`
+    CREATE TABLE IF NOT EXISTS prospect_forum_messages (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      prospect_id INT NOT NULL,
+      message_id VARCHAR(20) NOT NULL UNIQUE,
+      author_id VARCHAR(20) NOT NULL,
+      author_tag VARCHAR(100) NOT NULL,
+      author_avatar VARCHAR(255) NULL,
+      is_bot TINYINT(1) DEFAULT 0,
+      content TEXT,
+      attachments JSON,
+      embeds JSON,
+      created_at TIMESTAMP NOT NULL,
+      FOREIGN KEY (prospect_id) REFERENCES prospects(id),
+      INDEX idx_pfm_prospect_created (prospect_id, created_at)
+    )
+  `);
+
   // Prospect table migrations
   await query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS extra_days INT DEFAULT 0`);
   await query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS paused_at TIMESTAMP NULL`);
