@@ -409,6 +409,14 @@ export async function getProspectByChannelAnyStatus(channelId) {
   return rows[0] || null;
 }
 
+export async function getProspectByForumThread(forumThreadId) {
+  const rows = await query(
+    `SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE forum_thread_id = ?`,
+    [forumThreadId]
+  );
+  return rows[0] || null;
+}
+
 export async function getProspectsNeedingVote() {
   const { periodDays, voteDaysBefore } = config.prospects;
   const daysUntilVote = periodDays - voteDaysBefore;
