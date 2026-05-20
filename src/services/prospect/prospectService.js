@@ -810,33 +810,13 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
   }
 
   if (prospect.forum_thread_id) {
-    const { forumChannelId, forumTags } = config.prospects;
+    const { forumChannelId } = config.prospects;
     const forumChannel = forumChannelId ? await guild.channels.fetch(forumChannelId).catch(() => null) : null;
     if (forumChannel) {
       const thread = await forumChannel.threads.fetch(prospect.forum_thread_id).catch(() => null);
       if (thread) {
-        if (prospect.vote_message_id) {
-          const voteMsg = await thread.messages.fetch(prospect.vote_message_id).catch(() => null);
-          if (voteMsg) {
-            await voteMsg.edit({ components: [] }).catch((err) =>
-              log.warn({ err, threadId: prospect.forum_thread_id }, 'Failed to clear vote buttons')
-            );
-          }
-        }
-
-        const openForVoteTagId = forumTags?.openForVote ?? null;
-        if (openForVoteTagId && thread.appliedTags?.includes(openForVoteTagId)) {
-          const next = thread.appliedTags.filter((id) => id !== openForVoteTagId);
-          await thread.setAppliedTags(next).catch((err) =>
-            log.warn({ err, threadId: prospect.forum_thread_id }, 'Failed to remove openForVote tag')
-          );
-        }
-
-        await thread.setLocked(true).catch((err) =>
-          log.warn({ err, threadId: prospect.forum_thread_id }, 'Failed to lock forum thread')
-        );
-        await thread.setArchived(true).catch((err) =>
-          log.warn({ err, threadId: prospect.forum_thread_id }, 'Failed to archive forum thread')
+        await thread.delete(`Prospect ${outcome}`).catch((err) =>
+          log.warn({ err, threadId: prospect.forum_thread_id }, 'Failed to delete forum thread')
         );
       }
     }
