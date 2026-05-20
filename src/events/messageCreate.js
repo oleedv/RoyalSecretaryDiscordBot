@@ -3,6 +3,7 @@ import { getOpenTicketByUser, getClosingTicketByUser, reopenTicket, rebuildTicke
 import { getOpenProspectByUser, getProspectByUserWithChannel } from '../services/prospect/prospectService.js';
 import * as ticketMessages from '../handlers/ticketMessages.js';
 import * as prospectMessages from '../handlers/prospectMessages.js';
+import * as prospectForumMessages from '../handlers/prospectForumMessages.js';
 import { infoEmbed, createEmbed, errorEmbed } from '../utils/embed.js';
 import { logMessage } from '../services/admin/messageLogger.js';
 import { incrementMessageCount } from '../services/activity/activityService.js';
@@ -23,6 +24,26 @@ export default {
         return;
       }
     }
+
+    // Forum-thread capture runs BEFORE the bot-author short-circuit so bot intro/vote embeds are saved.
+    if (
+      message.guild &&
+      message.channel.isThread?.() &&
+      config.prospects?.forumChannelId &&
+      message.channel.parentId === config.prospects.forumChannelId
+    ) {
+      try {
+        await prospectForumMessages.handleForumThread(message);
+      } catch (err) {
+        reportError(err, {
+          source: 'messageCreate.forumThread',
+          userId: message.author?.id,
+          channelId: message.channel?.id,
+        }).catch(() => {});
+      }
+      return;
+    }
+
     if (message.author.bot) return;
 
     logMessage(message);
