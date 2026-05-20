@@ -882,6 +882,12 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
     if (forumChannel) {
       const thread = await forumChannel.threads.fetch(prospect.forum_thread_id).catch(() => null);
       if (thread) {
+        try {
+          const flushResult = await backfillForumThread(prospect.id, thread);
+          log.info({ prospectId: prospect.id, ...flushResult }, 'Final forum flush before delete');
+        } catch (err) {
+          log.warn({ err, prospectId: prospect.id }, 'Final forum flush failed; proceeding with delete');
+        }
         await thread.delete(`Prospect ${outcome}`).catch((err) =>
           log.warn({ err, threadId: prospect.forum_thread_id }, 'Failed to delete forum thread')
         );
