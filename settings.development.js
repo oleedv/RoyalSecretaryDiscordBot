@@ -84,4 +84,7 @@ export default {
     maxOutputTokens: 4000,
     repeatOffenderLookbackDays: 30,
   },
+  layerRotationValidator: {
+    enabled: false,
+  },
 };

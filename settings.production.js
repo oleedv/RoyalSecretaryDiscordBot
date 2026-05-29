@@ -84,6 +84,15 @@ export default {
   configGuardian: {
     channelId: '1490634013503656006',                      // Config Guardian alerts channel
   },
+  layerRotationValidator: {
+    enabled: true,
+    channelId: '1509632566548889773',                      // Prod: live rotation status channel
+    errorRoleIds: ['1225894972084060290', '733974178797191189'],  // Pinged on SFTP-mode errors AND authorised to post in Channel mode
+    intervalMs: 5 * 60 * 1000,
+    squadUtilsUrl: process.env.SQUAD_UTILS_URL || 'https://squadutils.org/api/v3/parse',
+    serverCfgName: 'Server.cfg',
+    layerRotationName: 'LayerRotation.cfg',
+  },
   alerts: {
     channelId: '1423733551257489501',                      // Error alerts + unhandled-DM log (same channel)
     dedupeWindowMs: 60000,                                 // Collapse identical errors within this window

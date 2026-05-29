@@ -81,6 +81,9 @@ export default {
   configGuardian: {
     channelId: '1490634043639857182',                      // Config Guardian alerts channel
   },
+  layerRotationValidator: {
+    enabled: false,
+  },
   alerts: {
     channelId: '1496854948506239127',                      // Error alerts + unhandled-DM log (same channel)
     dedupeWindowMs: 60000,                                 // Collapse identical errors within this window
