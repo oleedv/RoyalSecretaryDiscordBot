@@ -4,6 +4,7 @@ import { getOpenProspectByUser, getProspectByUserWithChannel } from '../services
 import * as ticketMessages from '../handlers/ticketMessages.js';
 import * as prospectMessages from '../handlers/prospectMessages.js';
 import * as prospectForumMessages from '../handlers/prospectForumMessages.js';
+import { handleMessage as handleLayerRotationMessage } from '../services/layerRotationValidator/layerRotationChannelHandler.js';
 import { infoEmbed, createEmbed, errorEmbed } from '../utils/embed.js';
 import { logMessage } from '../services/admin/messageLogger.js';
 import { incrementMessageCount } from '../services/activity/activityService.js';
@@ -23,6 +24,18 @@ export default {
         log.error({ err }, 'messageCreate: failed to fetch partial');
         return;
       }
+    }
+
+    try {
+      const handled = await handleLayerRotationMessage(message);
+      if (handled) return;
+    } catch (err) {
+      reportError(err, {
+        source: 'messageCreate.layerRotation',
+        userId: message.author?.id,
+        channelId: message.channel?.id,
+      }).catch(() => {});
+      return;
     }
 
     // Forum-thread capture runs BEFORE the bot-author short-circuit so bot intro/vote embeds are saved.
