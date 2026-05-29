@@ -7,7 +7,8 @@
   "scripts": {
     "start": "bun run src/index.js",
     "dev": "bun --watch run src/index.js",
-    "deploy-commands": "bun run src/utils/deploy-commands.js"
+    "deploy-commands": "bun run src/utils/deploy-commands.js",
+    "test": "bun test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
