@@ -304,6 +304,7 @@ export async function startScheduler(client) {
 
 export function stopScheduler() {
   scheduler.stop();
+  mode = 'sftp';
   liveMessageId = null;
   lastValidHash = null;
   lastErrorHash = null;
