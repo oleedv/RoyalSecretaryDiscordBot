@@ -11,3 +11,13 @@ export function parseMapRotationMode(cfgText) {
   }
   return null;
 }
+
+export function parseLayerRotation(cfgText) {
+  if (!cfgText) return { cleanedText: '', lines: [] };
+  const lines = cfgText
+    .split(/\r?\n/)
+    .map((l) => l.replace(/\s+$/, ''))
+    .filter((l) => l.length > 0)
+    .filter((l) => !COMMENT_PREFIX.test(l));
+  return { cleanedText: lines.join('\n'), lines };
+}
