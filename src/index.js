@@ -13,6 +13,7 @@ import { stopHeartbeat } from './services/admin/statusHeartbeat.js';
 import { stopScheduler as stopSeedTrackerScheduler } from './services/seedTracker/seedTrackerScheduler.js';
 import { stopStatusUpdater } from './services/serverStatus/serverStatusService.js';
 import { stopScheduler as stopConfigGuardian } from './services/configGuardian/configGuardianScheduler.js';
+import { stopScheduler as stopLayerRotationValidator } from './services/layerRotationValidator/layerRotationValidatorScheduler.js';
 import { stopScheduler as stopModerationScheduler } from './services/moderation/moderationScheduler.js';
 import { finalizeAllSessions } from './services/activity/voiceTracker.js';
 import { stopScheduler as stopActivityScheduler } from './services/activity/activityScheduler.js';
@@ -104,6 +105,7 @@ async function main() {
     disconnectSquadJS();
     stopStatusUpdater();
     stopConfigGuardian();
+    stopLayerRotationValidator();
     stopModerationScheduler();
     stopActivityScheduler();
     stopActionProcessor();
