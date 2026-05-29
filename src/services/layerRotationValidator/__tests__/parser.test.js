@@ -105,3 +105,58 @@ describe('parseLayerRotation', () => {
     expect(parseLayerRotation('\n\n  \n').lines).toEqual([]);
   });
 });
+
+import { prettifyLayerToken } from '../layerRotationValidatorEmbeds.js';
+
+describe('prettifyLayerToken', () => {
+  test('parses a standard CamelCase map line', () => {
+    expect(prettifyLayerToken('FoolsRoad_RAAS_v1 AFU RGF')).toEqual({
+      map: 'Fools Road', variant: 'RAAS v1', team1: 'AFU', team2: 'RGF',
+    });
+  });
+
+  test('parses a single-word map name', () => {
+    expect(prettifyLayerToken('Sumari_Seed_v1 USA MEI')).toEqual({
+      map: 'Sumari', variant: 'Seed v1', team1: 'USA', team2: 'MEI',
+    });
+  });
+
+  test('parses BlackCoast and GooseBay', () => {
+    expect(prettifyLayerToken('BlackCoast_RAAS_v1 PLA+Motorized CAF+Motorized')).toEqual({
+      map: 'Black Coast', variant: 'RAAS v1', team1: 'PLA + Motorized', team2: 'CAF + Motorized',
+    });
+    expect(prettifyLayerToken('GooseBay_RAAS_v2 CAF CRF')).toEqual({
+      map: 'Goose Bay', variant: 'RAAS v2', team1: 'CAF', team2: 'CRF',
+    });
+  });
+
+  test('joins faction unit suffixes with spaces around +', () => {
+    expect(prettifyLayerToken('Lashkar_RAAS_v1 CAF+AirAssault WPMC+AirAssault')).toEqual({
+      map: 'Lashkar', variant: 'RAAS v1', team1: 'CAF + AirAssault', team2: 'WPMC + AirAssault',
+    });
+  });
+
+  test('renders missing teams as -', () => {
+    expect(prettifyLayerToken('Mestia_TC_v1')).toEqual({
+      map: 'Mestia', variant: 'TC v1', team1: '-', team2: '-',
+    });
+  });
+
+  test('handles missing version', () => {
+    expect(prettifyLayerToken('Sumari_RAAS USA MEI')).toEqual({
+      map: 'Sumari', variant: 'RAAS', team1: 'USA', team2: 'MEI',
+    });
+  });
+
+  test('handles multi-segment map names', () => {
+    expect(prettifyLayerToken('Black_Coast_RAAS_v1 PLA CAF')).toEqual({
+      map: 'Black Coast', variant: 'RAAS v1', team1: 'PLA', team2: 'CAF',
+    });
+  });
+
+  test('falls back gracefully on a single-token layer', () => {
+    expect(prettifyLayerToken('SomeRawToken USA MEI')).toEqual({
+      map: 'SomeRawToken', variant: '', team1: 'USA', team2: 'MEI',
+    });
+  });
+});
