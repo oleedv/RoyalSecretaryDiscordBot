@@ -40,3 +40,40 @@ export function prettifyLayerToken(line) {
 
   return { map, variant, team1, team2 };
 }
+
+function padRight(s, width) {
+  return s + ' '.repeat(Math.max(0, width - s.length));
+}
+
+function padLeft(s, width) {
+  return ' '.repeat(Math.max(0, width - s.length)) + s;
+}
+
+export function formatRotationTable(lines) {
+  if (!lines || lines.length === 0) return '(empty rotation)';
+
+  const rows = lines.map((line, idx) => {
+    const parsed = prettifyLayerToken(line);
+    return { idx: String(idx + 1), ...parsed };
+  });
+
+  const headers = { idx: '#', map: 'Map', variant: 'Variant', team1: 'Team 1', team2: 'Team 2' };
+  const all = [headers, ...rows];
+
+  const widths = {
+    idx: Math.max(2, ...all.map((r) => r.idx.length)),
+    map: Math.max(...all.map((r) => r.map.length)),
+    variant: Math.max(...all.map((r) => r.variant.length)),
+    team1: Math.max(...all.map((r) => r.team1.length)),
+    team2: Math.max(...all.map((r) => r.team2.length)),
+  };
+
+  const fmt = (r) =>
+    `${padLeft(r.idx, widths.idx)}  ` +
+    `${padRight(r.map, widths.map)}  ` +
+    `${padRight(r.variant, widths.variant)}  ` +
+    `${padRight(r.team1, widths.team1)}  ` +
+    `${padRight(r.team2, widths.team2)}`;
+
+  return all.map(fmt).join('\n');
+}
