@@ -500,5 +500,15 @@ export async function initSchema() {
     )
   `);
 
+  await query(`
+    CREATE TABLE IF NOT EXISTS layer_rotation_current (
+      id TINYINT UNSIGNED NOT NULL DEFAULT 1 PRIMARY KEY,
+      cleaned_text TEXT NOT NULL,
+      mode VARCHAR(32) NOT NULL,
+      source ENUM('sftp','channel') NOT NULL,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+
   log.info('Database schema initialized');
 }

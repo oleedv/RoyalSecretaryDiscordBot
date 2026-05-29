@@ -1,5 +1,6 @@
 import SftpClient from 'ssh2-sftp-client';
 import { createHash } from 'crypto';
+import { query } from '../../database/connection.js';
 
 const MODE_LINE = /^\s*MapRotationMode\s*=\s*(\S+)\s*$/;
 const COMMENT_PREFIX = /^\s*(\/\/|#)/;
@@ -116,4 +117,27 @@ export function hashErrors(errors) {
   const safe = Array.isArray(errors) ? errors : [];
   const norm = safe.map((e) => `${e.line}|${e.content}|${e.error}`).sort().join('\n');
   return createHash('sha1').update(norm).digest('hex');
+}
+
+export async function readPersistedRotation() {
+  const rows = await query(
+    'SELECT cleaned_text, mode, source FROM layer_rotation_current WHERE id = 1 LIMIT 1'
+  );
+  if (!rows || rows.length === 0) return null;
+  const row = rows[0];
+  if (typeof row.cleaned_text !== 'string' || typeof row.mode !== 'string') return null;
+  return {
+    cleanedText: row.cleaned_text,
+    mode: row.mode,
+    source: row.source,
+  };
+}
+
+export async function upsertPersistedRotation({ cleanedText, mode, source }) {
+  await query(
+    `INSERT INTO layer_rotation_current (id, cleaned_text, mode, source)
+     VALUES (1, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE cleaned_text = VALUES(cleaned_text), mode = VALUES(mode), source = VALUES(source)`,
+    [cleanedText, mode, source]
+  );
 }
