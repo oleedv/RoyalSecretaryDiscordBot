@@ -79,18 +79,18 @@ async function clearChannel(client, channelId) {
 
 export async function replaceLiveEmbed(client, { mode: embedMode, lines, source }) {
   const settings = getSettings();
-  if (!settings?.channelId) return;
+  if (!settings?.channelId) return false;
   const channel = await client.channels.fetch(settings.channelId).catch(() => null);
   if (!channel) {
     log.error({ channelId: settings.channelId }, 'Cannot fetch prod channel for embed post');
-    return;
+    return false;
   }
   const embed = buildSuccessEmbed({ mode: embedMode, lines });
   const sent = await channel.send({ embeds: [embed] }).catch((err) => {
     log.error({ err }, 'Failed to send success embed');
     return null;
   });
-  if (!sent) return;
+  if (!sent) return false;
   const previousId = liveMessageId;
   liveMessageId = sent.id;
   if (previousId) {
@@ -107,6 +107,7 @@ export async function replaceLiveEmbed(client, { mode: embedMode, lines, source 
     log.warn({ err }, 'Failed to upsert persisted rotation');
   }
   log.info({ mode: embedMode, layers: lines.length, source }, 'Posted updated rotation embed');
+  return true;
 }
 
 async function postError(client, settings, errors) {
@@ -143,8 +144,10 @@ async function restoreFromPersistence(client, settings) {
   const { lines } = parseLayerRotation(row.cleanedText);
   if (lines.length === 0) return;
   lastKnownMode = row.mode || lastKnownMode;
-  await replaceLiveEmbed(client, { mode: row.mode || 'Unknown', lines, source: row.source });
-  lastValidHash = hashRotation(row.mode || 'Unknown', lines.join('\n'));
+  const posted = await replaceLiveEmbed(client, { mode: row.mode || 'Unknown', lines, source: row.source });
+  if (posted) {
+    lastValidHash = hashRotation(row.mode || 'Unknown', lines.join('\n'));
+  }
 }
 
 async function tickSftpMode(client, settings) {
@@ -199,9 +202,11 @@ async function tickSftpMode(client, settings) {
     return;
   }
 
-  lastErrorHash = null;
-  lastValidHash = hash;
-  await replaceLiveEmbed(client, { mode: parsedMode, lines, source: 'sftp' });
+  const posted = await replaceLiveEmbed(client, { mode: parsedMode, lines, source: 'sftp' });
+  if (posted) {
+    lastErrorHash = null;
+    lastValidHash = hash;
+  }
 }
 
 async function tickChannelMode(client, settings) {
@@ -252,8 +257,10 @@ async function tickChannelMode(client, settings) {
   if (!row) return;
   const { lines } = parseLayerRotation(row.cleanedText);
   if (lines.length === 0) return;
-  await replaceLiveEmbed(client, { mode: parsedMode, lines, source: row.source || 'channel' });
-  lastValidHash = hashRotation(parsedMode, lines.join('\n'));
+  const posted = await replaceLiveEmbed(client, { mode: parsedMode, lines, source: row.source || 'channel' });
+  if (posted) {
+    lastValidHash = hashRotation(parsedMode, lines.join('\n'));
+  }
 }
 
 async function tick(client) {

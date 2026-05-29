@@ -81,7 +81,9 @@ export async function handleMessage(message) {
   }
 
   await message.delete().catch(() => {});
-  await replaceLiveEmbed(message.client, { mode: modeForEmbed, lines, source: 'channel' });
-  setLastValidHash(hash);
+  const posted = await replaceLiveEmbed(message.client, { mode: modeForEmbed, lines, source: 'channel' });
+  if (posted) {
+    setLastValidHash(hash);
+  }
   return true;
 }
