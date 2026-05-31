@@ -1,37 +1,42 @@
 import { describe, test, expect } from 'bun:test';
-import { formatRotationTable } from '../layerRotationValidatorEmbeds.js';
+import { formatRotationList } from '../layerRotationValidatorEmbeds.js';
 
-describe('formatRotationTable', () => {
-  test('produces a header and one row per layer with aligned columns', () => {
+describe('formatRotationList', () => {
+  test('renders bold-indexed lines with italicised teams', () => {
     const lines = [
       'Sumari_Seed_v1 USA MEI',
       'FoolsRoad_RAAS_v1 AFU RGF',
     ];
-    const out = formatRotationTable(lines);
-    const rows = out.split('\n');
-    expect(rows[0]).toMatch(/^ #\s+Map\s+Variant\s+Team 1\s+Team 2\s*$/);
-    expect(rows[1]).toMatch(/^ 1\s+Sumari\s+Seed v1\s+USA\s+MEI\s*$/);
-    expect(rows[2]).toMatch(/^ 2\s+Fools Road\s+RAAS v1\s+AFU\s+RGF\s*$/);
-    const widths = rows.filter(Boolean).map((r) => r.length);
-    expect(new Set(widths).size).toBe(1);
+    const out = formatRotationList(lines);
+    expect(out).toBe(
+      '**1.** Sumari Seed v1 - *USA vs MEI*\n' +
+      '**2.** Fools Road RAAS v1 - *AFU vs RGF*'
+    );
   });
 
-  test('renders missing teams as -', () => {
-    const lines = ['Mestia_TC_v1'];
-    const out = formatRotationTable(lines);
-    expect(out).toMatch(/Mestia\s+TC v1\s+-\s+-/);
+  test('joins faction units with + (no surrounding spaces)', () => {
+    const lines = ['Lashkar_RAAS_v1 CAF+AirAssault WPMC+AirAssault'];
+    const out = formatRotationList(lines);
+    expect(out).toBe('**1.** Lashkar RAAS v1 - *CAF+AirAssault vs WPMC+AirAssault*');
   });
 
-  test('right-pads numeric index to fit the highest row number', () => {
+  test('omits the team suffix when both teams are missing', () => {
+    expect(formatRotationList(['Mestia_TC_v1'])).toBe('**1.** Mestia TC v1');
+  });
+
+  test('renders only the present team when one is missing', () => {
+    // Spec-defensive: not expected in real cfg but covered.
+    expect(formatRotationList(['Sumari_Seed_v1 USA'])).toBe('**1.** Sumari Seed v1 - *USA*');
+  });
+
+  test('returns "(empty rotation)" for empty input', () => {
+    expect(formatRotationList([])).toBe('(empty rotation)');
+  });
+
+  test('indexes are 1-based and continue past 9 without padding', () => {
     const lines = Array.from({ length: 12 }, () => 'Sumari_RAAS_v1 USA MEI');
-    const out = formatRotationTable(lines);
-    const rows = out.split('\n').filter(Boolean);
-    expect(rows.length).toBe(13);
-    expect(rows[12]).toMatch(/^12\s+Sumari/);
-    expect(rows[1]).toMatch(/^ 1\s+Sumari/);
-  });
-
-  test('returns "(empty rotation)" for an empty input', () => {
-    expect(formatRotationTable([])).toBe('(empty rotation)');
+    const rows = formatRotationList(lines).split('\n');
+    expect(rows[0]).toBe('**1.** Sumari RAAS v1 - *USA vs MEI*');
+    expect(rows[11]).toBe('**12.** Sumari RAAS v1 - *USA vs MEI*');
   });
 });

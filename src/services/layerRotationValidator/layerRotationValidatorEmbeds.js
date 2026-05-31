@@ -43,41 +43,26 @@ export function prettifyLayerToken(line) {
   return { map, variant, team1, team2 };
 }
 
-function padRight(s, width) {
-  return s + ' '.repeat(Math.max(0, width - s.length));
+function compactTeam(team) {
+  return team.replace(/ \+ /g, '+');
 }
 
-function padLeft(s, width) {
-  return ' '.repeat(Math.max(0, width - s.length)) + s;
+function formatRow(line, idx) {
+  const { map, variant, team1, team2 } = prettifyLayerToken(line);
+  const layer = variant ? `${map} ${variant}` : map;
+  const t1 = compactTeam(team1);
+  const t2 = compactTeam(team2);
+  let teams;
+  if (t1 !== '-' && t2 !== '-') teams = ` - *${t1} vs ${t2}*`;
+  else if (t1 !== '-') teams = ` - *${t1}*`;
+  else if (t2 !== '-') teams = ` - *${t2}*`;
+  else teams = '';
+  return `**${idx + 1}.** ${layer}${teams}`;
 }
 
-export function formatRotationTable(lines) {
+export function formatRotationList(lines) {
   if (!lines || lines.length === 0) return '(empty rotation)';
-
-  const rows = lines.map((line, idx) => {
-    const parsed = prettifyLayerToken(line);
-    return { idx: String(idx + 1), ...parsed };
-  });
-
-  const headers = { idx: '#', map: 'Map', variant: 'Variant', team1: 'Team 1', team2: 'Team 2' };
-  const all = [headers, ...rows];
-
-  const widths = {
-    idx: Math.max(2, ...all.map((r) => r.idx.length)),
-    map: Math.max(...all.map((r) => r.map.length)),
-    variant: Math.max(...all.map((r) => r.variant.length)),
-    team1: Math.max(...all.map((r) => r.team1.length)),
-    team2: Math.max(...all.map((r) => r.team2.length)),
-  };
-
-  const fmt = (r) =>
-    `${padLeft(r.idx, widths.idx)}  ` +
-    `${padRight(r.map, widths.map)}  ` +
-    `${padRight(r.variant, widths.variant)}  ` +
-    `${padRight(r.team1, widths.team1)}  ` +
-    `${padRight(r.team2, widths.team2)}`;
-
-  return all.map(fmt).join('\n');
+  return lines.map(formatRow).join('\n');
 }
 
 const COLOR_OK = 0x57F287;
@@ -91,11 +76,12 @@ function modeLabel(mode) {
 }
 
 export function buildSuccessEmbed({ mode, lines }) {
-  const table = formatRotationTable(lines);
+  const list = formatRotationList(lines);
   const unix = Math.floor(Date.now() / 1000);
   const description =
-    `Mode: ${modeLabel(mode)}  |  ${lines.length} layers  |  Updated <t:${unix}:R>\n` +
-    '```\n' + table + '\n```';
+    `Mode: ${modeLabel(mode)}\n` +
+    `Updated <t:${unix}:R>\n\n` +
+    list;
   return new EmbedBuilder()
     .setColor(COLOR_OK)
     .setTitle('Royal Battalion - Layer Rotation')
