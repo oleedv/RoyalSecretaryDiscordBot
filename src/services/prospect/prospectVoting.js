@@ -5,6 +5,8 @@ import { isTestSteamId, getProspectDates, closeProspect } from './prospectServic
 import { findBotMessageByCustomId } from '../../utils/messageSearch.js';
 import { query } from '../../database/connection.js';
 import { getPlaytime } from '../playtimeService.js';
+import { getProspectStats } from '../squadStats/combatStatsService.js';
+import { getVoiceStats, getMessageStats } from '../activity/activityService.js';
 import * as whitelistService from '../whitelistService.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
@@ -65,12 +67,29 @@ export async function postVote(prospect, client) {
     );
   }
 
+  const periodStartIso = new Date(prospect.period_started_at || prospect.created_at).toISOString().slice(0, 10);
+  const nowIso = new Date().toISOString().slice(0, 10);
+
   let playtimeStats = null;
+  let combatStats = null;
   if (!isTestSteamId(prospect.steam_id)) {
-    playtimeStats = await getPlaytime(prospect.steam_id, prospect.period_started_at || prospect.created_at).catch(() => null);
+    [playtimeStats, combatStats] = await Promise.all([
+      getPlaytime(prospect.steam_id, periodStartIso, nowIso).catch(() => null),
+      getProspectStats(prospect.steam_id, periodStartIso, nowIso).catch(() => null),
+    ]);
   }
 
-  const voteEmbed = buildVoteEmbed(prospect, playtimeStats);
+  const [voiceStats, messageStats] = await Promise.all([
+    getVoiceStats(prospect.user_id, periodStartIso, nowIso).catch(() => null),
+    getMessageStats(prospect.user_id, periodStartIso, nowIso).catch(() => null),
+  ]);
+
+  const voteEmbed = buildVoteEmbed(prospect, {
+    playtime: playtimeStats,
+    combat: combatStats,
+    voice: voiceStats,
+    messages: messageStats,
+  });
   const counts = { yes: 0, no: 0, unsure: 0 };
   const components = buildVoteComponents(counts);
   const voteMsg = await thread.send({

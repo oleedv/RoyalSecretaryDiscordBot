@@ -201,7 +201,7 @@ export function buildAcceptedAnnouncementEmbed(member, prospect) {
   return embed;
 }
 
-export function buildVoteEmbed(prospect, playtimeStats = null) {
+export function buildVoteEmbed(prospect, stats = null) {
   const { periodEnd } = getProspectDates(prospect);
   const extra = prospect.extra_days || 0;
   const endDateStr = `<t:${Math.floor(periodEnd.getTime() / 1000)}:D>`;
@@ -221,11 +221,41 @@ export function buildVoteEmbed(prospect, playtimeStats = null) {
     embed.addFields({ name: 'Voting extended', value: `${extra} d`, inline: true });
   }
 
-  if (playtimeStats) {
-    embed.addFields(
-      { name: 'Gameplay Hours', value: `${playtimeStats.playtimeHours}h`, inline: true },
-      { name: 'Seeding Hours', value: `${playtimeStats.seedHours}h`, inline: true },
-    );
+  const playtime = stats?.playtime;
+  const combat = stats?.combat;
+  const voice = stats?.voice;
+  const messages = stats?.messages;
+  const hasGameData = !isTestSteamId(prospect.steam_id);
+
+  if (hasGameData && combat) {
+    embed.addFields({
+      name: 'Squad Combat',
+      value: `Kills: **${combat.kills}**\nDeaths: **${combat.deaths}**\nTKs: **${combat.teamkills}**`,
+      inline: true,
+    });
+  }
+
+  if (hasGameData && (playtime || combat)) {
+    const periodStart = new Date(prospect.period_started_at || prospect.created_at);
+    const periodDaysElapsed = Math.max(1, Math.ceil((Date.now() - periodStart.getTime()) / 86400000));
+    const gameplayHours = playtime ? `${playtime.playtimeHours}h` : '—';
+    const seedingHours = playtime ? `${playtime.seedHours}h` : '—';
+    const daysActive = combat ? `${combat.daysActive}/${periodDaysElapsed} days` : '—';
+    embed.addFields({
+      name: 'Server Time',
+      value: `Gameplay: **${gameplayHours}**\nSeeding: **${seedingHours}**\nActive: **${daysActive}**`,
+      inline: true,
+    });
+  }
+
+  if (voice || messages) {
+    const voiceHours = voice ? `${Math.round((voice.totalSeconds / 3600) * 10) / 10}h` : '—';
+    const messageCount = messages ? messages.totalMessages : '—';
+    embed.addFields({
+      name: 'Discord',
+      value: `Voice: **${voiceHours}**\nMessages: **${messageCount}**`,
+      inline: true,
+    });
   }
 
   if (prospect.mentor_id) {

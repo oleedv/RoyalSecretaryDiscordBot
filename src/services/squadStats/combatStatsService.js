@@ -172,4 +172,55 @@ export function combatStatsUnavailableMessage(steamId) {
   return `No SquadJS combat data found for Steam ID ${steamId} on our server.`;
 }
 
+export async function getProspectStats(steamId, startDate, endDate = null) {
+  if (!steamId) return null;
+
+  const playerRows = await query(
+    'SELECT id FROM squadjs_players WHERE steam_id = ? LIMIT 1',
+    [String(steamId)],
+    'squadjs'
+  );
+  const player = playerRows[0];
+  if (!player) {
+    return { kills: 0, deaths: 0, teamkills: 0, daysActive: 0 };
+  }
+
+  const end = endDate || new Date().toISOString().slice(0, 10);
+  const playerId = player.id;
+
+  const [combatRows, daysRows] = await Promise.all([
+    query(
+      `SELECT
+         SUM(attacker_id = ? AND event_type = 'death' AND teamkill = 0) AS kills,
+         SUM(victim_id = ? AND event_type = 'death') AS deaths,
+         SUM(attacker_id = ? AND event_type = 'death' AND teamkill = 1) AS teamkills
+       FROM squadjs_combat_events
+       WHERE (attacker_id = ? OR victim_id = ?)
+         AND time >= ?
+         AND time < DATE_ADD(?, INTERVAL 1 DAY)`,
+      [playerId, playerId, playerId, playerId, playerId, startDate, end],
+      'squadjs'
+    ),
+    query(
+      `SELECT COUNT(DISTINCT DATE(time)) AS daysActive
+       FROM squadjs_connections
+       WHERE player_id = ?
+         AND event_type = 'join'
+         AND time >= ?
+         AND time < DATE_ADD(?, INTERVAL 1 DAY)`,
+      [playerId, startDate, end],
+      'squadjs'
+    ),
+  ]);
+
+  const c = combatRows[0] || {};
+  const d = daysRows[0] || {};
+  return {
+    kills: toInt(c.kills),
+    deaths: toInt(c.deaths),
+    teamkills: toInt(c.teamkills),
+    daysActive: toInt(d.daysActive),
+  };
+}
+
 export { log as combatStatsLog };
