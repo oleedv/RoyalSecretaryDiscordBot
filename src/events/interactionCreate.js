@@ -10,6 +10,8 @@ import * as activityButtons from '../handlers/activityButtons.js';
 import * as prospectAiButtons from '../handlers/prospectAiButtons.js';
 import * as tempvoiceButtons from '../handlers/tempvoiceButtons.js';
 import * as tempvoiceModals from '../handlers/tempvoiceModals.js';
+import * as clanReportButtons from '../handlers/clanReportButtons.js';
+import * as clanReportSelects from '../handlers/clanReportSelects.js';
 import { errorEmbed } from '../utils/embed.js';
 import { reportError } from '../services/admin/errorAlertService.js';
 import { logDmInteraction } from '../services/admin/dmLogService.js';
@@ -195,6 +197,12 @@ export default {
       if (!handler && interaction.customId.startsWith('prospect_ai_tab:')) {
         handler = prospectAiButtons.handleTabSwitch;
       }
+      if (!handler && interaction.customId.startsWith('cr_window:')) {
+        handler = clanReportButtons.handleWindowSwitch;
+      }
+      if (!handler && interaction.customId.startsWith('cr_panel:')) {
+        handler = clanReportButtons.handleGenerate;
+      }
       if (handler) {
         log.info({ userId: interaction.user.id, userTag: interaction.user.tag, customId: interaction.customId, channelId: interaction.channel?.id }, 'Button pressed');
         try {
@@ -219,6 +227,40 @@ export default {
           channelId: interaction.channel?.id,
           messageId: interaction.message?.id,
         }, 'Unmatched button customId');
+      }
+      return;
+    }
+
+    if (interaction.isAnySelectMenu?.()) {
+      let handler = null;
+      if (interaction.customId.startsWith('cr_clan_select')) {
+        handler = clanReportSelects.handleClanSelect;
+      } else if (interaction.customId.startsWith('cr_server_select')) {
+        handler = clanReportSelects.handleServerSelect;
+      }
+      if (handler) {
+        log.info({ userId: interaction.user.id, userTag: interaction.user.tag, customId: interaction.customId, channelId: interaction.channel?.id }, 'Select menu used');
+        try {
+          await handler(interaction);
+        } catch (err) {
+          reportError(err, {
+            source: `interactionCreate:select:${interaction.customId}`,
+            userId: interaction.user?.id,
+            userTag: interaction.user?.tag,
+            guildId: interaction.guildId,
+            channelId: interaction.channel?.id,
+            customId: interaction.customId,
+          }).catch((reportErr) => log.error({ err: reportErr, originalErr: err, customId: interaction.customId }, 'reportError failed for select'));
+          await safeReply(interaction, { embeds: [errorEmbed('Something went wrong.')], flags: ['Ephemeral'] });
+        }
+      } else {
+        log.warn({
+          interactionId: interaction.id,
+          userId: interaction.user.id,
+          userTag: interaction.user.tag,
+          customId: interaction.customId,
+          channelId: interaction.channel?.id,
+        }, 'Unmatched select menu customId');
       }
       return;
     }
