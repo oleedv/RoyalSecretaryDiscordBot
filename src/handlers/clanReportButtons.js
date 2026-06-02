@@ -4,6 +4,7 @@
 //   cr_window:<clanId>:<serverId>:<window>             re-render picker with new window
 //   cr_panel:<panel>:<clanId>:<serverId>:<window>      generate .txt, replace message
 
+import { MessageFlags } from 'discord.js';
 import { buildPickerView } from '../services/clanReports/pickerEmbed.js';
 import { generateReport } from '../services/clanReports/clanReportService.js';
 import { requireRole } from '../utils/permissions.js';
@@ -60,6 +61,7 @@ export async function handleGenerate(interaction) {
       embeds: [],
       components: [],
       files: [attachment],
+      flags: MessageFlags.SuppressEmbeds,
     });
   } catch (err) {
     log.error({ err, customId: interaction.customId, userId: interaction.user.id }, 'handleGenerate failed');
