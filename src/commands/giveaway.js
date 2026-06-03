@@ -5,8 +5,10 @@ import {
   getActiveGiveaway,
   setEntryMessage,
   upsertManualEntry,
+  computeLeaderboard,
+  windowStartIso,
 } from '../services/giveaway/giveawayService.js';
-import { buildEntryEmbed, buildEntryRow } from '../services/giveaway/giveawayEmbeds.js';
+import { buildEntryEmbed, buildEntryRow, buildLeaderboardEmbed } from '../services/giveaway/giveawayEmbeds.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'cmd:giveaway' });
@@ -41,12 +43,17 @@ export default {
       .addUserOption((o) => o.setName('user').setDescription('Discord user').setRequired(true))
       .addNumberOption((o) => o.setName('hours').setDescription('Played hours to credit').setRequired(true).setMinValue(0))
       .addNumberOption((o) => o.setName('seed').setDescription('Seed hours to credit').setRequired(true).setMinValue(0))
+    )
+    .addSubcommand((s) => s
+      .setName('leaderboard')
+      .setDescription('Show current ticket leaderboard for the active giveaway')
     ),
 
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();
     if (sub === 'start') return handleStart(interaction);
     if (sub === 'add-entry') return handleAddEntry(interaction);
+    if (sub === 'leaderboard') return handleLeaderboard(interaction);
     return interaction.reply({ embeds: [errorEmbed(`Unknown subcommand: ${sub}`)], flags: ['Ephemeral'] });
   },
 };
@@ -106,4 +113,14 @@ async function handleAddEntry(interaction) {
   await interaction.editReply({
     embeds: [successEmbed(`Added/updated manual entry for ${user}: ${hours}h played, ${seed}h seed.`)],
   });
+}
+
+async function handleLeaderboard(interaction) {
+  await interaction.deferReply({ flags: ['Ephemeral'] });
+  const giveaway = await getActiveGiveaway();
+  if (!giveaway) {
+    return interaction.editReply({ embeds: [errorEmbed('No active giveaway.')] });
+  }
+  const leaderboard = await computeLeaderboard(giveaway, windowStartIso(giveaway.window_days));
+  await interaction.editReply({ embeds: [buildLeaderboardEmbed(giveaway, leaderboard)] });
 }
