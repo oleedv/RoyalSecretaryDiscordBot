@@ -101,3 +101,60 @@ export async function listEntries(giveawayId) {
     [giveawayId]
   );
 }
+
+export async function countVotesByVoter(giveawayId, voterId) {
+  const rows = await query(
+    `SELECT COUNT(*) AS n FROM giveaway_votes WHERE giveaway_id = ? AND voter_id = ?`,
+    [giveawayId, voterId]
+  );
+  return Number(rows[0]?.n) || 0;
+}
+
+export async function countVotesForTarget(giveawayId, targetId) {
+  const rows = await query(
+    `SELECT COUNT(*) AS n FROM giveaway_votes WHERE giveaway_id = ? AND target_id = ?`,
+    [giveawayId, targetId]
+  );
+  return Number(rows[0]?.n) || 0;
+}
+
+export async function getVoteCountsByTarget(giveawayId) {
+  const rows = await query(
+    `SELECT target_id AS targetId, COUNT(*) AS n
+       FROM giveaway_votes
+      WHERE giveaway_id = ?
+      GROUP BY target_id`,
+    [giveawayId]
+  );
+  const map = new Map();
+  for (const row of rows) map.set(row.targetId, Number(row.n));
+  return map;
+}
+
+/**
+ * Attempts to insert a vote. Returns:
+ *   { ok: true } on success
+ *   { ok: false, reason: 'cap' } if voter has hit votes_per_voter
+ *   { ok: false, reason: 'duplicate' } if voter already voted for this target
+ *   { ok: false, reason: 'self' } if voter tried to vote for themselves
+ */
+export async function castVote(giveaway, voterId, targetId) {
+  if (voterId === targetId) return { ok: false, reason: 'self' };
+
+  const used = await countVotesByVoter(giveaway.id, voterId);
+  if (used >= giveaway.votes_per_voter) return { ok: false, reason: 'cap' };
+
+  try {
+    await query(
+      `INSERT INTO giveaway_votes (giveaway_id, voter_id, target_id) VALUES (?, ?, ?)`,
+      [giveaway.id, voterId, targetId]
+    );
+    return { ok: true };
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY' || err.errno === 1062) {
+      return { ok: false, reason: 'duplicate' };
+    }
+    log.error({ err, giveawayId: giveaway.id, voterId, targetId }, 'castVote failed');
+    throw err;
+  }
+}
