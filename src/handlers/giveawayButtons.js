@@ -1,4 +1,4 @@
-import { errorEmbed } from '../utils/embed.js';
+import { successEmbed, errorEmbed } from '../utils/embed.js';
 import { getStoredSteamId } from '../services/userService.js';
 import { getPlaytime } from '../services/playtimeService.js';
 import {
@@ -6,9 +6,12 @@ import {
   addLinkedEntry,
   countVotesForTarget,
   windowStartIso,
+  castVote,
+  countVotesByVoter,
 } from '../services/giveaway/giveawayService.js';
 import { computeTickets } from '../services/giveaway/giveawayMath.js';
 import { buildEnterConfirmEmbed } from '../services/giveaway/giveawayEmbeds.js';
+import config from '../config.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'giveawayButtons' });
@@ -55,5 +58,38 @@ export async function handleEnter(interaction) {
 
   await interaction.editReply({
     embeds: [buildEnterConfirmEmbed(tickets, live.playtimeHours, live.seedHours)],
+  });
+}
+
+export async function handleVote(interaction) {
+  const [, giveawayIdStr, targetId] = interaction.customId.split(':');
+  const giveawayId = Number(giveawayIdStr);
+  await interaction.deferReply({ flags: ['Ephemeral'] });
+
+  const memberRoleId = config.prospects?.memberRoleId;
+  if (memberRoleId && !interaction.member?.roles?.cache?.has(memberRoleId)) {
+    return interaction.editReply({ embeds: [errorEmbed('Voting is restricted to RB members.')] });
+  }
+
+  const giveaway = await getGiveawayById(giveawayId);
+  if (!giveaway || giveaway.status !== 'voting') {
+    return interaction.editReply({ embeds: [errorEmbed('Voting is closed.')] });
+  }
+
+  const result = await castVote(giveaway, interaction.user.id, targetId);
+  if (!result.ok) {
+    const msg = {
+      cap: `You've used all ${giveaway.votes_per_voter} of your votes.`,
+      duplicate: 'You already voted for this entrant.',
+      self: 'You cannot vote for yourself.',
+    }[result.reason] || 'Vote failed.';
+    return interaction.editReply({ embeds: [errorEmbed(msg)] });
+  }
+
+  const usedAfter = await countVotesByVoter(giveaway.id, interaction.user.id);
+  const remaining = giveaway.votes_per_voter - usedAfter;
+
+  await interaction.editReply({
+    embeds: [successEmbed(`Vote recorded for <@${targetId}>. You have ${remaining} vote(s) left.`)],
   });
 }
