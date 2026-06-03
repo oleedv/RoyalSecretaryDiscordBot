@@ -10,6 +10,7 @@ import {
   windowStartIso,
   listEntries,
   markDrawn,
+  cancelGiveaway,
 } from '../services/giveaway/giveawayService.js';
 import { buildEntryEmbed, buildEntryRow, buildLeaderboardEmbed, buildVoteMessages, buildWinnerEmbed } from '../services/giveaway/giveawayEmbeds.js';
 import { pickWinner } from '../services/giveaway/giveawayDraw.js';
@@ -60,6 +61,10 @@ export default {
     .addSubcommand((s) => s
       .setName('draw')
       .setDescription('Run the weighted random draw and post the winner')
+    )
+    .addSubcommand((s) => s
+      .setName('cancel')
+      .setDescription('Cancel the active giveaway and delete its messages')
     ),
 
   async execute(interaction) {
@@ -69,6 +74,7 @@ export default {
     if (sub === 'leaderboard') return handleLeaderboard(interaction);
     if (sub === 'open-vote') return handleOpenVote(interaction);
     if (sub === 'draw') return handleDraw(interaction);
+    if (sub === 'cancel') return handleCancel(interaction);
     return interaction.reply({ embeds: [errorEmbed(`Unknown subcommand: ${sub}`)], flags: ['Ephemeral'] });
   },
 };
@@ -206,4 +212,26 @@ async function handleDraw(interaction) {
   await interaction.editReply({
     embeds: [successEmbed(`Winner posted in ${target}: <@${winnerRow.userId}> with ${winnerRow.tickets} tickets.`)],
   });
+}
+
+async function handleCancel(interaction) {
+  await interaction.deferReply({ flags: ['Ephemeral'] });
+  const giveaway = await getActiveGiveaway();
+  if (!giveaway) return interaction.editReply({ embeds: [errorEmbed('No active giveaway.')] });
+
+  await cancelGiveaway(giveaway.id);
+
+  for (const [chId, mId] of [
+    [giveaway.entry_channel_id, giveaway.entry_message_id],
+    [giveaway.vote_channel_id, giveaway.vote_message_id],
+  ]) {
+    if (!chId || !mId) continue;
+    const ch = await interaction.guild.channels.fetch(chId).catch(() => null);
+    if (!ch) continue;
+    const msg = await ch.messages.fetch(mId).catch(() => null);
+    if (msg) await msg.delete().catch((err) => log.warn({ err, mId }, 'Failed to delete giveaway message'));
+  }
+
+  log.info({ giveawayId: giveaway.id }, 'Giveaway cancelled');
+  await interaction.editReply({ embeds: [successEmbed(`Giveaway #${giveaway.id} cancelled.`)] });
 }
