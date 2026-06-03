@@ -510,5 +510,61 @@ export async function initSchema() {
     )
   `);
 
+  // ── Giveaway tables ──
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS giveaways (
+      id              INT AUTO_INCREMENT PRIMARY KEY,
+      prize           VARCHAR(255) NOT NULL,
+      month_label     VARCHAR(20) NOT NULL,
+      scope           ENUM('rb_only','community') DEFAULT 'rb_only',
+      status          ENUM('open','voting','drawn','cancelled') DEFAULT 'open',
+      draw_at         TIMESTAMP NOT NULL,
+      window_days     INT DEFAULT 30,
+      min_hours       DECIMAL(5,2) DEFAULT 5.00,
+      hours_weight    DECIMAL(4,2) DEFAULT 1.00,
+      seed_weight     DECIMAL(4,2) DEFAULT 2.00,
+      vote_weight     INT DEFAULT 1,
+      votes_per_voter INT DEFAULT 2,
+      entry_channel_id  VARCHAR(20),
+      entry_message_id  VARCHAR(20),
+      vote_channel_id   VARCHAR(20),
+      vote_message_id   VARCHAR(20),
+      winner_user_id  VARCHAR(20) NULL,
+      created_by      VARCHAR(20) NOT NULL,
+      created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      drawn_at        TIMESTAMP NULL,
+      INDEX idx_giveaways_status (status)
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS giveaway_entries (
+      id             INT AUTO_INCREMENT PRIMARY KEY,
+      giveaway_id    INT NOT NULL,
+      user_id        VARCHAR(20) NOT NULL,
+      steam_id       VARCHAR(20) NULL,
+      manual_hours   DECIMAL(6,2) NULL,
+      manual_seed    DECIMAL(6,2) NULL,
+      added_by       VARCHAR(20) NULL,
+      entered_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_entry (giveaway_id, user_id),
+      FOREIGN KEY (giveaway_id) REFERENCES giveaways(id) ON DELETE CASCADE
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS giveaway_votes (
+      id           INT AUTO_INCREMENT PRIMARY KEY,
+      giveaway_id  INT NOT NULL,
+      voter_id     VARCHAR(20) NOT NULL,
+      target_id    VARCHAR(20) NOT NULL,
+      created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_vote (giveaway_id, voter_id, target_id),
+      INDEX idx_voter (giveaway_id, voter_id),
+      FOREIGN KEY (giveaway_id) REFERENCES giveaways(id) ON DELETE CASCADE
+    )
+  `);
+
   log.info('Database schema initialized');
 }
