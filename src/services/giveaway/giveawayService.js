@@ -65,3 +65,39 @@ export async function cancelGiveaway(giveawayId) {
 }
 
 export { log };
+
+export async function addLinkedEntry(giveawayId, userId, steamId) {
+  await query(
+    `INSERT INTO giveaway_entries (giveaway_id, user_id, steam_id)
+     VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE steam_id = VALUES(steam_id)`,
+    [giveawayId, userId, steamId]
+  );
+}
+
+export async function upsertManualEntry(giveawayId, userId, hours, seed, addedBy) {
+  await query(
+    `INSERT INTO giveaway_entries (giveaway_id, user_id, manual_hours, manual_seed, added_by)
+     VALUES (?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       manual_hours = VALUES(manual_hours),
+       manual_seed = VALUES(manual_seed),
+       added_by = VALUES(added_by)`,
+    [giveawayId, userId, hours, seed, addedBy]
+  );
+}
+
+export async function getEntry(giveawayId, userId) {
+  const rows = await query(
+    `SELECT * FROM giveaway_entries WHERE giveaway_id = ? AND user_id = ?`,
+    [giveawayId, userId]
+  );
+  return rows[0] || null;
+}
+
+export async function listEntries(giveawayId) {
+  return await query(
+    `SELECT * FROM giveaway_entries WHERE giveaway_id = ? ORDER BY entered_at ASC`,
+    [giveawayId]
+  );
+}
