@@ -12,6 +12,7 @@ import * as tempvoiceButtons from '../handlers/tempvoiceButtons.js';
 import * as tempvoiceModals from '../handlers/tempvoiceModals.js';
 import * as clanReportButtons from '../handlers/clanReportButtons.js';
 import * as clanReportSelects from '../handlers/clanReportSelects.js';
+import * as giveawayButtons from '../handlers/giveawayButtons.js';
 import { errorEmbed } from '../utils/embed.js';
 import { reportError } from '../services/admin/errorAlertService.js';
 import { logDmInteraction } from '../services/admin/dmLogService.js';
@@ -202,6 +203,12 @@ export default {
       }
       if (!handler && interaction.customId.startsWith('cr_panel:')) {
         handler = clanReportButtons.handleGenerate;
+      }
+      if (!handler && interaction.customId.startsWith('giveaway_enter:')) {
+        handler = giveawayButtons.handleEnter;
+      }
+      if (!handler && interaction.customId.startsWith('giveaway_vote:')) {
+        handler = giveawayButtons.handleVote;
       }
       if (handler) {
         log.info({ userId: interaction.user.id, userTag: interaction.user.tag, customId: interaction.customId, channelId: interaction.channel?.id }, 'Button pressed');
