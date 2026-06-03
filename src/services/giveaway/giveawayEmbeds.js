@@ -51,3 +51,56 @@ export function buildEntryRow(giveawayId) {
       .setEmoji({ name: '🎟' })
   );
 }
+
+export const VOTE_BUTTONS_PER_MESSAGE = 25;
+const BUTTONS_PER_ROW = 5;
+
+export function buildVoteEmbed(giveaway, page, totalPages) {
+  const pageSuffix = totalPages > 1 ? ` — page ${page + 1}/${totalPages}` : '';
+  return new EmbedBuilder()
+    .setTitle(`Community Vote — ${giveaway.month_label}${pageSuffix}`)
+    .setDescription([
+      `**Who has gone above and beyond for the community this month?**`,
+      '',
+      `You can vote for up to **${giveaway.votes_per_voter}** different entrants.`,
+      `Each vote adds **+${Number(giveaway.vote_weight)}** raffle ticket for that person.`,
+      'You cannot vote for the same person twice.',
+    ].join('\n'))
+    .setColor(COLOR_INFO);
+}
+
+/**
+ * Returns an array of message payloads (one per page) for the vote post.
+ * entries: [{ userId, displayName }]
+ */
+export function buildVoteMessages(giveaway, entries) {
+  const pages = [];
+  for (let i = 0; i < entries.length; i += VOTE_BUTTONS_PER_MESSAGE) {
+    pages.push(entries.slice(i, i + VOTE_BUTTONS_PER_MESSAGE));
+  }
+  if (pages.length === 0) pages.push([]);
+
+  return pages.map((pageEntries, pageIdx) => {
+    const rows = [];
+    for (let i = 0; i < pageEntries.length; i += BUTTONS_PER_ROW) {
+      const row = new ActionRowBuilder();
+      for (const entry of pageEntries.slice(i, i + BUTTONS_PER_ROW)) {
+        row.addComponents(
+          new ButtonBuilder()
+            .setCustomId(`giveaway_vote:${giveaway.id}:${entry.userId}`)
+            .setLabel(truncate(entry.displayName, 80))
+            .setStyle(ButtonStyle.Secondary)
+        );
+      }
+      rows.push(row);
+    }
+    return {
+      embeds: [buildVoteEmbed(giveaway, pageIdx, pages.length)],
+      components: rows,
+    };
+  });
+}
+
+function truncate(s, n) {
+  return s.length > n ? s.slice(0, n - 1) + '…' : s;
+}
