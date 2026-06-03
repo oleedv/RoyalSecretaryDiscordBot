@@ -104,3 +104,50 @@ export function buildVoteMessages(giveaway, entries) {
 function truncate(s, n) {
   return s.length > n ? s.slice(0, n - 1) + '…' : s;
 }
+
+export function buildLeaderboardEmbed(giveaway, leaderboard, limit = 20) {
+  const top = leaderboard.slice(0, limit);
+  const lines = top.map((r, i) => {
+    const tag = r.manual ? ' *(manual)*' : '';
+    return `\`${String(i + 1).padStart(2, ' ')}.\` <@${r.userId}> — **${r.tickets}** tickets `
+      + `(${r.hours}h + 2×${r.seed}h seed + ${r.votes} votes)${tag}`;
+  });
+  return new EmbedBuilder()
+    .setTitle(`Leaderboard — ${giveaway.month_label}`)
+    .setDescription(lines.length ? lines.join('\n') : '*No entries yet.*')
+    .setColor(COLOR_INFO)
+    .setFooter({ text: `Total entries: ${leaderboard.length}` });
+}
+
+export function buildWinnerEmbed(giveaway, winner, leaderboard) {
+  const total = leaderboard.reduce((s, e) => s + e.tickets, 0);
+  const top5 = leaderboard.slice(0, 5);
+  const breakdown = top5.map((r, i) =>
+    `${i + 1}. <@${r.userId}> — ${r.tickets} tickets`
+  ).join('\n');
+
+  return new EmbedBuilder()
+    .setTitle(`Winner — ${giveaway.month_label}`)
+    .setDescription([
+      `Prize: **${giveaway.prize}**`,
+      '',
+      `Winner: <@${winner.userId}>`,
+      `Tickets: **${winner.tickets}** of ${total}`,
+      `Entries: **${leaderboard.length}**`,
+      '',
+      '**Top 5:**',
+      breakdown || '*(only one entrant)*',
+    ].join('\n'))
+    .setColor(COLOR_WINNER);
+}
+
+export function buildEnterConfirmEmbed(tickets, hours, seed) {
+  return new EmbedBuilder()
+    .setTitle('Entered!')
+    .setDescription(
+      `You currently have **${tickets}** tickets `
+      + `(${hours}h played + 2×${seed}h seeding).\n`
+      + 'Vote post opens later this month.'
+    )
+    .setColor(COLOR_WINNER);
+}
