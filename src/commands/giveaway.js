@@ -4,6 +4,7 @@ import {
   createGiveaway,
   getActiveGiveaway,
   setEntryMessage,
+  upsertManualEntry,
 } from '../services/giveaway/giveawayService.js';
 import { buildEntryEmbed, buildEntryRow } from '../services/giveaway/giveawayEmbeds.js';
 import logger from '../logger.js';
@@ -33,11 +34,19 @@ export default {
       .setDescription('Post a new monthly giveaway entry message')
       .addStringOption((o) => o.setName('prize').setDescription('Prize name').setRequired(true))
       .addChannelOption((o) => o.setName('channel').setDescription('Channel to post the entry message').setRequired(true))
+    )
+    .addSubcommand((s) => s
+      .setName('add-entry')
+      .setDescription('Manually add a non-linked community member to the active giveaway')
+      .addUserOption((o) => o.setName('user').setDescription('Discord user').setRequired(true))
+      .addNumberOption((o) => o.setName('hours').setDescription('Played hours to credit').setRequired(true).setMinValue(0))
+      .addNumberOption((o) => o.setName('seed').setDescription('Seed hours to credit').setRequired(true).setMinValue(0))
     ),
 
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();
     if (sub === 'start') return handleStart(interaction);
+    if (sub === 'add-entry') return handleAddEntry(interaction);
     return interaction.reply({ embeds: [errorEmbed(`Unknown subcommand: ${sub}`)], flags: ['Ephemeral'] });
   },
 };
@@ -73,5 +82,28 @@ async function handleStart(interaction) {
   log.info({ giveawayId: giveaway.id, prize, channelId: channel.id }, 'Giveaway started');
   await interaction.editReply({
     embeds: [successEmbed(`Giveaway #${giveaway.id} posted in ${channel}.\nPrize: **${prize}**`)],
+  });
+}
+
+async function handleAddEntry(interaction) {
+  await interaction.deferReply({ flags: ['Ephemeral'] });
+
+  const giveaway = await getActiveGiveaway();
+  if (!giveaway) {
+    return interaction.editReply({ embeds: [errorEmbed('No active giveaway.')] });
+  }
+  if (giveaway.status === 'drawn' || giveaway.status === 'cancelled') {
+    return interaction.editReply({ embeds: [errorEmbed(`Giveaway is ${giveaway.status}; cannot add entries.`)] });
+  }
+
+  const user = interaction.options.getUser('user', true);
+  const hours = interaction.options.getNumber('hours', true);
+  const seed = interaction.options.getNumber('seed', true);
+
+  await upsertManualEntry(giveaway.id, user.id, hours, seed, interaction.user.id);
+
+  log.info({ giveawayId: giveaway.id, userId: user.id, hours, seed, addedBy: interaction.user.id }, 'Manual entry added');
+  await interaction.editReply({
+    embeds: [successEmbed(`Added/updated manual entry for ${user}: ${hours}h played, ${seed}h seed.`)],
   });
 }
