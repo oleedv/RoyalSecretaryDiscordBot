@@ -1,5 +1,7 @@
 import { query } from '../../database/connection.js';
 import logger from '../../logger.js';
+import { getPlaytime } from '../playtimeService.js';
+import { computeTickets } from './giveawayMath.js';
 
 const log = logger.child({ module: 'giveawayService' });
 
@@ -157,4 +159,49 @@ export async function castVote(giveaway, voterId, targetId) {
     log.error({ err, giveawayId: giveaway.id, voterId, targetId }, 'castVote failed');
     throw err;
   }
+}
+
+/**
+ * Returns entries with computed ticket counts, sorted desc.
+ * windowStartIso is the start date for the SquadJS lookup window (YYYY-MM-DD).
+ */
+export async function computeLeaderboard(giveaway, windowStartIso) {
+  const entries = await listEntries(giveaway.id);
+  const voteCounts = await getVoteCountsByTarget(giveaway.id);
+
+  const weights = {
+    hours: Number(giveaway.hours_weight),
+    seed: Number(giveaway.seed_weight),
+    vote: Number(giveaway.vote_weight),
+  };
+
+  const results = await Promise.all(entries.map(async (e) => {
+    const live = e.steam_id
+      ? await getPlaytime(e.steam_id, windowStartIso).catch(() => null)
+      : null;
+    const votes = voteCounts.get(e.user_id) || 0;
+    const tickets = computeTickets(
+      { manualHours: e.manual_hours, manualSeed: e.manual_seed, steamId: e.steam_id },
+      live,
+      votes,
+      weights
+    );
+    return {
+      userId: e.user_id,
+      steamId: e.steam_id,
+      manual: e.manual_hours != null,
+      hours: e.manual_hours != null ? Number(e.manual_hours) : Number(live?.playtimeHours ?? 0),
+      seed:  e.manual_seed  != null ? Number(e.manual_seed)  : Number(live?.seedHours ?? 0),
+      votes,
+      tickets,
+    };
+  }));
+
+  results.sort((a, b) => b.tickets - a.tickets);
+  return results;
+}
+
+export function windowStartIso(windowDays) {
+  const d = new Date(Date.now() - windowDays * 86400000);
+  return d.toISOString().slice(0, 10);
 }
