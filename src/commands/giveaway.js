@@ -9,8 +9,10 @@ import {
   computeLeaderboard,
   windowStartIso,
   listEntries,
+  markDrawn,
 } from '../services/giveaway/giveawayService.js';
-import { buildEntryEmbed, buildEntryRow, buildLeaderboardEmbed, buildVoteMessages } from '../services/giveaway/giveawayEmbeds.js';
+import { buildEntryEmbed, buildEntryRow, buildLeaderboardEmbed, buildVoteMessages, buildWinnerEmbed } from '../services/giveaway/giveawayEmbeds.js';
+import { pickWinner } from '../services/giveaway/giveawayDraw.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'cmd:giveaway' });
@@ -54,6 +56,10 @@ export default {
       .setName('open-vote')
       .setDescription('Post the community vote message (RB-only channel)')
       .addChannelOption((o) => o.setName('channel').setDescription('Channel for vote post (defaults to entry channel)').setRequired(false))
+    )
+    .addSubcommand((s) => s
+      .setName('draw')
+      .setDescription('Run the weighted random draw and post the winner')
     ),
 
   async execute(interaction) {
@@ -62,6 +68,7 @@ export default {
     if (sub === 'add-entry') return handleAddEntry(interaction);
     if (sub === 'leaderboard') return handleLeaderboard(interaction);
     if (sub === 'open-vote') return handleOpenVote(interaction);
+    if (sub === 'draw') return handleDraw(interaction);
     return interaction.reply({ embeds: [errorEmbed(`Unknown subcommand: ${sub}`)], flags: ['Ephemeral'] });
   },
 };
@@ -169,5 +176,34 @@ async function handleOpenVote(interaction) {
   log.info({ giveawayId: giveaway.id, pages: pages.length, channelId: channel.id }, 'Vote post opened');
   await interaction.editReply({
     embeds: [successEmbed(`Vote post opened in ${channel} (${pages.length} message${pages.length > 1 ? 's' : ''}).`)],
+  });
+}
+
+async function handleDraw(interaction) {
+  await interaction.deferReply({ flags: ['Ephemeral'] });
+  const giveaway = await getActiveGiveaway();
+  if (!giveaway) return interaction.editReply({ embeds: [errorEmbed('No active giveaway.')] });
+  if (giveaway.status === 'drawn') {
+    return interaction.editReply({ embeds: [errorEmbed(`Already drawn; winner: <@${giveaway.winner_user_id}>.`)] });
+  }
+  if (giveaway.status === 'cancelled') {
+    return interaction.editReply({ embeds: [errorEmbed('Giveaway is cancelled.')] });
+  }
+
+  const leaderboard = await computeLeaderboard(giveaway, windowStartIso(giveaway.window_days));
+  const winnerRow = pickWinner(leaderboard);
+  if (!winnerRow) {
+    return interaction.editReply({ embeds: [errorEmbed('No eligible entries (total tickets is 0).')] });
+  }
+
+  await markDrawn(giveaway.id, winnerRow.userId);
+
+  const channel = await interaction.guild.channels.fetch(giveaway.entry_channel_id).catch(() => null);
+  const target = channel || interaction.channel;
+  await target.send({ embeds: [buildWinnerEmbed(giveaway, winnerRow, leaderboard)] });
+
+  log.info({ giveawayId: giveaway.id, winnerId: winnerRow.userId, tickets: winnerRow.tickets }, 'Giveaway drawn');
+  await interaction.editReply({
+    embeds: [successEmbed(`Winner posted in ${target}: <@${winnerRow.userId}> with ${winnerRow.tickets} tickets.`)],
   });
 }
