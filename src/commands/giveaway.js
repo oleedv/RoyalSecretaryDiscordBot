@@ -4,11 +4,13 @@ import {
   createGiveaway,
   getActiveGiveaway,
   setEntryMessage,
+  setVoteMessage,
   upsertManualEntry,
   computeLeaderboard,
   windowStartIso,
+  listEntries,
 } from '../services/giveaway/giveawayService.js';
-import { buildEntryEmbed, buildEntryRow, buildLeaderboardEmbed } from '../services/giveaway/giveawayEmbeds.js';
+import { buildEntryEmbed, buildEntryRow, buildLeaderboardEmbed, buildVoteMessages } from '../services/giveaway/giveawayEmbeds.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'cmd:giveaway' });
@@ -47,6 +49,11 @@ export default {
     .addSubcommand((s) => s
       .setName('leaderboard')
       .setDescription('Show current ticket leaderboard for the active giveaway')
+    )
+    .addSubcommand((s) => s
+      .setName('open-vote')
+      .setDescription('Post the community vote message (RB-only channel)')
+      .addChannelOption((o) => o.setName('channel').setDescription('Channel for vote post (defaults to entry channel)').setRequired(false))
     ),
 
   async execute(interaction) {
@@ -54,6 +61,7 @@ export default {
     if (sub === 'start') return handleStart(interaction);
     if (sub === 'add-entry') return handleAddEntry(interaction);
     if (sub === 'leaderboard') return handleLeaderboard(interaction);
+    if (sub === 'open-vote') return handleOpenVote(interaction);
     return interaction.reply({ embeds: [errorEmbed(`Unknown subcommand: ${sub}`)], flags: ['Ephemeral'] });
   },
 };
@@ -123,4 +131,43 @@ async function handleLeaderboard(interaction) {
   }
   const leaderboard = await computeLeaderboard(giveaway, windowStartIso(giveaway.window_days));
   await interaction.editReply({ embeds: [buildLeaderboardEmbed(giveaway, leaderboard)] });
+}
+
+async function handleOpenVote(interaction) {
+  await interaction.deferReply({ flags: ['Ephemeral'] });
+  const giveaway = await getActiveGiveaway();
+  if (!giveaway) return interaction.editReply({ embeds: [errorEmbed('No active giveaway.')] });
+  if (giveaway.status !== 'open') {
+    return interaction.editReply({ embeds: [errorEmbed(`Giveaway is in status '${giveaway.status}'; expected 'open'.`)] });
+  }
+
+  const entries = await listEntries(giveaway.id);
+  if (entries.length === 0) {
+    return interaction.editReply({ embeds: [errorEmbed('No one has entered yet.')] });
+  }
+
+  const channel = interaction.options.getChannel('channel')
+    || await interaction.guild.channels.fetch(giveaway.entry_channel_id);
+  if (!channel) {
+    return interaction.editReply({ embeds: [errorEmbed('Could not resolve vote channel.')] });
+  }
+
+  const enriched = await Promise.all(entries.map(async (e) => {
+    const member = await interaction.guild.members.fetch(e.user_id).catch(() => null);
+    return { userId: e.user_id, displayName: member?.displayName || e.user_id };
+  }));
+
+  const pages = buildVoteMessages(giveaway, enriched);
+  let firstMessage = null;
+  for (const payload of pages) {
+    const sent = await channel.send(payload);
+    if (!firstMessage) firstMessage = sent;
+  }
+
+  await setVoteMessage(giveaway.id, channel.id, firstMessage.id);
+
+  log.info({ giveawayId: giveaway.id, pages: pages.length, channelId: channel.id }, 'Vote post opened');
+  await interaction.editReply({
+    embeds: [successEmbed(`Vote post opened in ${channel} (${pages.length} message${pages.length > 1 ? 's' : ''}).`)],
+  });
 }
