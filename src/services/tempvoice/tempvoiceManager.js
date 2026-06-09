@@ -498,9 +498,9 @@ async function logEvent(guild, title, description) {
 
     const embed = new EmbedBuilder()
       .setColor(0x5865f2)
-      .setTitle(`RB Voice -- ${title}`)
+      .setAuthor({ name: `RB Voice - ${title}` })
       .setDescription(description)
-      .setFooter({ text: 'Royal Battalion -- RB Voice' })
+      .setFooter({ text: 'Royal Secretary - RB Voice log' })
       .setTimestamp();
 
     await logChannel.send({ embeds: [embed] });
