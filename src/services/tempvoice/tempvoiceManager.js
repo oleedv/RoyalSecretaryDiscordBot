@@ -187,7 +187,12 @@ export async function handleJoinTrigger(member, guild) {
     });
 
     log.info({ userId, channelId: newChannel.id, channelName }, 'Temp channel created');
-    await logEvent(guild, 'Channel Created', `<@${userId}> created **${channelName}**`);
+    await logEvent(guild, {
+      title: 'Channel Created',
+      actor: member.user,
+      channel: { id: newChannel.id, name: channelName },
+      kind: 'create',
+    });
   } catch (err) {
     log.error({ err, userId }, 'Failed to create temp channel');
   } finally {
@@ -209,15 +214,27 @@ export async function handleChannelEmpty(channelId, guild) {
     const name = channel?.name || data?.channelName || 'Unknown';
     const ownerId = data?.ownerId;
 
-    if (channel) {
-      await channel.delete('Temp channel empty').catch(() => null);
-    }
+    // Untrack BEFORE deleting so the CHANNEL_DELETE gateway event doesn't
+    // re-enter handleManualChannelDelete and log a duplicate event.
     activeChannels.delete(channelId);
     await db.deleteTempChannel(channelId);
 
+    if (channel) {
+      await channel.delete('Temp channel empty').catch(() => null);
+    }
+
     log.info({ channelId, channelName: name, ownerId }, 'Temp channel deleted (empty)');
     if (data) {
-      await logEvent(guild, 'Channel Deleted', `**${name}** (owned by <@${ownerId}>) was deleted -- channel empty`);
+      await logEvent(guild, {
+        title: 'Channel Deleted',
+        actorId: ownerId,
+        channel: { name },
+        fields: [
+          { name: 'Owner', value: `<@${ownerId}>`, inline: true },
+          { name: 'Reason', value: 'Channel empty', inline: true },
+        ],
+        kind: 'destroy',
+      });
     }
   } catch (err) {
     log.error({ err, channelId }, 'Failed to delete empty temp channel');
@@ -249,12 +266,23 @@ export async function deleteChannelByInteraction(channelId, guild, deletedByUser
     log.error({ err, channelId }, 'Failed to delete temp channel via interaction');
   }
 
-  const actor = deletedByUserId || ownerId;
-  await logEvent(guild, 'Channel Deleted', `**${name}** (owned by <@${ownerId}>) was deleted by <@${actor}>`);
+  const actorId = deletedByUserId || ownerId;
+  await logEvent(guild, {
+    title: 'Channel Deleted',
+    actorId,
+    channel: { name },
+    fields: [
+      { name: 'Owner', value: `<@${ownerId}>`, inline: true },
+      { name: 'Reason', value: 'Deleted by owner', inline: true },
+    ],
+    kind: 'destroy',
+  });
 }
 
 export async function handleManualChannelDelete(channelId, guild) {
   if (!activeChannels.has(channelId)) return;
+  // Internal delete already in flight -- skip to avoid duplicate logs.
+  if (deletedChannels.has(channelId)) return;
 
   const data = activeChannels.get(channelId);
   const ownerId = data?.ownerId;
@@ -266,7 +294,16 @@ export async function handleManualChannelDelete(channelId, guild) {
 
   log.info({ channelId, channelName: name, ownerId }, 'Temp channel deleted (manual)');
   if (guild) {
-    await logEvent(guild, 'Channel Deleted', `**${name}** (owned by <@${ownerId}>) was manually deleted`);
+    await logEvent(guild, {
+      title: 'Channel Deleted',
+      actorId: ownerId,
+      channel: { name },
+      fields: [
+        { name: 'Owner', value: `<@${ownerId}>`, inline: true },
+        { name: 'Reason', value: 'Deleted externally', inline: true },
+      ],
+      kind: 'destroy',
+    });
   }
 }
 
@@ -304,7 +341,16 @@ export async function transferOwnership(channelId, newOwnerId, guild) {
 
     log.info({ channelId, oldOwnerId, newOwnerId }, 'Ownership transferred');
     const channelName = channel.name;
-    await logEvent(guild, 'Ownership Transferred', `**${channelName}**: <@${oldOwnerId}> transferred ownership to <@${newOwnerId}>`);
+    await logEvent(guild, {
+      title: 'Ownership Transferred',
+      actorId: oldOwnerId,
+      channel: { id: channelId, name: channelName },
+      fields: [
+        { name: 'From', value: `<@${oldOwnerId}>`, inline: true },
+        { name: 'To', value: `<@${newOwnerId}>`, inline: true },
+      ],
+      kind: 'update',
+    });
     return true;
   } catch (err) {
     log.error({ err, channelId }, 'Failed to transfer ownership');
@@ -328,7 +374,12 @@ export async function claimChannel(channelId, claimerId, guild) {
     const transferred = await transferOwnership(channelId, claimerId, guild);
     if (!transferred) return { success: false, reason: 'Failed to transfer ownership.' };
 
-    await logEvent(guild, 'Channel Claimed', `<@${claimerId}> claimed **${channel.name}**`);
+    await logEvent(guild, {
+      title: 'Channel Claimed',
+      actorId: claimerId,
+      channel: { id: channelId, name: channel.name },
+      kind: 'create',
+    });
     return { success: true };
   } catch (err) {
     log.error({ err, channelId, claimerId }, 'Failed to claim channel');
@@ -455,9 +506,13 @@ export function startCleanupScheduler(client) {
           }
 
           if (channel.members.size === 0) {
-            await channel.delete('Auto-cleanup: inactive 24h+').catch(() => null);
-            await db.deleteTempChannel(row.channel_id);
+            // Mark deleted BEFORE channel.delete so the gateway event
+            // doesn't fall through to handleManualChannelDelete and log
+            // an external-delete entry for an auto-cleanup.
+            deletedChannels.add(row.channel_id);
             activeChannels.delete(row.channel_id);
+            await db.deleteTempChannel(row.channel_id);
+            await channel.delete('Auto-cleanup: inactive 24h+').catch(() => null);
             cleaned++;
           }
         } catch (err) {
@@ -488,7 +543,14 @@ export function stopCleanupScheduler() {
 
 // ── Logging to Discord channel ──
 
-async function logEvent(guild, title, description) {
+const KIND_COLORS = {
+  create: 0x57f287,
+  destroy: 0xed4245,
+  update: 0x5865f2,
+  warn: 0xfee75c,
+};
+
+async function logEvent(guild, opts) {
   const config = cachedConfig;
   if (!config?.log_channel_id) return;
 
@@ -496,10 +558,33 @@ async function logEvent(guild, title, description) {
     const logChannel = await guild.channels.fetch(config.log_channel_id).catch(() => null);
     if (!logChannel) return;
 
+    const { title, actor = null, actorId = null, channel = null, fields = [], kind = 'update' } = opts;
+
+    let actorUser = actor;
+    if (!actorUser && actorId) {
+      const member = await guild.members.fetch(actorId).catch(() => null);
+      actorUser = member?.user || null;
+    }
+
+    const allFields = [];
+    if (actorUser) {
+      allFields.push({ name: 'User', value: `<@${actorUser.id}> \`${actorUser.id}\``, inline: false });
+    }
+    if (channel) {
+      const value = channel.id
+        ? `<#${channel.id}> (\`${channel.name}\`)`
+        : `\`${channel.name}\``;
+      allFields.push({ name: 'Channel', value, inline: false });
+    }
+    for (const f of fields) allFields.push(f);
+
+    const author = { name: `RB Voice - ${title}` };
+    if (actorUser?.displayAvatarURL) author.iconURL = actorUser.displayAvatarURL();
+
     const embed = new EmbedBuilder()
-      .setColor(0x5865f2)
-      .setAuthor({ name: `RB Voice - ${title}` })
-      .setDescription(description)
+      .setColor(KIND_COLORS[kind] ?? KIND_COLORS.update)
+      .setAuthor(author)
+      .addFields(allFields)
       .setFooter({ text: 'Royal Secretary - RB Voice log' })
       .setTimestamp();
 

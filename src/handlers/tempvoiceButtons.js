@@ -156,7 +156,13 @@ export async function handlePrivacy(interaction) {
     }
 
     await collected.update({ content: `Privacy set to **${value}**.`, components: [] });
-    await logEvent(interaction.guild, 'Privacy Changed', `<@${interaction.user.id}> set **${vc.name}** privacy to **${value}**`);
+    await logEvent(interaction.guild, {
+      title: 'Privacy Changed',
+      actor: interaction.user,
+      channel: { id: vc.id, name: vc.name },
+      fields: [{ name: 'Setting', value: `\`${value}\``, inline: true }],
+      kind: 'update',
+    });
     touchActivity(vc.id).catch(() => null);
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);
@@ -188,7 +194,13 @@ export async function handleDnd(interaction) {
   const state = isDndActive ? 'disabled' : 'enabled';
   if (isOwner(vc.id, interaction.user.id)) await updatePresetField(interaction.user.id, guildId, 'is_dnd', isDndActive ? 0 : 1).catch(() => null);
   await interaction.reply({ embeds: [successEmbed(`DND mode **${state}**.`)], flags: ['Ephemeral'] });
-  await logEvent(interaction.guild, 'DND Toggled', `<@${interaction.user.id}> ${state} DND mode in **${vc.name}**`);
+  await logEvent(interaction.guild, {
+    title: 'DND Toggled',
+    actor: interaction.user,
+    channel: { id: vc.id, name: vc.name },
+    fields: [{ name: 'State', value: `\`${state}\``, inline: true }],
+    kind: 'update',
+  });
   touchActivity(vc.id).catch(() => null);
 }
 
@@ -243,6 +255,13 @@ export async function handleRegion(interaction) {
       if (isOwner(vc.id, interaction.user.id)) await updatePresetField(interaction.user.id, interaction.guild.id, 'region', region).catch(() => null);
       await collected.update({ content: `Voice region set to **${region}**.`, components: [] });
       log.info({ region, channelId: vc.id }, 'Region set successfully');
+      await logEvent(interaction.guild, {
+        title: 'Region Changed',
+        actor: interaction.user,
+        channel: { id: vc.id, name: vc.name },
+        fields: [{ name: 'Region', value: `\`${region}\``, inline: true }],
+        kind: 'update',
+      });
       touchActivity(vc.id).catch(() => null);
     } catch (err) {
       log.error({ err, region, channelId: vc.id }, 'Failed to set voice region');
@@ -272,7 +291,13 @@ export async function handleTrust(interaction) {
 
     await vc.permissionOverwrites.edit(targetId, { ViewChannel: true, Connect: true, SendMessages: true });
     await collected.update({ content: `<@${targetId}> is now trusted.`, components: [] });
-    await logEvent(interaction.guild, 'User Trusted', `<@${interaction.user.id}> trusted <@${targetId}> in **${vc.name}**`);
+    await logEvent(interaction.guild, {
+      title: 'User Trusted',
+      actor: interaction.user,
+      channel: { id: vc.id, name: vc.name },
+      fields: [{ name: 'Target', value: `<@${targetId}> \`${targetId}\``, inline: false }],
+      kind: 'create',
+    });
     touchActivity(vc.id).catch(() => null);
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);
@@ -297,7 +322,13 @@ export async function handleUntrust(interaction) {
 
     await vc.permissionOverwrites.delete(targetId).catch(() => null);
     await collected.update({ content: `<@${targetId}> is no longer trusted.`, components: [] });
-    await logEvent(interaction.guild, 'User Untrusted', `<@${interaction.user.id}> untrusted <@${targetId}> in **${vc.name}**`);
+    await logEvent(interaction.guild, {
+      title: 'User Untrusted',
+      actor: interaction.user,
+      channel: { id: vc.id, name: vc.name },
+      fields: [{ name: 'Target', value: `<@${targetId}> \`${targetId}\``, inline: false }],
+      kind: 'destroy',
+    });
     touchActivity(vc.id).catch(() => null);
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);
@@ -334,7 +365,13 @@ export async function handleBlock(interaction) {
     if (blockedMember) await blockedMember.voice.disconnect('Blocked from temp channel').catch(() => null);
 
     await collected.update({ content: `<@${targetId}> has been blocked.`, components: [] });
-    await logEvent(interaction.guild, 'User Blocked', `<@${interaction.user.id}> blocked <@${targetId}> in **${vc.name}**`);
+    await logEvent(interaction.guild, {
+      title: 'User Blocked',
+      actor: interaction.user,
+      channel: { id: vc.id, name: vc.name },
+      fields: [{ name: 'Target', value: `<@${targetId}> \`${targetId}\``, inline: false }],
+      kind: 'destroy',
+    });
     touchActivity(vc.id).catch(() => null);
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);
@@ -359,7 +396,13 @@ export async function handleUnblock(interaction) {
 
     await vc.permissionOverwrites.delete(targetId).catch(() => null);
     await collected.update({ content: `<@${targetId}> has been unblocked.`, components: [] });
-    await logEvent(interaction.guild, 'User Unblocked', `<@${interaction.user.id}> unblocked <@${targetId}> in **${vc.name}**`);
+    await logEvent(interaction.guild, {
+      title: 'User Unblocked',
+      actor: interaction.user,
+      channel: { id: vc.id, name: vc.name },
+      fields: [{ name: 'Target', value: `<@${targetId}> \`${targetId}\``, inline: false }],
+      kind: 'create',
+    });
     touchActivity(vc.id).catch(() => null);
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);
@@ -402,6 +445,13 @@ export async function handleBitrate(interaction) {
     await vc.setBitrate(bitrate);
     if (isOwner(vc.id, interaction.user.id)) await updatePresetField(interaction.user.id, interaction.guild.id, 'bitrate', bitrate).catch(() => null);
     await collected.update({ content: `Bitrate set to **${bitrate / 1000} kbps**.`, components: [] });
+    await logEvent(interaction.guild, {
+      title: 'Bitrate Changed',
+      actor: interaction.user,
+      channel: { id: vc.id, name: vc.name },
+      fields: [{ name: 'Bitrate', value: `\`${bitrate / 1000} kbps\``, inline: true }],
+      kind: 'update',
+    });
     touchActivity(vc.id).catch(() => null);
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);
@@ -434,6 +484,13 @@ export async function handleInvite(interaction) {
     }
 
     await collected.update({ content: `Invite sent to <@${targetId}>.`, components: [] });
+    await logEvent(interaction.guild, {
+      title: 'Invite Sent',
+      actor: interaction.user,
+      channel: { id: vc.id, name: vc.name },
+      fields: [{ name: 'Target', value: `<@${targetId}> \`${targetId}\``, inline: false }],
+      kind: 'update',
+    });
     touchActivity(vc.id).catch(() => null);
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);
@@ -473,7 +530,13 @@ export async function handleKick(interaction) {
     }
 
     await collected.update({ content: `<@${targetId}> has been kicked.`, components: [] });
-    await logEvent(interaction.guild, 'User Kicked', `<@${interaction.user.id}> kicked <@${targetId}> from **${vc.name}**`);
+    await logEvent(interaction.guild, {
+      title: 'User Kicked',
+      actor: interaction.user,
+      channel: { id: vc.id, name: vc.name },
+      fields: [{ name: 'Target', value: `<@${targetId}> \`${targetId}\``, inline: false }],
+      kind: 'destroy',
+    });
     touchActivity(vc.id).catch(() => null);
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);

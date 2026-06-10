@@ -25,10 +25,20 @@ export async function handleNameModal(interaction) {
     return interaction.reply({ embeds: [errorEmbed('That name is not allowed. Please choose a different name.')], flags: ['Ephemeral'] });
   }
 
+  const oldName = vc.name;
   await vc.setName(name);
   if (isOwner(vc.id, interaction.user.id)) await updatePresetField(interaction.user.id, interaction.guild.id, 'channel_name', name).catch(() => null);
   await interaction.reply({ embeds: [successEmbed(`Channel renamed to **${name}**.`)], flags: ['Ephemeral'] });
-  await logEvent(interaction.guild, 'Channel Renamed', `<@${interaction.user.id}> renamed channel to **${name}**`);
+  await logEvent(interaction.guild, {
+    title: 'Channel Renamed',
+    actor: interaction.user,
+    channel: { id: vc.id, name },
+    fields: [
+      { name: 'Old name', value: `\`${oldName}\``, inline: true },
+      { name: 'New name', value: `\`${name}\``, inline: true },
+    ],
+    kind: 'update',
+  });
   touchActivity(vc.id).catch(() => null);
 }
 
@@ -50,5 +60,12 @@ export async function handleLimitModal(interaction) {
   if (isOwner(vc.id, interaction.user.id)) await updatePresetField(interaction.user.id, interaction.guild.id, 'user_limit', limit).catch(() => null);
   const display = limit === 0 ? 'unlimited' : `${limit} users`;
   await interaction.reply({ embeds: [successEmbed(`User limit set to **${display}**.`)], flags: ['Ephemeral'] });
+  await logEvent(interaction.guild, {
+    title: 'User Limit Changed',
+    actor: interaction.user,
+    channel: { id: vc.id, name: vc.name },
+    fields: [{ name: 'Limit', value: `\`${display}\``, inline: true }],
+    kind: 'update',
+  });
   touchActivity(vc.id).catch(() => null);
 }
