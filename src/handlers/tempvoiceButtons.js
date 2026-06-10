@@ -19,6 +19,20 @@ const COLLECTOR_TIMEOUT = 15_000;
 
 function getVoiceChannel(interaction) {
   const vc = interaction.member.voice.channel;
+  const panelChannelId = interaction.channelId;
+  const panelIsTracked = isTrackedChannel(panelChannelId);
+
+  // Owner or admin clicked a panel button from outside the channel it belongs to.
+  if (panelIsTracked && vc?.id !== panelChannelId
+      && (isOwner(panelChannelId, interaction.user.id)
+        || interaction.member.permissions.has(PermissionFlagsBits.Administrator))) {
+    interaction.reply({
+      embeds: [errorEmbed(`Join <#${panelChannelId}> first to manage it.`)],
+      flags: ['Ephemeral'],
+    });
+    return null;
+  }
+
   if (!vc) {
     interaction.reply({ embeds: [errorEmbed('You must be in a voice channel.')], flags: ['Ephemeral'] });
     return null;
