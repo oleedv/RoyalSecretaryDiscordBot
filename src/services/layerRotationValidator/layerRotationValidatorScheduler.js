@@ -10,6 +10,8 @@ import {
   hashErrors,
   readPersistedRotation,
   upsertPersistedRotation,
+  readPersistedErrorHash,
+  writePersistedErrorHash,
 } from './layerRotationValidatorService.js';
 import { buildSuccessEmbed, buildErrorEmbed } from './layerRotationValidatorEmbeds.js';
 
@@ -133,6 +135,11 @@ async function postError(client, settings, errors) {
 }
 
 async function restoreFromPersistence(client, settings) {
+  try {
+    lastErrorHash = await readPersistedErrorHash();
+  } catch (err) {
+    log.warn({ err }, 'Failed to read persisted error hash');
+  }
   let row = null;
   try {
     row = await readPersistedRotation();
@@ -198,6 +205,9 @@ async function tickSftpMode(client, settings) {
     const errHash = hashErrors(result.errors);
     if (errHash === lastErrorHash) return;
     lastErrorHash = errHash;
+    await writePersistedErrorHash(errHash).catch((err) =>
+      log.warn({ err }, 'Failed to persist error hash')
+    );
     await postError(client, settings, result.errors);
     return;
   }
@@ -205,6 +215,9 @@ async function tickSftpMode(client, settings) {
   const posted = await replaceLiveEmbed(client, { mode: parsedMode, lines, source: 'sftp' });
   if (posted) {
     lastErrorHash = null;
+    await writePersistedErrorHash(null).catch((err) =>
+      log.warn({ err }, 'Failed to clear persisted error hash')
+    );
     lastValidHash = hash;
   }
 }

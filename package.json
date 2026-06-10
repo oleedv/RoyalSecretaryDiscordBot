@@ -1,6 +1,6 @@
 {
   "name": "royal-battalion-bot",
-  "version": "2.6.1",
+  "version": "2.6.2",
   "description": "Royal Battalion gaming community Discord bot",
   "type": "module",
   "main": "src/index.js",

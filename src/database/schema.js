@@ -509,6 +509,7 @@ export async function initSchema() {
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )
   `);
+  await query(`ALTER TABLE layer_rotation_current ADD COLUMN IF NOT EXISTS last_error_hash VARCHAR(40) NULL`);
 
   // ── Giveaway tables ──
 

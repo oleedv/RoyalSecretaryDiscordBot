@@ -141,3 +141,21 @@ export async function upsertPersistedRotation({ cleanedText, mode, source }) {
     [cleanedText, mode, source]
   );
 }
+
+export async function readPersistedErrorHash() {
+  const rows = await query(
+    'SELECT last_error_hash FROM layer_rotation_current WHERE id = 1 LIMIT 1'
+  );
+  if (!rows || rows.length === 0) return null;
+  const value = rows[0].last_error_hash;
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+export async function writePersistedErrorHash(hash) {
+  await query(
+    `INSERT INTO layer_rotation_current (id, cleaned_text, mode, source, last_error_hash)
+     VALUES (1, '', 'Unknown', 'sftp', ?)
+     ON DUPLICATE KEY UPDATE last_error_hash = VALUES(last_error_hash)`,
+    [hash]
+  );
+}
