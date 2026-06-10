@@ -25,6 +25,16 @@ export async function saveConfig(triggerChannelId, categoryId, logChannelId) {
   );
 }
 
+export async function setDefaultAllowVad(value) {
+  const flag = value ? 1 : 0;
+  await query(
+    `INSERT INTO temp_voice_config (id, default_allow_vad)
+     VALUES (1, ?)
+     ON DUPLICATE KEY UPDATE default_allow_vad = VALUES(default_allow_vad)`,
+    [flag],
+  );
+}
+
 // ── Temp channels CRUD ──
 
 export async function createTempChannel(channelId, ownerId, guildId, panelMessageId) {
