@@ -130,6 +130,8 @@ export async function handleJoinTrigger(member, guild) {
         PermissionFlagsBits.UseSoundboard,
         PermissionFlagsBits.UseEmbeddedActivities,
       );
+    } else if (config.default_allow_vad ?? 1) {
+      everyoneAllow.push(PermissionFlagsBits.UseVAD);
     }
 
     const newChannel = await guild.channels.create({

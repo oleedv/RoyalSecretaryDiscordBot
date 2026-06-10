@@ -410,10 +410,12 @@ export async function initSchema() {
       category_id VARCHAR(20),
       log_channel_id VARCHAR(20),
       max_channels_per_user INT DEFAULT 3,
+      default_allow_vad TINYINT(1) NOT NULL DEFAULT 1,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       CHECK (id = 1)
     )
   `);
+  await query(`ALTER TABLE temp_voice_config ADD COLUMN IF NOT EXISTS default_allow_vad TINYINT(1) NOT NULL DEFAULT 1`);
 
   await query(`
     CREATE TABLE IF NOT EXISTS temp_channels (
