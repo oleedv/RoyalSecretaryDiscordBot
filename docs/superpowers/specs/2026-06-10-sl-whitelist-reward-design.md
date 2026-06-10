@@ -134,8 +134,11 @@ rolling7dHours(player_id):
 ### 5.C Round-end aggregation (`ROUND_ENDED`)
 ```
 on ROUND_ENDED(match):
-  if match.duration_s < 1200: return     // <20 min, skip seeding/short rounds
-  if match.end_reason indicates canceled/crashed: return  // if field exists
+  // `squadjs_matches` has no end_reason field — confirmed during spec validation.
+  // We rely on duration as the only quality filter.
+  duration_s = TIMESTAMPDIFF(SECOND, match.start_time, match.end_time)
+  if duration_s is null: return          // round not closed cleanly
+  if duration_s < 1200: return           // <20 min, skip seeding/short rounds
 
   // Per (player, squad) intermediates from this match's ticks
   perPlayerSquad = SELECT
@@ -167,18 +170,18 @@ on ROUND_ENDED(match):
     max_squad_strength_s = max over squads of perSquadStrength.strength_s   // for display
 
     passed_y = any of player's squads has perSquadStrength.strength_s
-                                          >= match.duration_s / 2
-    passed_z = sl_tenure_s >= match.duration_s / 2
+                                          >= duration_s / 2
+    passed_z = sl_tenure_s >= duration_s / 2
 
     qualifying_sl_s = sum over squads where perSquadStrength[squad_id].strength_s
-                                          >= match.duration_s / 2
+                                          >= duration_s / 2
                       of perPlayerSquadQualifying[player_id, squad_id].qualifying_s
     if not passed_z: qualifying_sl_s = 0
 
     INSERT INTO squadjs_sl_round_stats
       (match_id, player_id, steam_id, round_duration_s,
        max_squad_strength_s, sl_tenure_s, qualifying_sl_s, passed_y, passed_z, created_at)
-    VALUES (...)
+    VALUES (match.id, player_id, player.steam_id, duration_s, ...)
     ON DUPLICATE KEY UPDATE
       max_squad_strength_s = VALUES(max_squad_strength_s),
       sl_tenure_s          = VALUES(sl_tenure_s),
@@ -200,6 +203,8 @@ candidates = SELECT player_id, steam_id, SUM(qualifying_sl_s) AS s
 for each candidate:
   rolling_h = candidate.s / 3600
 
+  // SL system operates on Main only. Both the "skip if other whitelist" check
+  // and the grant target are scoped to server='main'. Battle whitelist is ignored.
   current = SELECT * FROM WhitelistEntry
             WHERE steamId = candidate.steam_id
               AND server = 'main'
@@ -238,11 +243,15 @@ for each candidate:
 Dry-run: when `SL_REWARD_DRY_RUN=true`, log the same lines but skip all `INSERT` / `UPDATE` / `DM` calls.
 
 ### 5.E Leaderboard render (every 3 h)
+
+The bot uses separate connection pools for SquadJS and webpage DBs (matches the existing `userService` pattern). Per-query, no cross-DB JOINs. App merges results.
+
 ```
+// Query 1 — SquadJS pool
 rows = SELECT
          p.id AS player_id,
          p.steam_id,
-         p.last_name,
+         p.name AS in_game_name,
          SUM(s.qualifying_sl_s)/3600.0 AS hours
        FROM squadjs_players p
        JOIN squadjs_sl_round_stats s ON s.player_id = p.id
@@ -252,17 +261,28 @@ rows = SELECT
        ORDER BY hours DESC
        LIMIT 20
 
-for each row:
-  user = SELECT discordName FROM User WHERE steamId = row.steam_id
-  row.display_name = user?.discordName ?? row.last_name
+steamIds = rows.map(r => r.steam_id)
 
-  active = SELECT clanId FROM WhitelistEntry
-           WHERE steamId = row.steam_id AND server = 'main'
-             AND (expiresAt IS NULL OR expiresAt > NOW())
+// Query 2 — webpage pool, Discord display names for the top 20
+users = SELECT steamId, discordName FROM User
+        WHERE steamId IN (steamIds)
+
+// Query 3 — webpage pool, active whitelist for the top 20
+whitelist = SELECT steamId, clanId FROM WhitelistEntry
+            WHERE steamId IN (steamIds)
+              AND server = 'main'
+              AND (expiresAt IS NULL OR expiresAt > NOW())
+
+// Merge in app
+userBySteam = Map(users by steamId)
+whitelistBySteam = group(whitelist by steamId)
+for each row:
+  row.display_name = userBySteam[row.steam_id]?.discordName ?? row.in_game_name
+  entries = whitelistBySteam[row.steam_id] ?? []
   row.badge =
-    has clanId = SL_CLAN_ID -> '✓ SL'
-    else has any           -> '✓'
-    else                   -> '—'
+    entries any have clanId = SL_CLAN_ID -> '✓ SL'
+    else entries non-empty               -> '✓'
+    else                                  -> '—'
 
 embed = build embed
   title:       'Squad Leader Rankings (rolling 7 days)'
@@ -287,13 +307,13 @@ if not msgRef:
 | column | type | notes |
 |---|---|---|
 | `id` | `BIGINT` PK auto | |
-| `server_id` | `INT` | FK `squadjs_servers.id` |
-| `match_id` | `BIGINT` | FK `squadjs_matches.id`, NULL if between rounds |
+| `server_id` | `INT(11)` | FK `squadjs_servers.id` |
+| `match_id` | `INT(11)` | FK `squadjs_matches.id`, NULL if between rounds |
 | `tick_at` | `DATETIME(3)` | poll timestamp |
 | `team_id` | `TINYINT` | 1 or 2 |
-| `squad_id` | `INT` | in-game squad ID (resets each match) |
+| `squad_id` | `SMALLINT` | in-game squad ID (resets each match) |
 | `squad_name` | `VARCHAR(255)` | |
-| `leader_player_id` | `BIGINT` NULL | FK `squadjs_players.id` |
+| `leader_player_id` | `INT(11)` NULL | FK `squadjs_players.id` |
 | `member_count` | `SMALLINT` | |
 
 Indexes: `(match_id, squad_id, tick_at)`, `(leader_player_id, tick_at)`, `(server_id, tick_at)`.
@@ -304,9 +324,9 @@ Retention: **60 days**, daily prune.
 | column | type | notes |
 |---|---|---|
 | `id` | `BIGINT` PK auto | |
-| `match_id` | `BIGINT` | indexed |
-| `player_id` | `BIGINT` | indexed |
-| `steam_id` | `VARCHAR(20)` | denormalized for fast joins |
+| `match_id` | `INT(11)` | indexed, FK `squadjs_matches.id` |
+| `player_id` | `INT(11)` | indexed, FK `squadjs_players.id` |
+| `steam_id` | `VARCHAR(20)` | denormalized; collation `utf8mb4_unicode_ci` (matches webpage `User.steamId`) |
 | `round_duration_s` | `INT` | |
 | `max_squad_strength_s` | `INT` | max strength_s across this player's squads (display only) |
 | `sl_tenure_s` | `INT` | summed across squads |
@@ -320,8 +340,8 @@ Unique: `(match_id, player_id)`. Index: `(player_id, created_at)`. **No retentio
 #### `squadjs_sl_warn_log`
 | column | type | notes |
 |---|---|---|
-| `match_id` | `BIGINT` | |
-| `leader_player_id` | `BIGINT` | |
+| `match_id` | `INT(11)` | FK `squadjs_matches.id` |
+| `leader_player_id` | `INT(11)` | FK `squadjs_players.id` |
 | `warned_at` | `DATETIME` | |
 
 PK: `(match_id, leader_player_id)`. Retention: **60 days**, daily prune.
@@ -334,6 +354,17 @@ Either a `BotState` table in `royal_battalion_prod` (one row, `key`/`value`/`upd
 - `User` already has `discordId`, `steamId`.
 - The existing `Clan` row for SL whitelist exists (id `cmq8eaiat03ym01qtcdgs7bri`).
 - `userService.linkSteamId()` gains an `allowOverwrite` parameter (default `false` to preserve existing prospect-flow semantics).
+
+### 6.4 Cross-DB collation considerations
+The two DBs use different default collations:
+- `SquadJS.squadjs_players.steam_id` → `utf8mb4_uca1400_ai_ci`
+- `royal_battalion_prod.User.steamId` → `utf8mb4_unicode_ci`
+
+We avoid cross-DB JOINs in queries — the bot's existing pattern (separate connection pools, app-side merges) sidesteps the collation issue entirely. New table `squadjs_sl_round_stats.steam_id` should be declared with `COLLATE utf8mb4_unicode_ci` so it can be joined to webpage `User.steamId` if we ever need single-server JOINs from the SquadJS plugin's webpage-pool side.
+
+### 6.5 Server naming
+- `squadjs_servers` currently has one row: `id=1, name='RB | Royal Battalion [ENG] discord.gg/royalbattalion'`. This is the Main server only — SquadJS does not monitor the Battle server today.
+- `WhitelistEntry.server` uses logical labels: `main` and `battle`. The SL reward system operates on Main only: grants are `server='main'`, and the other-whitelist eligibility check filters `server='main'` too. Battle whitelist is ignored entirely.
 
 ## 7. Configuration & secrets
 
@@ -437,8 +468,47 @@ ORDER BY createdAt DESC LIMIT 20;
 These are intentionally deferred from design to implementation; they don't affect approval.
 
 - Bot state storage: `BotState` table vs. `data/bot-state.json` file. Decide after checking if the bot already has a settings table.
-- Whether `squadjs_matches` exposes an "end reason" field (used to skip canceled rounds). If absent, ship without that filter — `round_duration_s < 1200` already catches most pathological cases.
 - Exact RCON-line format from `ListSquads` for the parser. Reuse any existing parser in the SquadJS codebase if available.
+
+## 14. Confirmed against production (spec validation, 2026-06-10)
+
+Schema and data assumptions were validated against prod `mariadb` container. Both existence and **internal consistency** of the data were checked.
+
+### 14.1 Schema confirmations
+- `squadjs_players` columns: `id INT(11)`, `eos_id`, `steam_id`, `name` (NOT `last_name`), `last_seen`. 29,059 players, 99.5% with `steam_id`, last_seen updates in real time.
+- `squadjs_matches` columns: `id INT(11)`, `start_time`, `end_time`, `server_id`, `map`, `layer`, `winner`. **No `end_reason` field** — round duration via `TIMESTAMPDIFF(SECOND, start_time, end_time)` is the only quality gate.
+- `squadjs_servers` has one row (id=1, Main). Battle server is not on SquadJS.
+- `Clan` row for SL whitelist: `id=cmq8eaiat03ym01qtcdgs7bri, name='Squadleader whitelist', tag='SL'`, 0 active entries.
+- `WhitelistEntry.server` values: `main` (416 active) and `battle` (103 active). SL system is Main-only.
+
+### 14.2 Data validity — passes
+| Check | Result |
+|---|---|
+| Steam64 format on `squadjs_players.steam_id` | 28,901 / 28,901 valid; zero malformed |
+| Duplicate `steam_id` in `squadjs_players` | None |
+| FK integrity (`squadjs_scoreboard` → players/matches, last 7d) | Zero orphans |
+| Match durations (30d) | 446 total; 347 in 0–2h; 98 marathon (>2h); 0 negative; 0 reversed; 1 unclosed (in progress) |
+| `is_leader=1` ↔ role contains `_SL_` (30d) | 6,293 / 6,499 (97%) both true; 205 sticky-`is_leader` after role swap; 1 reverse case. Tolerable noise. |
+| `User.steamId` ↔ `squadjs_players.steam_id` cross-DB link | 103 / 112 linked users (92%) have a matching squadjs player record |
+| Cross-DB JOIN feasibility | Requires `COLLATE utf8mb4_unicode_ci` on join expression — but spec uses app-side merges to avoid the issue |
+
+### 14.3 Data validity — fails (and what it means for the spec)
+
+Two related invariants in the existing `squadjs_scoreboard` table fail at scale. These do NOT affect our spec — they reinforce why we're building new tables — but they're documented here so the next reader doesn't mistakenly use scoreboard as ground truth.
+
+| Failing invariant | Observed (last 7d) | Root cause | Spec impact |
+|---|---|---|---|
+| `squad_size` should be the same for every member of the same `(match_id, squad_id)` | 648 / 839 squads (77%) have mismatched `squad_size` across their members | Scoreboard rows are written at different times during the match (likely when each player disconnects), so each row's `squad_size` reflects the squad's size at that player's exit. It's not an end-of-round snapshot. | None — spec computes squad size from live `ListSquads` polls in `squadjs_squad_ticks`, not from scoreboard. |
+| Exactly one player per `(match_id, squad_id)` should have `is_leader = 1` | 644 / 839 squads (77%) have multiple `is_leader=1` rows; 3 squads have zero | Same root cause: SL role passes through multiple players during a round, and the scoreboard captures each one. | None — spec polls live and only assigns SL credit to the player who actually held the role at the poll moment, with per-round Y+Z gates. |
+
+**Takeaway:** the existing scoreboard data is not trustworthy enough to identify "who held SL when" — it captures stale state-at-disconnect for each player. This is the empirical reason the path-B decision (build new tracking via `ListSquads` polling) was necessary rather than a path-A fallback to scoreboard-only signals.
+
+### 14.4 Cross-DB link quality
+112 webpage users have linked their Steam; 103 of them appear in `squadjs_players`. The 9 missing are either:
+- Users who linked Steam but never played on the RB server (e.g., applied, got denied or never finished onboarding), or
+- Users who entered an incorrect Steam64.
+
+This is fine for the spec — players who haven't played won't have `squadjs_sl_round_stats` rows, so they're naturally excluded from rewards. Discord-linked users with no SquadJS activity won't generate any work for the grant cron.
 
 ## 14. Anti-abuse residuals
 
