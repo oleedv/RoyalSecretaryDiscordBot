@@ -1,10 +1,9 @@
 import { io } from 'socket.io-client';
 import config from '../../config.js';
 import logger from '../../logger.js';
+import { isRosterStale } from './seedingHealth.js';
 
 const log = logger.child({ module: 'seedingSocket' });
-
-import { isRosterStale } from './seedingHealth.js';
 
 const ACK_TIMEOUT_MS = 5000;
 const ROSTER_STALE_MS = 120_000;
