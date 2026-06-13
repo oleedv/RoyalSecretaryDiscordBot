@@ -33,7 +33,7 @@ const STAT_FIELD_NAMES = new Set([
 const PROSPECT_COLUMNS = [
   'id', 'uuid', 'channel_id', 'forum_thread_id', 'user_id', 'status',
   'alias', 'nationality', 'date_of_birth', 'squad_hours', 'preferred_roles',
-  'prev_clan', 'why_rb', 'active_hours', 'competitive', 'steam_id',
+  'prev_clan', 'about_yourself', 'why_rb', 'active_hours', 'competitive', 'steam_id',
   'mentor_id', 'vote_posted_at', 'vote_message_id', 'created_at',
   'closed_at', 'closed_by', 'extra_days', 'paused_at', 'period_started_at',
   'ai_evaluation',
@@ -579,9 +579,9 @@ export async function createProspect(userId, guild, formData) {
   let prospect;
   try {
     await query(
-      `INSERT INTO prospects (uuid, channel_id, user_id, alias, nationality, date_of_birth, squad_hours, preferred_roles, prev_clan, why_rb, active_hours, competitive, steam_id)
+      `INSERT INTO prospects (uuid, channel_id, user_id, alias, nationality, date_of_birth, squad_hours, about_yourself, prev_clan, why_rb, active_hours, competitive, steam_id)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [uuid, channel.id, userId, formData.alias, formData.nationality, formData.dateOfBirth, formData.squadHours, formData.preferredRoles, formData.prevClan, formData.whyRb, formData.activeHours, formData.competitive, formData.steamId]
+      [uuid, channel.id, userId, formData.alias, formData.nationality, formData.dateOfBirth, formData.squadHours, formData.aboutYourself, formData.prevClan, formData.whyRb, formData.activeHours, formData.competitive, formData.steamId]
     );
 
     const rows = await query(`SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE uuid = ?`, [uuid]);
