@@ -85,7 +85,7 @@ const buttonHandlers = {
       country: getField('Country'),
       dateOfBirth: getField('Date of Birth'),
       squadHours: getField('Hours in Squad'),
-      preferredRoles: getField('Preferred Roles'),
+      prevClan: getField('Previous Clan'),
     });
 
     return prospectButtons.handleModal2Open(interaction);

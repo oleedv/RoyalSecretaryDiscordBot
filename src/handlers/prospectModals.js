@@ -57,7 +57,7 @@ export async function handleModal1(interaction) {
   const countryInput = interaction.fields.getTextInputValue('country').trim();
   const dateOfBirth = interaction.fields.getTextInputValue('date_of_birth').trim();
   const squadHours = interaction.fields.getTextInputValue('squad_hours').trim();
-  const preferredRoles = interaction.fields.getTextInputValue('preferred_roles').trim();
+  const prevClan = interaction.fields.getTextInputValue('prev_clan').trim();
 
   const errors = [];
   if (!alias || alias.length > 32) errors.push('**Alias**: must be 1-32 characters.');
@@ -75,7 +75,7 @@ export async function handleModal1(interaction) {
   const hoursError = validateSquadHours(squadHours);
   if (hoursError) errors.push(hoursError);
 
-  if (!preferredRoles) errors.push('**Preferred Roles**: required.');
+  if (!prevClan) errors.push('**Previous Clan**: required (can be "No").');
 
   if (errors.length > 0) {
     return interaction.reply({
@@ -92,7 +92,7 @@ export async function handleModal1(interaction) {
       { name: 'Country', value: countryResult.valid ? countryResult.country : countryInput, inline: true },
       { name: 'Date of Birth', value: dateOfBirth, inline: true },
       { name: 'Hours in Squad', value: squadHours, inline: true },
-      { name: 'Preferred Roles', value: preferredRoles, inline: true },
+      { name: 'Previous Clan', value: prevClan, inline: true },
     )
     .setColor(0x57f287);
 
@@ -116,14 +116,14 @@ export async function handleModal1(interaction) {
 export async function handleModal2(interaction) {
   await interaction.deferReply({ flags: ['Ephemeral'] });
 
-  const prevClan = interaction.fields.getTextInputValue('prev_clan').trim();
+  const aboutYourself = interaction.fields.getTextInputValue('about_yourself').trim();
   const whyRb = interaction.fields.getTextInputValue('why_rb').trim();
   const activeHours = interaction.fields.getTextInputValue('active_hours').trim();
   const competitive = interaction.fields.getField('competitive').value ?? '';
   const steamId = interaction.fields.getTextInputValue('steam_id').trim();
 
   const errors = [];
-  if (!prevClan) errors.push('**Previous Clan**: required (can be "No").');
+  if (!aboutYourself || aboutYourself.length < 10) errors.push('**About yourself**: required, minimum 10 characters.');
   if (!whyRb || whyRb.length < 10) errors.push('**Why RB**: required, minimum 10 characters.');
   if (!activeHours) errors.push('**Active Hours**: required.');
   if (!competitive) errors.push('**Competitive Interest**: required.');
@@ -159,8 +159,8 @@ export async function handleModal2(interaction) {
     nationality: part1.country,
     dateOfBirth: part1.dateOfBirth,
     squadHours: Number(part1.squadHours),
-    preferredRoles: part1.preferredRoles,
-    prevClan,
+    prevClan: part1.prevClan,
+    aboutYourself,
     whyRb,
     activeHours,
     competitive,
