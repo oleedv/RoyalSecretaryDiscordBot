@@ -1,4 +1,4 @@
-import { getProspectsNeedingVote, getProspectsNeedingVoteEnd, isTestSteamId, getProspectDates, refreshAllOpenProspectStats } from './prospectService.js';
+import { getProspectsNeedingVote, getProspectsNeedingVoteEnd, isTestSteamId, getProspectDates, refreshAllOpenProspectStats, refreshAllOpenProspectChecks } from './prospectService.js';
 import { postVote, finalizeVote } from './prospectVoting.js';
 import { getPlaytime } from '../playtimeService.js';
 import { createEmbed } from '../../utils/embed.js';
@@ -42,6 +42,10 @@ async function runStatsRefresh(client) {
   isRefreshing = true;
   try {
     await refreshAllOpenProspectStats(client);
+    const CHECKS_REFRESH_UTC_HOUR = 3;
+    if (new Date().getUTCHours() === CHECKS_REFRESH_UTC_HOUR) {
+      await refreshAllOpenProspectChecks(client);
+    }
   } catch (err) {
     log.error({ err }, 'Stats refresh failed');
     reportError(err, { source: 'scheduler:prospect:statsRefresh' }).catch(() => {});

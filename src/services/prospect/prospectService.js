@@ -481,9 +481,31 @@ export async function refreshAllOpenProspectStats(client) {
         log.warn({ prospectId: prospect.id, channelId: prospect.channel_id }, 'Stats refresh: top prospect message not found');
         continue;
       }
-      appendAllStatsToMessage(topMsg, prospect.steam_id, prospect.user_id, prospect);
+      appendAllStatsToMessage(topMsg, prospect.steam_id, prospect.user_id, prospect, { refreshChecks: false });
     } catch (err) {
       log.error({ err, prospectId: prospect.id }, 'Stats refresh failed for prospect');
+    }
+  }
+}
+
+export async function refreshAllOpenProspectChecks(client) {
+  const prospects = await query(
+    `SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE status = 'open' AND channel_id IS NOT NULL`
+  );
+  if (prospects.length === 0) return;
+
+  log.info({ count: prospects.length }, 'Daily prospect background-check refresh starting');
+
+  for (const prospect of prospects) {
+    if (isTestSteamId(prospect.steam_id)) continue;
+    try {
+      const channel = await client.channels.fetch(prospect.channel_id).catch(() => null);
+      if (!channel) continue;
+      const topMsg = await findBotMessageByCustomId(channel, client.user.id, ['prospect_claim', 'prospect_accept', 'prospect_deny', 'prospect_unclaim']);
+      if (!topMsg) continue;
+      appendAllStatsToMessage(topMsg, prospect.steam_id, prospect.user_id, prospect, { refreshChecks: true });
+    } catch (err) {
+      log.error({ err, prospectId: prospect.id }, 'Checks refresh failed for prospect');
     }
   }
 }
