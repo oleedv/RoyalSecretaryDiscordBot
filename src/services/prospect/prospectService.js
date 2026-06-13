@@ -13,22 +13,12 @@ import { getPlayerSeedStats, getSeedStreak } from '../seedTracker/seedTrackerSer
 import { getActivitySummary } from '../activity/activityService.js';
 import { generateProspectEvaluation } from '../ai/prospectAiService.js';
 import { query, transaction } from '../../database/connection.js';
+import { classifyStatField, buildOrderedStatFields } from './prospectStatsFields.js';
 import { assignTeamRole, removeTeamRole } from './teamRoleService.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
 
 const log = logger.child({ module: 'prospects' });
-
-const STAT_FIELD_NAMES = new Set([
-  'Game Activity (90d)',
-  'Seeding (30d)',
-  'Discord Activity (90d)',
-  'Community Ban List',
-  'BattleMetrics Bans',
-  'BattleMetrics Flags',
-  'BattleMetrics Staff Notes',
-  'Steam Bans',
-]);
 
 const PROSPECT_COLUMNS = [
   'id', 'uuid', 'channel_id', 'forum_thread_id', 'user_id', 'status',
@@ -170,174 +160,181 @@ function formatBmBans(bmBans) {
   return text;
 }
 
-function appendAllStatsToMessage(message, steamId, userId, prospect) {
+function buildActivityFields({ connStats, playtime, seedStats, seedStreak, activity, daysElapsed }) {
+  const label = `(${daysElapsed}d in)`;
+  const fields = [];
+
+  if (connStats || playtime) {
+    const lines = [];
+    if (playtime) lines.push(`Playtime: **${playtime.playtimeHours}h**`);
+    if (connStats) {
+      lines.push(`Connections: **${connStats.connections}**`);
+      if (connStats.avgSessionHours > 0) lines.push(`Avg Session: **${connStats.avgSessionHours}h**`);
+      if (connStats.firstSeen) lines.push(`First Seen: <t:${Math.floor(new Date(connStats.firstSeen).getTime() / 1000)}:d>`);
+      if (connStats.lastSeen) lines.push(`Last Seen: <t:${Math.floor(new Date(connStats.lastSeen).getTime() / 1000)}:R>`);
+    }
+    fields.push({ name: `Game Activity ${label}`, value: lines.join('\n'), inline: true });
+  }
+
+  if (seedStats || playtime) {
+    const lines = [];
+    if (playtime) lines.push(`Seed Hours: **${playtime.seedHours}h**`);
+    if (seedStats) {
+      lines.push(`Seed Days: **${seedStats.uniqueDays}**`);
+      if (seedStreak > 0) lines.push(`Streak: **${seedStreak}** day(s)`);
+      if (seedStats.avgQuality != null) lines.push(`Quality: **${seedStats.avgQuality.toFixed(1)}**/10`);
+      if (seedStats.lastSeedDate) lines.push(`Last Seed: <t:${Math.floor(new Date(seedStats.lastSeedDate).getTime() / 1000)}:d>`);
+    }
+    fields.push({ name: `Seeding ${label}`, value: lines.join('\n'), inline: true });
+  }
+
+  if (activity) {
+    const { voice, messages, reactions } = activity;
+    const lines = [];
+    if (voice.totalSeconds > 0) {
+      const activeSeconds = Math.max(0, voice.totalSeconds - voice.mutedSeconds - voice.deafenedSeconds);
+      lines.push(`Voice: **${formatDuration(voice.totalSeconds)}** (${pct(activeSeconds, voice.totalSeconds)} active)`);
+      if (voice.mutedSeconds > 0) lines.push(`Muted: ${pct(voice.mutedSeconds, voice.totalSeconds)} | Deafened: ${pct(voice.deafenedSeconds, voice.totalSeconds)}`);
+    } else {
+      lines.push('Voice: **0h**');
+    }
+    lines.push(`Messages: **${messages.totalMessages}**`);
+    if (messages.topChannels.length > 0) {
+      const top = messages.topChannels.slice(0, 3).map((c) => `<#${c.id}>`).join(', ');
+      lines.push(`Active in: ${top}`);
+    }
+    if (reactions.totalReactions > 0) lines.push(`Reactions: **${reactions.totalReactions}**`);
+    fields.push({ name: `Discord Activity ${label}`, value: lines.join('\n'), inline: true });
+  }
+
+  return fields;
+}
+
+function buildCheckFields({ cblData, bmBans, bmFlags, bmNotes, steamBans }) {
+  const fields = [];
+  if (cblData) {
+    fields.push({ name: 'Community Ban List', value: formatCblEmbed(cblData) });
+  }
+  if (bmBans) {
+    const bmText = formatBmBans(bmBans);
+    fields.push({ name: 'BattleMetrics Bans', value: bmText.length > 1024 ? bmText.slice(0, 1021) + '...' : bmText });
+  }
+  if (bmFlags.length > 0) {
+    fields.push({ name: 'BattleMetrics Flags', value: formatBmFlags(bmFlags) });
+  }
+  if (bmNotes.length > 0) {
+    const notesText = formatBmNotes(bmNotes);
+    if (notesText) fields.push({ name: 'BattleMetrics Staff Notes', value: notesText });
+  }
+  if (steamBans) {
+    const lines = [];
+    if (steamBans.vacBanned) {
+      lines.push(`VAC Banned: **Yes** (${steamBans.numberOfVacBans} ban${steamBans.numberOfVacBans !== 1 ? 's' : ''})`);
+    } else {
+      lines.push('VAC Banned: **No**');
+    }
+    if (steamBans.numberOfGameBans > 0) lines.push(`Game Bans: **${steamBans.numberOfGameBans}**`);
+    if (steamBans.daysSinceLastBan > 0 && (steamBans.vacBanned || steamBans.numberOfGameBans > 0)) lines.push(`Days Since Last Ban: **${steamBans.daysSinceLastBan}**`);
+    if (steamBans.communityBanned) lines.push('Community Banned: **Yes**');
+    if (steamBans.economyBan && steamBans.economyBan !== 'none') lines.push(`Economy Ban: **${steamBans.economyBan}**`);
+    fields.push({ name: 'Steam Bans', value: lines.join('\n'), inline: true });
+  }
+  return fields;
+}
+
+// refreshChecks: true (default) = re-fetch external background checks (CBL/BM/Steam)
+// and (re)generate AI. false (hourly) = recompute internal activity only, reuse the
+// already-rendered check fields + existing AI embed.
+function appendAllStatsToMessage(message, steamId, userId, prospect, { refreshChecks = true } = {}) {
   if (isTestSteamId(steamId)) return;
 
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - 90);
-  const start = startDate.toISOString().slice(0, 10);
-  const now = new Date().toISOString().slice(0, 10);
+  const periodStart = prospect?.period_started_at ? new Date(prospect.period_started_at) : null;
+  const showActivity = !!periodStart;
+  const periodStartIso = periodStart ? periodStart.toISOString().slice(0, 10) : null;
+  const nowIso = new Date().toISOString().slice(0, 10);
+  const daysElapsed = periodStart
+    ? Math.max(1, Math.ceil((Date.now() - periodStart.getTime()) / 86400000))
+    : 0;
 
-  Promise.all([
-    getConnectionStats(steamId, start).catch(() => null),
-    getPlaytime(steamId, start).catch(() => null),
-    getPlayerSeedStats(steamId, 30).catch(() => null),
-    getSeedStreak(steamId).catch(() => 0),
-    getActivitySummary(userId, start, now).catch(() => null),
-    fetchCblData(steamId).catch(() => null),
-    bm.getPlayerProfile(steamId).catch(() => null),
-    getSteamBans(steamId).catch(() => null),
-  ]).then(async ([connStats, playtime, seedStats, seedStreak, activity, cblData, bmProfile, steamBans]) => {
-    const bmBans = bmProfile?.bans || null;
-    const bmNotes = bmProfile?.notes || [];
-    const bmFlags = bmProfile?.flags || [];
-    const embed = message.embeds[0];
-    if (!embed) return;
+  const activityFetch = showActivity
+    ? Promise.all([
+        getConnectionStats(steamId, periodStartIso).catch(() => null),
+        getPlaytime(steamId, periodStartIso).catch(() => null),
+        getPlayerSeedStats(steamId, daysElapsed).catch(() => null),
+        getSeedStreak(steamId).catch(() => 0),
+        getActivitySummary(userId, periodStartIso, nowIso).catch(() => null),
+      ])
+    : Promise.resolve([null, null, null, 0, null]);
 
-    const updated = EmbedBuilder.from(embed);
-    const existingFields = updated.data.fields || [];
-    const kept = existingFields.filter((f) => !STAT_FIELD_NAMES.has(f.name));
-    updated.setFields(kept);
-    const fields = [];
+  const checksFetch = refreshChecks
+    ? Promise.all([
+        fetchCblData(steamId).catch(() => null),
+        bm.getPlayerProfile(steamId).catch(() => null),
+        getSteamBans(steamId).catch(() => null),
+      ])
+    : Promise.resolve(null);
 
-    // Game Activity
-    if (connStats || playtime) {
-      const lines = [];
-      if (playtime) lines.push(`Playtime: **${playtime.playtimeHours}h**`);
-      if (connStats) {
-        lines.push(`Connections: **${connStats.connections}**`);
-        if (connStats.avgSessionHours > 0) lines.push(`Avg Session: **${connStats.avgSessionHours}h**`);
-        if (connStats.firstSeen) lines.push(`First Seen: <t:${Math.floor(new Date(connStats.firstSeen).getTime() / 1000)}:d>`);
-        if (connStats.lastSeen) lines.push(`Last Seen: <t:${Math.floor(new Date(connStats.lastSeen).getTime() / 1000)}:R>`);
-      }
-      fields.push({ name: 'Game Activity (90d)', value: lines.join('\n'), inline: true });
+  Promise.all([activityFetch, checksFetch]).then(async ([
+    [connStats, playtime, seedStats, seedStreak, activity],
+    checks,
+  ]) => {
+    if (!message.embeds[0]) return;
+
+    const newActivity = showActivity
+      ? buildActivityFields({ connStats, playtime, seedStats, seedStreak, activity, daysElapsed })
+      : [];
+    const newLastUpdated = showActivity
+      ? [{ name: 'Last updated', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: false }]
+      : [];
+
+    let newChecks = null;
+    let aiContext = null;
+    if (refreshChecks && checks) {
+      const [cblData, bmProfile, steamBans] = checks;
+      const bmBans = bmProfile?.bans || null;
+      const bmNotes = bmProfile?.notes || [];
+      const bmFlags = bmProfile?.flags || [];
+      newChecks = buildCheckFields({ cblData, bmBans, bmFlags, bmNotes, steamBans });
+      aiContext = { connStats, playtime, seedStats, seedStreak, activity, cblData, bmBans, bmNotes, bmFlags, steamBans };
     }
 
-    // Seeding
-    if (seedStats || playtime) {
-      const lines = [];
-      if (playtime) lines.push(`Seed Hours: **${playtime.seedHours}h**`);
-      if (seedStats) {
-        lines.push(`Seed Days: **${seedStats.uniqueDays}** (30d)`);
-        if (seedStreak > 0) lines.push(`Streak: **${seedStreak}** day(s)`);
-        if (seedStats.avgQuality != null) lines.push(`Quality: **${seedStats.avgQuality.toFixed(1)}**/10`);
-        if (seedStats.lastSeedDate) lines.push(`Last Seed: <t:${Math.floor(new Date(seedStats.lastSeedDate).getTime() / 1000)}:d>`);
-      }
-      fields.push({ name: 'Seeding (30d)', value: lines.join('\n'), inline: true });
-    }
+    const sourceEmbeds = message.embeds.filter((e) => !(e.title || '').startsWith('AI Assessment'));
+    const existingFields = sourceEmbeds.flatMap((e) => e.fields || []);
 
-    // Discord Activity
-    if (activity) {
-      const { voice, messages, reactions } = activity;
-      const lines = [];
-      if (voice.totalSeconds > 0) {
-        const activeSeconds = Math.max(0, voice.totalSeconds - voice.mutedSeconds - voice.deafenedSeconds);
-        lines.push(`Voice: **${formatDuration(voice.totalSeconds)}** (${pct(activeSeconds, voice.totalSeconds)} active)`);
-        if (voice.mutedSeconds > 0) lines.push(`Muted: ${pct(voice.mutedSeconds, voice.totalSeconds)} | Deafened: ${pct(voice.deafenedSeconds, voice.totalSeconds)}`);
-      } else {
-        lines.push('Voice: **0h**');
-      }
-      lines.push(`Messages: **${messages.totalMessages}**`);
-      if (messages.topChannels.length > 0) {
-        const top = messages.topChannels.slice(0, 3).map((c) => `<#${c.id}>`).join(', ');
-        lines.push(`Active in: ${top}`);
-      }
-      if (reactions.totalReactions > 0) lines.push(`Reactions: **${reactions.totalReactions}**`);
-      fields.push({ name: 'Discord Activity (90d)', value: lines.join('\n'), inline: true });
-    }
+    const orderedFields = buildOrderedStatFields(existingFields, {
+      newActivity: showActivity ? newActivity : [],
+      newChecks,
+      newLastUpdated: showActivity ? newLastUpdated : [],
+    });
 
-    // Community Ban List
-    if (cblData) {
-      fields.push({ name: 'Community Ban List', value: formatCblEmbed(cblData) });
-    }
-
-    // BattleMetrics Bans
-    if (bmBans) {
-      const bmText = formatBmBans(bmBans);
-      fields.push({ name: 'BattleMetrics Bans', value: bmText.length > 1024 ? bmText.slice(0, 1021) + '...' : bmText });
-    }
-
-    // BattleMetrics Flags
-    if (bmFlags.length > 0) {
-      fields.push({ name: 'BattleMetrics Flags', value: formatBmFlags(bmFlags) });
-    }
-
-    // BattleMetrics Staff Notes
-    if (bmNotes.length > 0) {
-      const notesText = formatBmNotes(bmNotes);
-      if (notesText) fields.push({ name: 'BattleMetrics Staff Notes', value: notesText });
-    }
-
-    // Steam Bans (VAC / Game Bans)
-    if (steamBans) {
-      const lines = [];
-      if (steamBans.vacBanned) {
-        lines.push(`VAC Banned: **Yes** (${steamBans.numberOfVacBans} ban${steamBans.numberOfVacBans !== 1 ? 's' : ''})`);
-      } else {
-        lines.push('VAC Banned: **No**');
-      }
-      if (steamBans.numberOfGameBans > 0) {
-        lines.push(`Game Bans: **${steamBans.numberOfGameBans}**`);
-      }
-      if (steamBans.daysSinceLastBan > 0 && (steamBans.vacBanned || steamBans.numberOfGameBans > 0)) {
-        lines.push(`Days Since Last Ban: **${steamBans.daysSinceLastBan}**`);
-      }
-      if (steamBans.communityBanned) {
-        lines.push('Community Banned: **Yes**');
-      }
-      if (steamBans.economyBan && steamBans.economyBan !== 'none') {
-        lines.push(`Economy Ban: **${steamBans.economyBan}**`);
-      }
-      fields.push({ name: 'Steam Bans', value: lines.join('\n'), inline: true });
-    }
-
-    const embeds = [];
-
-    const existingCount = updated.data.fields?.length ?? 0;
+    const baseEmbed = EmbedBuilder.from(message.embeds[0]);
     const EMBED_FIELD_LIMIT = 25;
-    const remaining = Math.max(0, EMBED_FIELD_LIMIT - existingCount);
+    baseEmbed.setFields(orderedFields.slice(0, EMBED_FIELD_LIMIT));
+    const embeds = [baseEmbed];
 
-    if (fields.length > 0) {
-      if (fields.length <= remaining) {
-        updated.addFields(fields);
-        embeds.push(updated);
-      } else {
-        const primary = fields.slice(0, remaining);
-        const overflow = fields.slice(remaining);
-        if (primary.length > 0) updated.addFields(primary);
-        embeds.push(updated);
-
-        const overflowEmbed = new EmbedBuilder().setTitle('Additional Stats');
-        const color = updated.data.color;
-        if (color !== undefined && color !== null) overflowEmbed.setColor(color);
-
-        for (let i = 0; i < overflow.length; i += EMBED_FIELD_LIMIT) {
-          const chunk = overflow.slice(i, i + EMBED_FIELD_LIMIT);
-          const chunkEmbed = i === 0 ? overflowEmbed : new EmbedBuilder().setTitle('Additional Stats (cont.)');
-          if (i !== 0 && color !== undefined && color !== null) chunkEmbed.setColor(color);
-          chunkEmbed.addFields(chunk);
-          embeds.push(chunkEmbed);
-        }
-
-        log.warn({ steamId, existingCount, added: fields.length, overflow: overflow.length }, 'prospect embed fields overflowed 25 — spilled into second embed');
+    if (orderedFields.length > EMBED_FIELD_LIMIT) {
+      const overflow = orderedFields.slice(EMBED_FIELD_LIMIT);
+      const color = baseEmbed.data.color;
+      for (let i = 0; i < overflow.length; i += EMBED_FIELD_LIMIT) {
+        const chunk = overflow.slice(i, i + EMBED_FIELD_LIMIT);
+        const chunkEmbed = new EmbedBuilder().setTitle(i === 0 ? 'Additional Stats' : 'Additional Stats (cont.)');
+        if (color !== undefined && color !== null) chunkEmbed.setColor(color);
+        chunkEmbed.addFields(chunk);
+        embeds.push(chunkEmbed);
       }
-    } else {
-      embeds.push(updated);
+      log.warn({ steamId, total: orderedFields.length }, 'prospect embed fields overflowed 25 — spilled into additional embeds');
     }
 
-    // AI Assessment as a separate embed with tab buttons.
-    // Only generate if not already stored; otherwise reuse the cached evaluation.
+    const existingAiEmbed = message.embeds.find((e) => (e.title || '').startsWith('AI Assessment'));
     let aiTabRow = null;
-    if (prospect) {
+    if (existingAiEmbed) {
+      embeds.push(EmbedBuilder.from(existingAiEmbed));
+    } else if (prospect) {
       let aiText = prospect.ai_evaluation || null;
-      if (!aiText) {
+      if (!aiText && refreshChecks && aiContext) {
         try {
-          aiText = await generateProspectEvaluation(prospect, {
-            connStats, playtime, seedStats, seedStreak, activity, cblData, bmBans, bmNotes, bmFlags, steamBans,
-          });
-          if (aiText) {
-            await query('UPDATE prospects SET ai_evaluation = ? WHERE id = ?', [aiText, prospect.id]);
-          }
+          aiText = await generateProspectEvaluation(prospect, aiContext);
+          if (aiText) await query('UPDATE prospects SET ai_evaluation = ? WHERE id = ?', [aiText, prospect.id]);
         } catch (err) {
           log.warn({ err }, 'Failed to generate AI prospect evaluation');
         }
