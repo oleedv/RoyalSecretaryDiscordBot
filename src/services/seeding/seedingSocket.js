@@ -4,6 +4,11 @@ import logger from '../../logger.js';
 
 const log = logger.child({ module: 'seedingSocket' });
 
+import { isRosterStale } from './seedingHealth.js';
+
+const ACK_TIMEOUT_MS = 5000;
+const ROSTER_STALE_MS = 120_000;
+
 const connections = new Map(); // name -> { socket, state }
 let discordClient = null;
 let watchdogInterval = null;
@@ -30,6 +35,7 @@ function createState() {
     gameVersion: null,
     currentLayerObj: null,
     lastEventTime: Date.now(),
+    lastPlayersOk: 0,
     reconnectErrorCount: 0,
   };
 }
@@ -45,28 +51,37 @@ function extractMapName(layerName) {
 
 function fetchPlayers(conn) {
   if (!conn.socket?.connected) return;
-  conn.socket.emit('players', (data) => {
+  conn.socket.timeout(ACK_TIMEOUT_MS).emit('players', (err, data) => {
+    if (err) {
+      log.warn({ name: conn.name }, 'players ack timed out');
+      return;
+    }
     conn.state.lastEventTime = Date.now();
     if (Array.isArray(data)) {
       conn.state.players = data;
-      log.debug({ count: data.length }, 'Fetched player list');
+      conn.state.lastPlayersOk = Date.now();
+      log.debug({ name: conn.name, count: data.length }, 'Fetched player list');
     }
   });
 }
 
 function fetchLayerObj(conn) {
   if (!conn.socket?.connected) return;
-  conn.socket.emit('currentLayer', (data) => {
+  conn.socket.timeout(ACK_TIMEOUT_MS).emit('currentLayer', (err, data) => {
+    if (err) {
+      log.warn({ name: conn.name }, 'currentLayer ack timed out');
+      return;
+    }
     conn.state.lastEventTime = Date.now();
     if (data) {
       conn.state.currentLayerObj = data;
-      log.debug({ layer: data.name }, 'Fetched layer object');
+      log.debug({ name: conn.name, layer: data.name }, 'Fetched layer object');
     }
   });
 }
 
 function connectServer(serverCfg) {
-  const conn = { socket: null, state: createState() };
+  const conn = { socket: null, state: createState(), name: serverCfg.name };
   connections.set(serverCfg.name, conn);
 
   log.info({ name: serverCfg.name, url: serverCfg.url }, 'Connecting to SquadJS');
@@ -90,6 +105,10 @@ function connectServer(serverCfg) {
     conn.state.reconnectErrorCount = 0;
     conn.state.connected = true;
     conn.state.lastEventTime = Date.now();
+    conn.state.lastPlayersOk = Date.now(); // grace window; updated on first successful fetch
+    // Pull the live roster + layer immediately rather than waiting for the next broadcast.
+    fetchPlayers(conn);
+    fetchLayerObj(conn);
   });
 
   conn.socket.on('disconnect', (reason) => {
@@ -201,6 +220,14 @@ export function connect(client) {
       const staleSec = (now - conn.state.lastEventTime) / 1000;
       if (staleSec > 300) {
         log.warn({ name, staleSec: Math.round(staleSec) }, 'No events received, forcing reconnect');
+        conn.socket.disconnect();
+        conn.socket.connect();
+        continue;
+      }
+      // Count is live (events flowing) but the players ack hasn't returned fresh
+      // data — the roster is frozen. Recycle the socket so SquadJS rebinds the ack.
+      if (isRosterStale(conn.state, now, ROSTER_STALE_MS)) {
+        log.warn({ name, rosterStaleSec: Math.round((now - conn.state.lastPlayersOk) / 1000) }, 'Roster ack stale while connected, forcing reconnect');
         conn.socket.disconnect();
         conn.socket.connect();
       }
