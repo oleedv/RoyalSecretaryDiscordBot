@@ -13,7 +13,7 @@ import { getPlayerSeedStats, getSeedStreak } from '../seedTracker/seedTrackerSer
 import { getActivitySummary } from '../activity/activityService.js';
 import { generateProspectEvaluation } from '../ai/prospectAiService.js';
 import { query, transaction } from '../../database/connection.js';
-import { classifyStatField, buildOrderedStatFields } from './prospectStatsFields.js';
+import { buildOrderedStatFields } from './prospectStatsFields.js';
 import { assignTeamRole, removeTeamRole } from './teamRoleService.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
