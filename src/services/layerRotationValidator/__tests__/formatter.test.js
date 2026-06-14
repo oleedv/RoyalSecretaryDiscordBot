@@ -48,24 +48,29 @@ describe('formatRotationList - current-map highlight', () => {
     'Sumari_Seed_v1 USA MEI',
   ];
 
-  test('highlights the first line matching the current layer token', () => {
+  test('green-dots the current line and grey-dots the rest for alignment', () => {
     const rows = formatRotationList(lines, 'FoolsRoad_RAAS_v1').split('\n');
     expect(rows[1]).toBe(':green_circle: **2. Fools Road RAAS v1** - *AFU vs RGF*');
-    expect(rows[0]).toBe('**1.** Sumari Seed v1 - *USA vs MEI*');
+    expect(rows[0]).toBe(':white_circle: **1.** Sumari Seed v1 - *USA vs MEI*');
+    expect(rows[2]).toBe(':white_circle: **3.** Sumari Seed v1 - *USA vs MEI*');
   });
 
   test('highlights only the first occurrence when the layer repeats', () => {
     const rows = formatRotationList(lines, 'Sumari_Seed_v1').split('\n');
     expect(rows[0]).toBe(':green_circle: **1. Sumari Seed v1** - *USA vs MEI*');
-    expect(rows[2]).toBe('**3.** Sumari Seed v1 - *USA vs MEI*');
+    expect(rows[2]).toBe(':white_circle: **3.** Sumari Seed v1 - *USA vs MEI*');
   });
 
-  test('no highlight when the current layer matches no line', () => {
-    expect(formatRotationList(lines, 'Narva_RAAS_v1')).not.toContain(':green_circle:');
+  test('no dots at all when the current layer matches no line', () => {
+    const out = formatRotationList(lines, 'Narva_RAAS_v1');
+    expect(out).not.toContain(':green_circle:');
+    expect(out).not.toContain(':white_circle:');
   });
 
-  test('no highlight when no current layer token is supplied (back-compat)', () => {
-    expect(formatRotationList(lines)).not.toContain(':green_circle:');
+  test('no dots when no current layer token is supplied (back-compat)', () => {
+    const out = formatRotationList(lines);
+    expect(out).not.toContain(':green_circle:');
+    expect(out).not.toContain(':white_circle:');
   });
 });
 
