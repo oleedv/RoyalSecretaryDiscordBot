@@ -47,7 +47,7 @@ function compactTeam(team) {
   return team.replace(/ \+ /g, '+');
 }
 
-function formatRow(line, idx, isCurrent) {
+function formatRow(line, idx, isCurrent, aligned) {
   const { map, variant, team1, team2 } = prettifyLayerToken(line);
   const layer = variant ? `${map} ${variant}` : map;
   const t1 = compactTeam(team1);
@@ -59,17 +59,22 @@ function formatRow(line, idx, isCurrent) {
   else teams = '';
   // On the current line bold spans index + layer so the highlight reads as one unit.
   if (isCurrent) return `:green_circle: **${idx + 1}. ${layer}**${teams}`;
+  // When some line is highlighted, prefix the rest with a muted dot so every
+  // row's text stays left-aligned with the green-dot row.
+  if (aligned) return `:white_circle: **${idx + 1}.** ${layer}${teams}`;
   return `**${idx + 1}.** ${layer}${teams}`;
 }
 
 // currentLayerToken: the live layer token (first whitespace field of the live
-// layer string). The first rotation line whose first token matches is highlighted.
+// layer string). The first rotation line whose first token matches is highlighted;
+// when a line is highlighted the others get a muted dot for alignment.
 export function formatRotationList(lines, currentLayerToken = null) {
   if (!lines || lines.length === 0) return '(empty rotation)';
   const highlightIdx = currentLayerToken
     ? lines.findIndex((line) => String(line).trim().split(/\s+/)[0] === currentLayerToken)
     : -1;
-  return lines.map((line, idx) => formatRow(line, idx, idx === highlightIdx)).join('\n');
+  const aligned = highlightIdx !== -1;
+  return lines.map((line, idx) => formatRow(line, idx, idx === highlightIdx, aligned)).join('\n');
 }
 
 const COLOR_OK = 0x57F287;
