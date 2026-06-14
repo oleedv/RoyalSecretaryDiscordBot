@@ -156,6 +156,14 @@ function connectServer(serverCfg) {
     conn.state.currentMap = extractMapName(conn.state.currentLayer);
     conn.state.playerCount = 0;
     log.info({ name: serverCfg.name, map: conn.state.currentMap, layer: conn.state.currentLayer }, 'New game started');
+
+    // The live layer just changed; re-render the rotation embed so its
+    // current-map highlight + match timer track the new round.
+    if (discordClient && serverCfg.name === config.seeding?.seedingServer) {
+      import('../layerRotationValidator/layerRotationValidatorScheduler.js')
+        .then(({ refreshLiveLayerHighlight }) => refreshLiveLayerHighlight(discordClient))
+        .catch((err) => log.error({ err }, 'Failed to refresh layer rotation highlight on NEW_GAME'));
+    }
   });
 
   conn.socket.on('PLAYER_CONNECTED', () => {
