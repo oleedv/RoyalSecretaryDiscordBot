@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test';
-import { formatRotationList } from '../layerRotationValidatorEmbeds.js';
+import { formatRotationList, buildSuccessEmbed } from '../layerRotationValidatorEmbeds.js';
 
 describe('formatRotationList', () => {
   test('renders bold-indexed lines with italicised teams', () => {
@@ -38,5 +38,63 @@ describe('formatRotationList', () => {
     const rows = formatRotationList(lines).split('\n');
     expect(rows[0]).toBe('**1.** Sumari RAAS v1 - *USA vs MEI*');
     expect(rows[11]).toBe('**12.** Sumari RAAS v1 - *USA vs MEI*');
+  });
+});
+
+describe('formatRotationList - current-map highlight', () => {
+  const lines = [
+    'Sumari_Seed_v1 USA MEI',
+    'FoolsRoad_RAAS_v1 AFU RGF',
+    'Sumari_Seed_v1 USA MEI',
+  ];
+
+  test('highlights the first line matching the current layer token', () => {
+    const rows = formatRotationList(lines, 'FoolsRoad_RAAS_v1').split('\n');
+    expect(rows[1]).toBe(':green_circle: **2. Fools Road RAAS v1** - *AFU vs RGF*');
+    expect(rows[0]).toBe('**1.** Sumari Seed v1 - *USA vs MEI*');
+  });
+
+  test('highlights only the first occurrence when the layer repeats', () => {
+    const rows = formatRotationList(lines, 'Sumari_Seed_v1').split('\n');
+    expect(rows[0]).toBe(':green_circle: **1. Sumari Seed v1** - *USA vs MEI*');
+    expect(rows[2]).toBe('**3.** Sumari Seed v1 - *USA vs MEI*');
+  });
+
+  test('no highlight when the current layer matches no line', () => {
+    expect(formatRotationList(lines, 'Narva_RAAS_v1')).not.toContain(':green_circle:');
+  });
+
+  test('no highlight when no current layer token is supplied (back-compat)', () => {
+    expect(formatRotationList(lines)).not.toContain(':green_circle:');
+  });
+});
+
+describe('buildSuccessEmbed - current map block', () => {
+  const lines = ['Sumari_Seed_v1 USA MEI', 'Mutaha_RAAS_v1 RGF USMC'];
+
+  test('adds Current map + Started lines and highlights the row when both live values are known', () => {
+    const d = buildSuccessEmbed({ mode: 'LayerList', lines, currentLayer: 'Mutaha_RAAS_v1', matchStartTime: 1717003600 }).data.description;
+    expect(d).toContain('Current map: Mutaha RAAS v1');
+    expect(d).toContain('Started <t:1717003600:R>');
+    expect(d).toContain(':green_circle: **2. Mutaha RAAS v1** - *RGF vs USMC*');
+  });
+
+  test('omits the Started line when matchStartTime is unknown', () => {
+    const d = buildSuccessEmbed({ mode: 'LayerList', lines, currentLayer: 'Mutaha_RAAS_v1', matchStartTime: null }).data.description;
+    expect(d).toContain('Current map: Mutaha RAAS v1');
+    expect(d).not.toContain('Started <t:');
+  });
+
+  test('omits the whole block when currentLayer is unknown', () => {
+    const d = buildSuccessEmbed({ mode: 'LayerList', lines, currentLayer: null, matchStartTime: 1717003600 }).data.description;
+    expect(d).not.toContain('Current map:');
+    expect(d).not.toContain('Started <t:');
+  });
+
+  test('back-compat: no live fields renders header + plain list', () => {
+    const d = buildSuccessEmbed({ mode: 'LayerList', lines }).data.description;
+    expect(d).toContain('Mode: LayerList');
+    expect(d).not.toContain('Current map:');
+    expect(d).not.toContain(':green_circle:');
   });
 });

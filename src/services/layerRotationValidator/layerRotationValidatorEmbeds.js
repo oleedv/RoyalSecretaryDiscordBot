@@ -47,7 +47,7 @@ function compactTeam(team) {
   return team.replace(/ \+ /g, '+');
 }
 
-function formatRow(line, idx) {
+function formatRow(line, idx, isCurrent) {
   const { map, variant, team1, team2 } = prettifyLayerToken(line);
   const layer = variant ? `${map} ${variant}` : map;
   const t1 = compactTeam(team1);
@@ -57,12 +57,19 @@ function formatRow(line, idx) {
   else if (t1 !== '-') teams = ` - *${t1}*`;
   else if (t2 !== '-') teams = ` - *${t2}*`;
   else teams = '';
+  // On the current line bold spans index + layer so the highlight reads as one unit.
+  if (isCurrent) return `:green_circle: **${idx + 1}. ${layer}**${teams}`;
   return `**${idx + 1}.** ${layer}${teams}`;
 }
 
-export function formatRotationList(lines) {
+// currentLayerToken: the live layer token (first whitespace field of the live
+// layer string). The first rotation line whose first token matches is highlighted.
+export function formatRotationList(lines, currentLayerToken = null) {
   if (!lines || lines.length === 0) return '(empty rotation)';
-  return lines.map(formatRow).join('\n');
+  const highlightIdx = currentLayerToken
+    ? lines.findIndex((line) => String(line).trim().split(/\s+/)[0] === currentLayerToken)
+    : -1;
+  return lines.map((line, idx) => formatRow(line, idx, idx === highlightIdx)).join('\n');
 }
 
 const COLOR_OK = 0x57F287;
@@ -75,12 +82,26 @@ function modeLabel(mode) {
   return mode;
 }
 
-export function buildSuccessEmbed({ mode, lines }) {
-  const list = formatRotationList(lines);
+export function buildSuccessEmbed({ mode, lines, currentLayer = null, matchStartTime = null }) {
+  const currentToken = currentLayer ? String(currentLayer).trim().split(/\s+/)[0] : null;
+  const list = formatRotationList(lines, currentToken);
   const unix = Math.floor(Date.now() / 1000);
+
+  // Live block (between the Updated line and the list) only when we know the
+  // current layer. The Started line is independently optional.
+  let liveBlock = '';
+  if (currentLayer) {
+    const { map, variant } = prettifyLayerToken(currentLayer);
+    const currentLabel = variant ? `${map} ${variant}` : map;
+    liveBlock = `\n\nCurrent map: ${currentLabel}`;
+    if (matchStartTime) liveBlock += `\nStarted <t:${matchStartTime}:R>`;
+  }
+
   const description =
     `Mode: ${modeLabel(mode)}\n` +
-    `Updated <t:${unix}:R>\n\n` +
+    `Updated <t:${unix}:R>` +
+    liveBlock +
+    `\n\n` +
     list;
   return new EmbedBuilder()
     .setColor(COLOR_OK)
