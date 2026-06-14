@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import { successEmbed, errorEmbed } from '../utils/embed.js';
 import {
   createGiveaway,
@@ -35,7 +35,6 @@ export default {
   data: new SlashCommandBuilder()
     .setName('giveaway')
     .setDescription('Manage the monthly RB game giveaway')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand((s) => s
       .setName('start')
       .setDescription('Post a new monthly giveaway entry message')
