@@ -209,3 +209,4 @@ When modifying this feature, check off:
 | Date | Version | Change | Commit |
 |------|---------|--------|--------|
 | 2026-06-03 | 2.5.0 | Initial implementation | `dc9e6a9` |
+| 2026-06-15 | 2.9.3 | Live-update the public entry message's "Entries so far" count on every new entry (button enter + manual add). New `giveawayMessage.refreshEntryMessage()` + `countEntries()`. Previously the count was posted once at `0` and never refreshed. | _pending_ |

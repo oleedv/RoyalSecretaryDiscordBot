@@ -11,6 +11,7 @@ import {
 } from '../services/giveaway/giveawayService.js';
 import { computeTickets } from '../services/giveaway/giveawayMath.js';
 import { buildEnterConfirmEmbed } from '../services/giveaway/giveawayEmbeds.js';
+import { refreshEntryMessage } from '../services/giveaway/giveawayMessage.js';
 import config from '../config.js';
 import logger from '../logger.js';
 
@@ -47,6 +48,7 @@ export async function handleEnter(interaction) {
   }
 
   await addLinkedEntry(giveaway.id, interaction.user.id, steamId);
+  await refreshEntryMessage(interaction.client, giveaway);
 
   const votes = await countVotesForTarget(giveaway.id, interaction.user.id);
   const tickets = computeTickets(
