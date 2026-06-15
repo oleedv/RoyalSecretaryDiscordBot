@@ -47,6 +47,32 @@ function compactTeam(team) {
   return team.replace(/ \+ /g, '+');
 }
 
+// Canonical key for layer matching. The live A2S map name ("Goose Bay RAAS v2")
+// differs from the rotation token ("GooseBay_RAAS_v2") in casing and in where the
+// word boundaries fall (spaces vs underscores vs camelCase), so collapse all of
+// those separators away before comparing.
+function canonLayer(s) {
+  return String(s).toLowerCase().replace(/[\s_]+/g, '');
+}
+
+// First whitespace-delimited field of a rotation line (the layer token).
+function layerToken(line) {
+  return String(line).trim().split(/\s+/)[0] || '';
+}
+
+// Human-readable "Current map" label. Prefer the matched rotation line so the
+// label reads identically to the highlighted row. With no match the live name may
+// be a spaced A2S string that prettifyLayerToken can't parse as a single token, so
+// swap spaces for underscores first; fall back to the raw string if all else fails.
+function currentMapLabel(currentLayer, lines) {
+  const target = canonLayer(currentLayer);
+  const match = (lines || []).find((line) => canonLayer(layerToken(line)) === target);
+  const source = match || String(currentLayer).trim().replace(/\s+/g, '_');
+  const { map, variant } = prettifyLayerToken(source);
+  const label = variant ? `${map} ${variant}` : map;
+  return label || String(currentLayer).trim();
+}
+
 function formatRow(line, idx, isCurrent, aligned) {
   const { map, variant, team1, team2 } = prettifyLayerToken(line);
   const layer = variant ? `${map} ${variant}` : map;
@@ -65,13 +91,16 @@ function formatRow(line, idx, isCurrent, aligned) {
   return `**${idx + 1}.** ${layer}${teams}`;
 }
 
-// currentLayerToken: the live layer token (first whitespace field of the live
-// layer string). The first rotation line whose first token matches is highlighted;
+// currentLayer: the live layer name from the server. It may arrive as the game's
+// underscore token ("GooseBay_RAAS_v2") or as the A2S display name with spaces
+// ("Goose Bay RAAS v2"); both are matched against the rotation tokens via a
+// separator-insensitive canonical key. The first matching line is highlighted;
 // when a line is highlighted the others get a muted dot for alignment.
-export function formatRotationList(lines, currentLayerToken = null) {
+export function formatRotationList(lines, currentLayer = null) {
   if (!lines || lines.length === 0) return '(empty rotation)';
-  const highlightIdx = currentLayerToken
-    ? lines.findIndex((line) => String(line).trim().split(/\s+/)[0] === currentLayerToken)
+  const target = currentLayer ? canonLayer(currentLayer) : null;
+  const highlightIdx = target
+    ? lines.findIndex((line) => canonLayer(layerToken(line)) === target)
     : -1;
   const aligned = highlightIdx !== -1;
   return lines.map((line, idx) => formatRow(line, idx, idx === highlightIdx, aligned)).join('\n');
@@ -88,17 +117,14 @@ function modeLabel(mode) {
 }
 
 export function buildSuccessEmbed({ mode, lines, currentLayer = null, matchStartTime = null }) {
-  const currentToken = currentLayer ? String(currentLayer).trim().split(/\s+/)[0] : null;
-  const list = formatRotationList(lines, currentToken);
+  const list = formatRotationList(lines, currentLayer);
   const unix = Math.floor(Date.now() / 1000);
 
   // Live block (between the Updated line and the list) only when we know the
   // current layer. The Started line is independently optional.
   let liveBlock = '';
   if (currentLayer) {
-    const { map, variant } = prettifyLayerToken(currentLayer);
-    const currentLabel = variant ? `${map} ${variant}` : map;
-    liveBlock = `\n\nCurrent map: ${currentLabel}`;
+    liveBlock = `\n\nCurrent map: ${currentMapLabel(currentLayer, lines)}`;
     if (matchStartTime) liveBlock += `\nStarted <t:${matchStartTime}:R>`;
   }
 

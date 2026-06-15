@@ -72,6 +72,17 @@ describe('formatRotationList - current-map highlight', () => {
     expect(out).not.toContain(':green_circle:');
     expect(out).not.toContain(':white_circle:');
   });
+
+  test('matches a spaced A2S map name against camelCase rotation tokens', () => {
+    // Live currentLayer arrives from A2S as "Goose Bay RAAS v2" (spaces), while the
+    // rotation token is "GooseBay_RAAS_v2" (camelCase + underscores). Must still match.
+    const rows = formatRotationList(
+      ['GooseBay_RAAS_v2 PLA+Motorized CAF', 'Chora_RAAS_v1 USA RGF'],
+      'Goose Bay RAAS v2'
+    ).split('\n');
+    expect(rows[0]).toBe(':green_circle: **1. Goose Bay RAAS v2** - *PLA+Motorized vs CAF*');
+    expect(rows[1]).toBe(':white_circle: **2.** Chora RAAS v1 - *USA vs RGF*');
+  });
 });
 
 describe('buildSuccessEmbed - current map block', () => {
@@ -100,6 +111,22 @@ describe('buildSuccessEmbed - current map block', () => {
     const d = buildSuccessEmbed({ mode: 'LayerList', lines }).data.description;
     expect(d).toContain('Mode: LayerList');
     expect(d).not.toContain('Current map:');
+    expect(d).not.toContain(':green_circle:');
+  });
+
+  test('matches and labels a spaced live A2S name (GooseBay regression)', () => {
+    const rot = ['Fallujah_Seed_v1 WPMC CAF', 'GooseBay_RAAS_v2 PLA+Motorized CAF'];
+    const d = buildSuccessEmbed({ mode: 'LayerList_Vote', lines: rot, currentLayer: 'Goose Bay RAAS v2', matchStartTime: 1717003600 }).data.description;
+    expect(d).toContain('Current map: Goose Bay RAAS v2');
+    expect(d).toContain(':green_circle: **2. Goose Bay RAAS v2** - *PLA+Motorized vs CAF*');
+  });
+
+  test('labels an unmatched spaced live name without collapsing to the first word', () => {
+    // Regression for "Current map: Goose": prettifyLayerToken used to take only the
+    // first whitespace field of a spaced live name. Unmatched names must still render fully.
+    const rot = ['Fallujah_Seed_v1 WPMC CAF'];
+    const d = buildSuccessEmbed({ mode: 'LayerList', lines: rot, currentLayer: 'Goose Bay RAAS v2' }).data.description;
+    expect(d).toContain('Current map: Goose Bay RAAS v2');
     expect(d).not.toContain(':green_circle:');
   });
 });
