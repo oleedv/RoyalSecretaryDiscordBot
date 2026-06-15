@@ -13,6 +13,7 @@ import * as tempvoiceModals from '../handlers/tempvoiceModals.js';
 import * as clanReportButtons from '../handlers/clanReportButtons.js';
 import * as clanReportSelects from '../handlers/clanReportSelects.js';
 import * as giveawayButtons from '../handlers/giveawayButtons.js';
+import * as steamLinkButtons from '../handlers/steamLinkButtons.js';
 import { errorEmbed } from '../utils/embed.js';
 import { reportError } from '../services/admin/errorAlertService.js';
 import { logDmInteraction } from '../services/admin/dmLogService.js';
@@ -104,6 +105,7 @@ const buttonHandlers = {
   prospect_close_ticket: prospectButtons.handleCloseTicket,
   seeding_join: seedingButtons.handleJoin,
   seeding_leave: seedingButtons.handleLeave,
+  link_steam: steamLinkButtons.handleLinkStart,
   seed_progression: seedTrackerButtons.handleSeedProgression,
   verify_start: verifyButtons.handleStart,
   tv_name: tempvoiceButtons.handleName,
@@ -131,6 +133,7 @@ const modalHandlers = {
   prospect_modal_1: prospectModals.handleModal1,
   prospect_modal_2: prospectModals.handleModal2,
   prospect_deny_modal: prospectModals.handleDenyModal,
+  link_steam_modal: steamLinkButtons.handleLinkSubmit,
   prospect_extend_modal: prospectModals.handleExtendModal,
   tv_name_modal: tempvoiceModals.handleNameModal,
   tv_limit_modal: tempvoiceModals.handleLimitModal,

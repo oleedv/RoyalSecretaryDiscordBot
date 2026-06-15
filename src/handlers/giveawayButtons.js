@@ -29,7 +29,7 @@ export async function handleEnter(interaction) {
   const steamId = await getStoredSteamId(interaction.user.id);
   if (!steamId) {
     return interaction.editReply({
-      embeds: [errorEmbed('You need to link your Steam account first using the verify panel.')],
+      embeds: [errorEmbed('You need to link your Steam account first. **DM me and click Link Steam**, then try again.')],
     });
   }
 
