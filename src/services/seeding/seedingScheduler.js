@@ -1,10 +1,10 @@
-import { getServerState, extractGameMode } from './seedingSocket.js';
+import { getServerStateById, extractGameMode, setAnnouncerServerId } from './seedingSocket.js';
 import {
   getSeedingConfig, getActiveSession, startSession, completeSession,
   resetSession, updateSessionPeak, updateSessionCallMessage,
   expireOldSessions, getSeedingStats, trackMessage,
   clearTrackedMessages, setLastDailyCallDate, setPanelMessageId,
-  setLastResetDate,
+  setLastResetDate, writeLiveStatus,
 } from './seedingService.js';
 import {
   buildSeedingCallEmbed, buildSeedingCompletionEmbed,
@@ -342,10 +342,21 @@ async function updateSeedingState(client) {
     const cfg = await getSeedingConfig();
     if (!cfg?.enabled) return;
 
-    const state = getServerState(config.seeding?.seedingServer);
-    if (!state.connected) return;
-
+    setAnnouncerServerId(cfg.announcer_server_id);
+    const state = getServerStateById(cfg.announcer_server_id);
     const session = await getActiveSession();
+
+    // Surface live status for the website regardless of resolution outcome.
+    await writeLiveStatus({
+      serverResolvedOk: !!state,
+      socketConnected: !!state?.connected,
+      currentPopulation: state?.connected ? state.playerCount : null,
+      currentLayer: state?.connected ? state.currentLayer : null,
+      activeSessionId: session?.id ?? null,
+    });
+
+    // Unavailable (unresolved id or socket down): never act on stale/absent data.
+    if (!state || !state.connected) return;
 
     // No active session - check if we should re-seed (server crash recovery)
     if (!session) {
@@ -405,14 +416,19 @@ export async function postSeedingCall(client, cfg) {
     return;
   }
 
-  const state = getServerState(config.seeding?.seedingServer);
+  const state = getServerStateById(cfg.announcer_server_id);
+  const available = !!state && !!state.connected;
+  const playerCount = available ? state.playerCount : null;
+  const currentLayer = available ? state.currentLayer : null;
+  const currentLayerObj = available ? state.currentLayerObj : null;
+
   const stats = await getSeedingStats();
-  const gameMode = extractGameMode(state.currentLayer);
-  const thumbnailUrl = getLayerImageUrl(state.currentLayerObj, state.currentLayer);
+  const gameMode = extractGameMode(currentLayer);
+  const thumbnailUrl = getLayerImageUrl(currentLayerObj, currentLayer);
 
   const embed = buildSeedingCallEmbed({
-    layerName: state.currentLayer,
-    playerCount: state.playerCount,
+    layerName: currentLayer,
+    playerCount,
     threshold: cfg.seed_threshold,
     thumbnailUrl,
     avgSeedTime: stats.avgMinutes,
@@ -421,14 +437,15 @@ export async function postSeedingCall(client, cfg) {
     fastestSeed: stats.fastest,
   });
 
-  const roleMention = cfg.role_id ? `<@&${cfg.role_id}>` : '';
+  const roleIds = Array.isArray(cfg.role_ids) ? cfg.role_ids : [];
+  const roleMention = roleIds.map((id) => `<@&${id}>`).join(' ');
   const content = [roleMention, '**SEEDING HAS BEGUN**'].filter(Boolean).join(' ');
-  const allowedMentions = cfg.role_id ? { roles: [cfg.role_id] } : { parse: [] };
+  const allowedMentions = roleIds.length ? { roles: roleIds } : { parse: [] };
 
   const msg = await channel.send({ content, embeds: [embed], allowedMentions });
 
   // Start a seeding session
-  const session = await startSession(state.currentMap, state.currentLayer, state.playerCount);
+  const session = await startSession(state?.currentMap ?? null, currentLayer, playerCount ?? 0);
   await updateSessionCallMessage(session.id, msg.id);
   await trackMessage(msg.id, cfg.channel_id, 'call', session.id);
 
@@ -445,9 +462,10 @@ async function postCompletionMessage(client, cfg, session, state, duration) {
     duration,
   });
 
-  const roleMention = cfg.role_id ? `<@&${cfg.role_id}>` : '';
+  const roleIds = Array.isArray(cfg.role_ids) ? cfg.role_ids : [];
+  const roleMention = roleIds.map((id) => `<@&${id}>`).join(' ');
   const content = [roleMention, '**SEEDING COMPLETE**'].filter(Boolean).join(' ');
-  const allowedMentions = cfg.role_id ? { roles: [cfg.role_id] } : { parse: [] };
+  const allowedMentions = roleIds.length ? { roles: roleIds } : { parse: [] };
 
   const msg = await channel.send({ content, embeds: [embed], allowedMentions });
   await trackMessage(msg.id, cfg.channel_id, 'completion', session.id);
