@@ -6,6 +6,16 @@ const log = logger.child({ module: 'schema' });
 export async function initSchema() {
   log.info('Initializing database schema...');
 
+  // Generic key/value store for small bits of bot-managed state (e.g. the SL
+  // leaderboard's persistent message id). Value is JSON-serialised by botState.js.
+  await query(`
+    CREATE TABLE IF NOT EXISTS bot_state (
+      \`key\` VARCHAR(64) NOT NULL PRIMARY KEY,
+      \`value\` TEXT NOT NULL,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+
   await query(`
     CREATE TABLE IF NOT EXISTS tickets (
       id INT AUTO_INCREMENT PRIMARY KEY,
