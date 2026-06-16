@@ -9,13 +9,18 @@ export async function handleTicketMemberLeave(ticket, member, guild) {
   const channel = await guild.channels.fetch(ticket.channel_id).catch(() => null);
   if (!channel) return;
 
+  const closing = ticket.status === 'closing';
+  const description = closing
+    ? `**${member.user.tag}** has left the server. This ticket is in its closing grace period and will be deleted soon unless it is reopened.`
+    : `**${member.user.tag}** has left the server. This ticket is still open.`;
+
   const embed = createEmbed('Ticket')
     .setTitle('Member Left Server')
-    .setDescription(`**${member.user.tag}** has left the server. This ticket is still open.`)
+    .setDescription(description)
     .setColor(0xed4245);
 
   await channel.send({ embeds: [embed] });
-  log.info({ ticketId: ticket.id, userId: member.id }, 'Notified staff of ticket user leaving');
+  log.info({ ticketId: ticket.id, userId: member.id, status: ticket.status }, 'Notified staff of ticket user leaving');
 }
 
 export async function handleProspectMemberLeave(prospect, member, guild) {

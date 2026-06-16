@@ -1,4 +1,5 @@
 import { query } from '../../database/connection.js';
+import { successEmbed } from '../../utils/embed.js';
 import logger from '../../logger.js';
 
 const log = logger.child({ module: 'sl-reward-dmqueue' });
@@ -9,7 +10,9 @@ const RETENTION_DAYS = 14;
 async function deliver(client, discordId, content) {
   try {
     const user = await client.users.fetch(discordId);
-    await user.send(content);
+    // The queue stores plain text so retries stay simple; wrap it in an embed
+    // at send time so every user-facing DM is an embed.
+    await user.send({ embeds: [successEmbed(content)] });
     return true;
   } catch (err) {
     log.debug({ err: err?.message, discordId }, 'DM delivery failed');

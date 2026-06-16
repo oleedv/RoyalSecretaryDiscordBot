@@ -1,5 +1,5 @@
 import { Events } from 'discord.js';
-import { getOpenTicketByUser } from '../services/ticket/ticketService.js';
+import { getOpenTicketByUser, getClosingTicketByUser } from '../services/ticket/ticketService.js';
 import { getOpenProspectByUser } from '../services/prospect/prospectService.js';
 import { handleTicketMemberLeave, handleProspectMemberLeave, handleMentorLeave } from '../handlers/memberLeave.js';
 import logger from '../logger.js';
@@ -14,7 +14,8 @@ export default {
     const guild = member.guild;
 
     try {
-      const ticket = await getOpenTicketByUser(userId);
+      // Notify open tickets and tickets still in their closing grace period.
+      const ticket = await getOpenTicketByUser(userId) || await getClosingTicketByUser(userId);
       if (ticket) await handleTicketMemberLeave(ticket, member, guild);
 
       const prospect = await getOpenProspectByUser(userId);

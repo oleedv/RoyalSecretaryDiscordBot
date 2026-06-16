@@ -178,7 +178,7 @@ export default {
             channelId: interaction.channel?.id,
             sinceLastMs: now - last,
           }, 'Button rate-limited by cooldown');
-          return interaction.reply({ content: 'Please wait before clicking again.', flags: ['Ephemeral'] }).catch((err) => {
+          return interaction.reply({ embeds: [errorEmbed('Please wait before clicking again.')], flags: ['Ephemeral'] }).catch((err) => {
             log.warn({ err, interactionId: interaction.id, customId: interaction.customId }, 'Cooldown reply failed');
           });
         }

@@ -84,7 +84,7 @@ export default {
   },
 };
 
-async function handleDM(message) {
+export async function handleDM(message) {
   log.debug({ userId: message.author.id }, 'handleDM: start');
 
   const ticket = await getOpenTicketByUser(message.author.id);
@@ -98,8 +98,15 @@ async function handleDM(message) {
   if (closingTicket) {
     const reopenResult = await reopenTicket(closingTicket, message.author.id);
     if (reopenResult.error) {
-      log.warn({ userId: message.author.id, ticketId: closingTicket.id }, 'Ticket reopen race: already reopened or closed');
-      await message.reply('This ticket is no longer available. Please open a new ticket if you need help.').catch(() => {});
+      // A concurrent DM may have already won the reopen race. If the ticket is
+      // now open, forward this message to it instead of dropping it.
+      const reopenedTicket = await getOpenTicketByUser(message.author.id);
+      if (reopenedTicket) {
+        log.debug({ userId: message.author.id, ticketId: reopenedTicket.id }, 'handleDM: lost reopen race, forwarding to already-reopened ticket');
+        return ticketMessages.handleDM(message, reopenedTicket);
+      }
+      log.warn({ userId: message.author.id, ticketId: closingTicket.id }, 'Ticket reopen failed and no open ticket found');
+      await message.reply({ embeds: [infoEmbed('This ticket is no longer available. Please open a new ticket if you need help.')] }).catch(() => {});
       return;
     }
 
