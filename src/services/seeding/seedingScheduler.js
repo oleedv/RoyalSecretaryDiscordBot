@@ -407,6 +407,16 @@ async function updateSeedingState(client) {
   }
 }
 
+// ── Helpers ──
+
+function buildSeedingPing(roleIds, headline) {
+  const ids = Array.isArray(roleIds) ? roleIds : [];
+  const roleMention = ids.map((id) => `<@&${id}>`).join(' ');
+  const content = [roleMention, headline].filter(Boolean).join(' ');
+  const allowedMentions = ids.length ? { roles: ids } : { parse: [] };
+  return { content, allowedMentions };
+}
+
 // ── Message posting ──
 
 export async function postSeedingCall(client, cfg) {
@@ -421,6 +431,7 @@ export async function postSeedingCall(client, cfg) {
   const playerCount = available ? state.playerCount : null;
   const currentLayer = available ? state.currentLayer : null;
   const currentLayerObj = available ? state.currentLayerObj : null;
+  const currentMap = available ? state.currentMap : null;
 
   const stats = await getSeedingStats();
   const gameMode = extractGameMode(currentLayer);
@@ -437,15 +448,12 @@ export async function postSeedingCall(client, cfg) {
     fastestSeed: stats.fastest,
   });
 
-  const roleIds = Array.isArray(cfg.role_ids) ? cfg.role_ids : [];
-  const roleMention = roleIds.map((id) => `<@&${id}>`).join(' ');
-  const content = [roleMention, '**SEEDING HAS BEGUN**'].filter(Boolean).join(' ');
-  const allowedMentions = roleIds.length ? { roles: roleIds } : { parse: [] };
+  const { content, allowedMentions } = buildSeedingPing(cfg.role_ids, '**SEEDING HAS BEGUN**');
 
   const msg = await channel.send({ content, embeds: [embed], allowedMentions });
 
   // Start a seeding session
-  const session = await startSession(state?.currentMap ?? null, currentLayer, playerCount ?? 0);
+  const session = await startSession(currentMap, currentLayer, playerCount ?? 0);
   await updateSessionCallMessage(session.id, msg.id);
   await trackMessage(msg.id, cfg.channel_id, 'call', session.id);
 
@@ -462,10 +470,7 @@ async function postCompletionMessage(client, cfg, session, state, duration) {
     duration,
   });
 
-  const roleIds = Array.isArray(cfg.role_ids) ? cfg.role_ids : [];
-  const roleMention = roleIds.map((id) => `<@&${id}>`).join(' ');
-  const content = [roleMention, '**SEEDING COMPLETE**'].filter(Boolean).join(' ');
-  const allowedMentions = roleIds.length ? { roles: roleIds } : { parse: [] };
+  const { content, allowedMentions } = buildSeedingPing(cfg.role_ids, '**SEEDING COMPLETE**');
 
   const msg = await channel.send({ content, embeds: [embed], allowedMentions });
   await trackMessage(msg.id, cfg.channel_id, 'completion', session.id);
