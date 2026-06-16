@@ -106,17 +106,22 @@ export function formatRotationList(lines, currentLayer = null) {
   return lines.map((line, idx) => formatRow(line, idx, idx === highlightIdx, aligned)).join('\n');
 }
 
-// Recently-played layers, most-recent first. Each entry is a layer token from
-// squadjs_matches.layer (no team fields), prettified to match the rotation spelling.
+// A readable label for a single layer name. squadjs_matches.layer arrives in mixed
+// formats: underscore tokens ("Manicouagan_RAAS_v2") and spaced A2S names ("Mutaha
+// AAS v2"). prettifyLayerToken only parses the first whitespace field, so normalise
+// spaces to underscores first to keep the whole name (not just the first word).
+function layerLabel(layer) {
+  const token = String(layer).trim().replace(/\s+/g, '_');
+  const { map, variant } = prettifyLayerToken(token);
+  const label = variant ? `${map} ${variant}` : map;
+  return label || String(layer).trim();
+}
+
+// Recently-played layers, most-recent first. Each entry is a layer name from
+// squadjs_matches.layer (no team fields).
 export function formatLastMaps(lastMaps) {
   if (!lastMaps || lastMaps.length === 0) return '_No recent maps_';
-  return lastMaps
-    .map((layer, idx) => {
-      const { map, variant } = prettifyLayerToken(layer);
-      const label = variant ? `${map} ${variant}` : map;
-      return `**${idx + 1}.** ${label}`;
-    })
-    .join('\n');
+  return lastMaps.map((layer, idx) => `**${idx + 1}.** ${layerLabel(layer)}`).join('\n');
 }
 
 const COLOR_OK = 0x57F287;

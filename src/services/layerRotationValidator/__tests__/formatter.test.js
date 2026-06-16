@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test';
-import { formatRotationList, buildSuccessEmbed } from '../layerRotationValidatorEmbeds.js';
+import { formatRotationList, buildSuccessEmbed, formatLastMaps } from '../layerRotationValidatorEmbeds.js';
 
 describe('formatRotationList', () => {
   test('renders bold-indexed lines with italicised teams', () => {
@@ -198,5 +198,28 @@ describe('buildSuccessEmbed - vote mode (last 3 maps)', () => {
     }).data.description;
     expect(d).not.toContain('Last 3 maps:');
     expect(d).toContain('Kohat RAAS v1');
+  });
+});
+
+describe('formatLastMaps', () => {
+  test('renders underscore layer tokens as readable labels, most-recent first', () => {
+    expect(formatLastMaps(['Manicouagan_RAAS_v2', 'Gorodok_RAAS_v2'])).toBe(
+      '**1.** Manicouagan RAAS v2\n' +
+      '**2.** Gorodok RAAS v2'
+    );
+  });
+
+  test('renders spaced A2S layer names fully, not just the first word', () => {
+    // squadjs_matches.layer stores some layers as spaced A2S names ("Mutaha AAS v2")
+    // and others as underscore tokens. Both must render the full readable name.
+    expect(formatLastMaps(['Mutaha AAS v2', 'Narva RAAS v1', 'Goose Bay RAAS v2'])).toBe(
+      '**1.** Mutaha AAS v2\n' +
+      '**2.** Narva RAAS v1\n' +
+      '**3.** Goose Bay RAAS v2'
+    );
+  });
+
+  test('returns a placeholder for empty input', () => {
+    expect(formatLastMaps([])).toContain('No recent maps');
   });
 });
