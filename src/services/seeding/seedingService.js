@@ -7,23 +7,42 @@ const log = logger.child({ module: 'seedingService' });
 // ── Config ──
 
 export async function getSeedingConfig() {
-  const rows = await query('SELECT * FROM seeding_config WHERE id = 1');
-  if (rows[0]) return rows[0];
-
-  // Insert default row from settings fallback
   const defaults = config.seeding || {};
-  await query(
-    `INSERT IGNORE INTO seeding_config (id, seed_threshold, reset_threshold, daily_time, timezone)
-     VALUES (1, ?, ?, ?, ?)`,
-    [
-      defaults.defaultThreshold || 40,
-      defaults.defaultResetThreshold || 20,
-      defaults.defaultTime || '16:00',
-      defaults.defaultTimezone || 'UTC',
-    ]
-  );
-  const inserted = await query('SELECT * FROM seeding_config WHERE id = 1');
-  return inserted[0] || null;
+  let rows = await query('SELECT * FROM seeding_config WHERE id = 1');
+  if (!rows[0]) {
+    await query(
+      `INSERT IGNORE INTO seeding_config
+         (id, seed_threshold, reset_threshold, daily_time, timezone,
+          required_seed_days, rolling_window_days, whitelist_duration_days, max_extension_days)
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        defaults.defaultThreshold || 40,
+        defaults.defaultResetThreshold || 20,
+        defaults.defaultTime || '16:00',
+        defaults.defaultTimezone || 'UTC',
+        defaults.defaultRequiredSeedDays || 10,
+        defaults.defaultRollingWindowDays || 30,
+        defaults.defaultWhitelistDurationDays || 30,
+        defaults.defaultMaxExtensionDays || 60,
+      ]
+    );
+    rows = await query('SELECT * FROM seeding_config WHERE id = 1');
+  }
+  const cfg = rows[0] || null;
+  if (cfg) cfg.role_ids = parseRoleIds(cfg.role_ids, cfg.role_id);
+  return cfg;
+}
+
+// role_ids is a JSON column; fall back to the legacy single role_id when unset.
+function parseRoleIds(raw, legacyRoleId) {
+  let list = [];
+  if (Array.isArray(raw)) list = raw;
+  else if (typeof raw === 'string' && raw.trim()) {
+    try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) list = parsed; } catch { /* ignore */ }
+  }
+  list = list.map((x) => String(x)).filter(Boolean);
+  if (list.length === 0 && legacyRoleId) list = [String(legacyRoleId)];
+  return list;
 }
 
 export async function isSeedingEnabled() {
@@ -195,7 +214,7 @@ export async function clearTrackedMessages(channelId) {
 
 // ── Rapport ──
 
-export async function getSeedingRapport(date) {
+export async function getSeedingRapport(date, serverId) {
   // Query SquadJS database for per-player seeding data
   const seeders = await query(
     `SELECT
@@ -214,9 +233,10 @@ export async function getSeedingRapport(date) {
        AND l.time < j.time + INTERVAL 24 HOUR
      WHERE j.event_type = 'join'
        AND j.seed_join = 1
+       AND j.server_id = ?
        AND DATE(j.time) = ?
      ORDER BY l.seed_duration DESC`,
-    [date],
+    [serverId, date],
     'squadjs'
   )
 
@@ -242,4 +262,32 @@ export async function getSeedingRapport(date) {
       sessionDurationMinutes: s.sessionDuration != null ? Math.round(s.sessionDuration / 60) : null,
     })),
   }
+}
+
+// ── Live status (bot → website) ──
+
+export async function writeLiveStatus({ serverResolvedOk, socketConnected, currentPopulation, currentLayer, activeSessionId }) {
+  await query(
+    `INSERT INTO seeding_live_status
+       (id, server_resolved_ok, socket_connected, current_population, current_layer, active_session_id)
+     VALUES (1, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       server_resolved_ok = VALUES(server_resolved_ok),
+       socket_connected = VALUES(socket_connected),
+       current_population = VALUES(current_population),
+       current_layer = VALUES(current_layer),
+       active_session_id = VALUES(active_session_id)`,
+    [
+      serverResolvedOk ? 1 : 0,
+      socketConnected ? 1 : 0,
+      currentPopulation ?? null,
+      currentLayer ?? null,
+      activeSessionId ?? null,
+    ]
+  );
+}
+
+export async function getLiveStatus() {
+  const rows = await query('SELECT * FROM seeding_live_status WHERE id = 1');
+  return rows[0] || null;
 }

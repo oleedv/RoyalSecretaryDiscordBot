@@ -171,7 +171,7 @@ async function handleSendSeedingRapport(payload, client) {
   const date = payload.date
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Missing or invalid date in payload')
 
-  const rapport = await getSeedingRapport(date)
+  const rapport = await getSeedingRapport(date, cfg.tracker_server_id)
 
   const channel = await client.channels.fetch(cfg.channel_id).catch(() => null)
   if (!channel) throw new Error(`Seeding channel ${cfg.channel_id} not found`)
