@@ -6,6 +6,29 @@ const log = logger.child({ module: 'schema' });
 export async function initSchema() {
   log.info('Initializing database schema...');
 
+  // Generic key/value store for small bits of bot-managed state (e.g. the SL
+  // leaderboard's persistent message id). Value is JSON-serialised by botState.js.
+  await query(`
+    CREATE TABLE IF NOT EXISTS bot_state (
+      \`key\` VARCHAR(64) NOT NULL PRIMARY KEY,
+      \`value\` TEXT NOT NULL,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Grant DMs that couldn't be delivered (recipient unreachable / DMs closed) are
+  // queued here and retried by the SL grant cron until they land or expire.
+  await query(`
+    CREATE TABLE IF NOT EXISTS sl_pending_dms (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      discord_id VARCHAR(20) NOT NULL,
+      content TEXT NOT NULL,
+      attempts INT NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_attempt_at TIMESTAMP NULL
+    )
+  `);
+
   await query(`
     CREATE TABLE IF NOT EXISTS tickets (
       id INT AUTO_INCREMENT PRIMARY KEY,

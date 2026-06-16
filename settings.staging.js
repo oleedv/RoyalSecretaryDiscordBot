@@ -74,6 +74,20 @@ export default {
     whitelistDurationDays: 30,
     maxExtensionDays: 60,
   },
+  slReward: {
+    // Inert on staging: no channels, dry-run on (avoids writing real WhitelistEntry rows).
+    leaderboardChannelId: '',
+    hypercareChannelId: '',
+    hypercareVerbose: false,
+    dryRun: true,
+    clanId: 'cmq8eaiat03ym01qtcdgs7bri',
+    server: 'main',
+    thresholdHours: 5,
+    rewardDays: 7,
+    extendWhenRemainingHours: 24,
+    grantIntervalMs: 1800000,
+    leaderboardIntervalMs: 10800000,
+  },
   serverStatus: {
     channelId: '1476163752863862875',
     updateIntervalMs: 60000,
