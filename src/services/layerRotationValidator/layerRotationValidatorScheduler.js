@@ -15,7 +15,7 @@ import {
 } from './layerRotationValidatorService.js';
 import { buildSuccessEmbed, buildErrorEmbed } from './layerRotationValidatorEmbeds.js';
 import { getServerState } from '../seeding/seedingSocket.js';
-import { getServerStats, getRecentCompletedLayers } from '../serverStatus/serverStatusQueries.js';
+import { getActiveMatch, getRecentCompletedLayers } from '../serverStatus/serverStatusQueries.js';
 
 const log = logger.child({ module: 'layerRotationValidator' });
 
@@ -81,25 +81,29 @@ async function clearChannel(client, channelId) {
   }
 }
 
-// Best-effort resolve of the live layer + match start time from the seeding
-// server socket, plus (vote mode only) the last few played layers from the DB.
-// Any miss (no server configured, socket down, query error) returns nulls/[] and
-// the embed renders without highlight / timer / last-maps.
+// Resolve the current layer + match start time + (vote mode) recent layers.
+// The active match (layer + start) and recent layers come from the DB, so they are
+// available even right after a (re)boot before the live socket has delivered layer
+// info, or while the socket is disconnected. The live socket's currentLayer is
+// preferred when present (it reflects mid-match changes soonest). Any miss returns
+// nulls/[] and the embed renders without that piece.
 async function readLiveLayerState(embedMode) {
   const name = config.seeding?.seedingServer;
   if (!name) return { currentLayer: null, matchStartTime: null, lastMaps: [] };
-  // Last-played maps come from the DB, independent of socket liveness, so fetch
-  // them even when the live socket is down. Only needed in vote mode.
-  const lastMaps =
+
+  const [active, lastMaps] = await Promise.all([
+    getActiveMatch(name).catch(() => null),
     embedMode === 'LayerList_Vote'
-      ? await getRecentCompletedLayers(name, 3).catch(() => [])
-      : [];
+      ? getRecentCompletedLayers(name, 3).catch(() => [])
+      : Promise.resolve([]),
+  ]);
+
   const state = getServerState(name);
-  if (!state?.connected) return { currentLayer: null, matchStartTime: null, lastMaps };
-  const stats = await getServerStats(name).catch(() => ({}));
+  const socketLayer = state?.connected ? state.currentLayer || null : null;
+
   return {
-    currentLayer: state.currentLayer || null,
-    matchStartTime: stats?.matchStartTime ?? null,
+    currentLayer: socketLayer || active?.layer || null,
+    matchStartTime: active?.startTime ?? null,
     lastMaps,
   };
 }

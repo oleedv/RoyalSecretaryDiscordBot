@@ -129,6 +129,37 @@ export async function getRecentCompletedLayers(serverName, limit = 3) {
   }
 }
 
+async function fetchActiveMatch(serverId) {
+  const rows = await query(
+    `SELECT layer, UNIX_TIMESTAMP(start_time) AS start_ts
+     FROM squadjs_matches
+     WHERE server_id = ? AND end_time IS NULL
+     ORDER BY start_time DESC
+     LIMIT 1`,
+    [serverId],
+    'squadjs'
+  );
+  if (rows.length === 0) return null;
+  return {
+    layer: rows[0].layer || null,
+    startTime: rows[0].start_ts != null ? Number(rows[0].start_ts) : null,
+  };
+}
+
+// The current (in-progress) match: its layer + start unix ts. Sourced from the DB
+// so it is available even when the live socket has no layer yet (e.g. right after a
+// reboot) or is disconnected. Returns null on any failure.
+export async function getActiveMatch(serverName) {
+  const serverId = await getServerId(serverName);
+  if (serverId == null) return null;
+  try {
+    return await fetchActiveMatch(serverId);
+  } catch (err) {
+    log.warn({ err, serverName }, 'Failed to query active match');
+    return null;
+  }
+}
+
 export async function getServerStats(serverName) {
   const serverId = await getServerId(serverName);
   if (serverId == null) return {};
