@@ -1,5 +1,5 @@
 import { query } from '../../database/connection.js';
-import { isConnected as isSquadJsConnected } from '../seeding/seedingSocket.js';
+import { getAllServerStates } from '../seeding/seedingSocket.js';
 import { isSchedulerActive as isSeedingActive } from '../seeding/seedingScheduler.js';
 import { isSchedulerActive as isProspectActive } from '../prospect/prospectScheduler.js';
 import logger from '../../logger.js';
@@ -75,7 +75,7 @@ async function writeBeat(client) {
       memberCount,
       client.ws.ping,
       dbConnected,
-      isSquadJsConnected() ? 1 : 0,
+      getAllServerStates().some(s => s.state.connected) ? 1 : 0,
       isSeedingActive() ? 1 : 0,
       isProspectActive() ? 1 : 0,
       botStartedAt,

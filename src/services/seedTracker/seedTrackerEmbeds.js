@@ -44,11 +44,11 @@ export function buildMilestoneEmbed(name, milestone, uniqueDays) {
     .setDescription(`${name} has seeded ${uniqueDays} days!`);
 }
 
-export function buildWhitelistGrantedEmbed(name, steamId, expiresAt) {
+export function buildWhitelistGrantedEmbed(name, steamId, expiresAt, durationDays = 30) {
   return createEmbed('Seed Tracker')
     .setColor(COLOR_SUCCESS)
     .setTitle('Whitelist Earned!')
-    .setDescription(`${name} earned a 30-day whitelist for seeding!`)
+    .setDescription(`${name} earned a ${durationDays}-day whitelist for seeding!`)
     .addFields(
       { name: 'Steam ID', value: steamId, inline: true },
       { name: 'Expires', value: discordTimestamp(expiresAt), inline: true },
@@ -69,11 +69,11 @@ export function buildLeaderboardEmbed(seeders, windowDays) {
     .setDescription(lines.join('\n') || 'No seeding data available.');
 }
 
-export function buildDmWhitelistNotification(name, expiresAt) {
+export function buildDmWhitelistNotification(name, expiresAt, durationDays = 30) {
   return createEmbed('Seed Tracker')
     .setColor(COLOR_SUCCESS)
     .setTitle('Whitelist Earned!')
-    .setDescription(`Congratulations, ${name}! You earned a 30-day whitelist for helping seed Royal Battalion!`)
+    .setDescription(`Congratulations, ${name}! You earned a ${durationDays}-day whitelist for helping seed Royal Battalion!`)
     .addFields(
       { name: 'Expires', value: discordTimestamp(expiresAt), inline: true },
     );

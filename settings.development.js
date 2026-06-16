@@ -49,13 +49,18 @@ export default {
       unsure: '1472142752538955807',
     },
   },
-  seedTracker: {
-    progressionChannelId: '',                            // Channel for progression/milestone embeds
-    leaderboardChannelId: '',                            // Channel for monthly leaderboard
-    requiredSeedDays: 10,
-    rollingWindowDays: 30,
-    whitelistDurationDays: 30,
-    maxExtensionDays: 60,
+  seeding: {
+    // First-insert defaults for the seeding_config DB row. All live config (servers,
+    // channels, role list, thresholds, tracker rules) is edited on the website /seeding page.
+    defaultThreshold: 40,
+    defaultResetThreshold: 20,
+    defaultTime: '16:00',
+    defaultTimezone: 'UTC',
+    defaultRequiredSeedDays: 10,
+    defaultRollingWindowDays: 30,
+    defaultWhitelistDurationDays: 30,
+    defaultMaxExtensionDays: 60,
+    schedulerCheckMs: 60000,
   },
   slReward: {
     // Inert in development: no channels, dry-run on.

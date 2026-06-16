@@ -2,6 +2,7 @@ import { io } from 'socket.io-client';
 import config from '../../config.js';
 import logger from '../../logger.js';
 import { isRosterStale } from './seedingHealth.js';
+import { pickServerStateById, coerceServerId } from './serverResolver.js';
 
 const log = logger.child({ module: 'seedingSocket' });
 
@@ -11,6 +12,10 @@ const ROSTER_STALE_MS = 120_000;
 const connections = new Map(); // name -> { socket, state }
 let discordClient = null;
 let watchdogInterval = null;
+
+let announcerServerId = null; // set by the scheduler from DB config each tick
+export function setAnnouncerServerId(id) { announcerServerId = coerceServerId(id); }
+export function getAnnouncerServerId() { return announcerServerId; }
 
 const KNOWN_EVENTS = [
   'UPDATED_A2S_INFORMATION', 'UPDATED_PLAYER_INFORMATION',
@@ -80,7 +85,7 @@ function fetchLayerObj(conn) {
 }
 
 function connectServer(serverCfg) {
-  const conn = { socket: null, state: createState(), name: serverCfg.name };
+  const conn = { socket: null, state: createState(), name: serverCfg.name, serverId: serverCfg.serverId ?? null };
   connections.set(serverCfg.name, conn);
 
   log.info({ name: serverCfg.name, url: serverCfg.url }, 'Connecting to SquadJS');
@@ -159,7 +164,8 @@ function connectServer(serverCfg) {
 
     // The live layer just changed; re-render the rotation embed so its
     // current-map highlight + match timer track the new round.
-    if (discordClient && serverCfg.name === config.seeding?.seedingServer) {
+    const connServerId = coerceServerId(conn.serverId);
+    if (discordClient && connServerId != null && connServerId === announcerServerId) {
       import('../layerRotationValidator/layerRotationValidatorScheduler.js')
         .then(({ refreshLiveLayerHighlight }) => refreshLiveLayerHighlight(discordClient))
         .catch((err) => log.error({ err }, 'Failed to refresh layer rotation highlight on NEW_GAME'));
@@ -270,14 +276,22 @@ export function disconnect() {
   connections.clear();
 }
 
-export function getServerState(name) {
-  if (name) {
-    const conn = connections.get(name);
-    return conn ? { ...conn.state, players: [...conn.state.players] } : createState();
+export function getServerStateById(serverId) {
+  const entries = [];
+  for (const conn of connections.values()) {
+    entries.push({ serverId: conn.serverId, state: conn.state });
   }
-  // Default: first server
-  const first = connections.values().next().value;
-  return first ? { ...first.state, players: [...first.state.players] } : createState();
+  const state = pickServerStateById(entries, serverId);
+  if (!state) return null; // unresolved id or no matching connection — caller shows "unavailable"
+  return { ...state, players: [...state.players] };
+}
+
+// Name-based lookup (no fallback) — used by the layer-rotation validator, which
+// identifies its server by the SQUADJS_SERVERS connection name.
+export function getServerStateByName(name) {
+  if (!name) return null;
+  const conn = connections.get(name);
+  return conn ? { ...conn.state, players: [...conn.state.players] } : null;
 }
 
 export function getAllServerStates() {
@@ -297,8 +311,11 @@ export function extractGameMode(layerName) {
   return match ? match[1] : null;
 }
 
-export function isConnected(name) {
-  if (name) return connections.get(name)?.state.connected ?? false;
-  const first = connections.values().next().value;
-  return first?.state.connected ?? false;
+export function isConnectedById(serverId) {
+  const entries = [];
+  for (const conn of connections.values()) {
+    entries.push({ serverId: conn.serverId, state: conn.state });
+  }
+  const state = pickServerStateById(entries, serverId);
+  return state ? !!state.connected : false;
 }

@@ -62,20 +62,18 @@ export default {
     memberFlagId: '60539480-0d14-11ec-a83f-b32d5968dd59',
   },
   seeding: {
-    seedingServer: 'production',                         // Must match the name in SQUADJS_SERVERS env var (name|url|token)
+    seedingServer: 'production',  // SQUADJS_SERVERS connection name used by the layer-rotation validator (name-based DB queries)
+    // First-insert defaults for the seeding_config DB row. All live config (servers,
+    // channels, role list, thresholds, tracker rules) is edited on the website /seeding page.
     defaultThreshold: 40,
     defaultResetThreshold: 20,
     defaultTime: '16:00',
     defaultTimezone: 'UTC',
+    defaultRequiredSeedDays: 10,
+    defaultRollingWindowDays: 30,
+    defaultWhitelistDurationDays: 30,
+    defaultMaxExtensionDays: 60,
     schedulerCheckMs: 60000,
-  },
-  seedTracker: {
-    progressionChannelId: '1490779113110110399',          // Channel for progression/milestone embeds
-    leaderboardChannelId: '1490779164855242894',          // Channel for monthly leaderboard
-    requiredSeedDays: 10,
-    rollingWindowDays: 30,
-    whitelistDurationDays: 30,
-    maxExtensionDays: 60,
   },
   slReward: {
     leaderboardChannelId: '1516397123007021087',          // SL rolling-7d leaderboard embed

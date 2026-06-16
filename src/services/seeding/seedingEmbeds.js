@@ -61,9 +61,13 @@ export function buildSeedingCallEmbed({
   const embed = createEmbed('Seeding')
     .setTitle('Seeding Time!')
     .setDescription(
-      'Join the server and help us get live!\n' +
-      `Target: **${threshold}** players\n\n` +
-      `\`${playerCount} / ${threshold} players\``
+      playerCount == null
+        ? 'Join the server and help us get live!\n' +
+          `Target: **${threshold}** players\n\n` +
+          '`Population: unavailable`'
+        : 'Join the server and help us get live!\n' +
+          `Target: **${threshold}** players\n\n` +
+          `\`${playerCount} / ${threshold} players\``
     )
     .setColor(0x57f287);
 

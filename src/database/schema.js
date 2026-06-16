@@ -281,6 +281,34 @@ export async function initSchema() {
   await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS panel_message_id VARCHAR(20) NULL`);
   await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS last_reset_date DATE NULL`);
 
+  // Seeding rework (2026-06-16): server-id identity + consolidated tracker config
+  await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS role_ids JSON NULL`);
+  await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS announcer_server_id INT NULL`);
+  await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS tracker_server_id INT NULL`);
+  await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS tracker_enabled TINYINT(1) DEFAULT 0`);
+  await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS required_seed_days INT DEFAULT 10`);
+  await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS rolling_window_days INT DEFAULT 30`);
+  await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS whitelist_duration_days INT DEFAULT 30`);
+  await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS max_extension_days INT DEFAULT 60`);
+  await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS progression_channel_id VARCHAR(20) NULL`);
+  await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS leaderboard_channel_id VARCHAR(20) NULL`);
+
+  // Backfill role_ids from the legacy single role_id (only when role_ids is still null)
+  await query(`UPDATE seeding_config SET role_ids = JSON_ARRAY(role_id) WHERE role_ids IS NULL AND role_id IS NOT NULL AND role_id <> ''`);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS seeding_live_status (
+      id INT PRIMARY KEY DEFAULT 1,
+      server_resolved_ok TINYINT(1) DEFAULT 0,
+      socket_connected TINYINT(1) DEFAULT 0,
+      current_population INT NULL,
+      current_layer VARCHAR(200) NULL,
+      active_session_id INT NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CHECK (id = 1)
+    )
+  `);
+
   // ── Admin / console tables ──
 
   await query(`

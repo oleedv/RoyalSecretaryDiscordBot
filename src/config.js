@@ -1,4 +1,5 @@
 import settings from '../settings.js';
+import { parseSquadJsServers } from './config/parseSquadJsServers.js';
 
 const requiredEnvVars = ['DISCORD_TOKEN', 'DISCORD_CLIENT_ID', 'DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
 
@@ -7,14 +8,6 @@ export function validateConfig() {
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
-}
-
-function parseSquadJsServers(envStr) {
-  if (!envStr) return [];
-  return envStr.split(',').map((entry) => {
-    const [name, url, token] = entry.trim().split('|');
-    return { name, url, token };
-  });
 }
 
 const config = Object.freeze({

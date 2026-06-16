@@ -14,7 +14,7 @@ import {
   writePersistedErrorHash,
 } from './layerRotationValidatorService.js';
 import { buildSuccessEmbed, buildErrorEmbed } from './layerRotationValidatorEmbeds.js';
-import { getServerState } from '../seeding/seedingSocket.js';
+import { getServerStateByName } from '../seeding/seedingSocket.js';
 import { getActiveMatch, getRecentCompletedLayers } from '../serverStatus/serverStatusQueries.js';
 
 const log = logger.child({ module: 'layerRotationValidator' });
@@ -98,7 +98,7 @@ async function readLiveLayerState(embedMode) {
       : Promise.resolve([]),
   ]);
 
-  const state = getServerState(name);
+  const state = getServerStateByName(name);
   const socketLayer = state?.connected ? state.currentLayer || null : null;
 
   return {

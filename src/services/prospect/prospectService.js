@@ -10,6 +10,7 @@ import { fetchCblData } from '../cblService.js';
 import { getSteamBans } from '../steamService.js';
 import { getPlaytime, getConnectionStats } from '../playtimeService.js';
 import { getPlayerSeedStats, getSeedStreak } from '../seedTracker/seedTrackerService.js';
+import { getSeedingConfig } from '../seeding/seedingService.js';
 import { getActivitySummary } from '../activity/activityService.js';
 import { generateProspectEvaluation } from '../ai/prospectAiService.js';
 import { query, transaction } from '../../database/connection.js';
@@ -257,13 +258,13 @@ function appendAllStatsToMessage(message, steamId, userId, prospect, { refreshCh
     : 0;
 
   const activityFetch = showActivity
-    ? Promise.all([
+    ? getSeedingConfig().catch(() => null).then((seedingCfg) => Promise.all([
         getConnectionStats(steamId, periodStartIso).catch(() => null),
         getPlaytime(steamId, periodStartIso).catch(() => null),
-        getPlayerSeedStats(steamId, daysElapsed).catch(() => null),
-        getSeedStreak(steamId).catch(() => 0),
+        getPlayerSeedStats(steamId, daysElapsed, seedingCfg?.tracker_server_id ?? null).catch(() => null),
+        getSeedStreak(steamId, seedingCfg?.tracker_server_id ?? null).catch(() => 0),
         getActivitySummary(userId, periodStartIso, nowIso).catch(() => null),
-      ])
+      ]))
     : Promise.resolve([null, null, null, 0, null]);
 
   const checksFetch = refreshChecks

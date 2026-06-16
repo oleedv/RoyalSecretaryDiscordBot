@@ -7,12 +7,13 @@ import {
   buildWhitelistGrantedEmbed,
   buildDmWhitelistNotification,
 } from './seedTrackerEmbeds.js';
-import config from '../../config.js';
 import logger from '../../logger.js';
+import { getSeedingConfig } from '../seeding/seedingService.js';
+import { decideSeederAction } from './seederRewardLogic.js';
 
 const log = logger.child({ module: 'seedTrackerService' });
 
-export async function getPlayerSeedStats(steamId, windowDays = 30) {
+export async function getPlayerSeedStats(steamId, windowDays = 30, serverId = null) {
   try {
     const rows = await query(
       `SELECT
@@ -23,8 +24,9 @@ export async function getPlayerSeedStats(steamId, windowDays = 30) {
       FROM squadjs_seed_sessions s
       JOIN squadjs_players p ON p.id = s.player_id
       WHERE p.steam_id = ? AND s.status = 'completed'
+        AND s.server_id = ?
         AND s.seed_date >= DATE_SUB(CURDATE(), INTERVAL ? DAY)`,
-      [steamId, windowDays],
+      [steamId, serverId, windowDays],
       'squadjs'
     );
     const row = rows[0] || {};
@@ -40,16 +42,17 @@ export async function getPlayerSeedStats(steamId, windowDays = 30) {
   }
 }
 
-export async function getSeedStreak(steamId) {
+export async function getSeedStreak(steamId, serverId = null) {
   try {
     const rows = await query(
       `SELECT DISTINCT s.seed_date AS seedDate
       FROM squadjs_seed_sessions s
       JOIN squadjs_players p ON p.id = s.player_id
       WHERE p.steam_id = ? AND s.status = 'completed'
+        AND s.server_id = ?
       ORDER BY s.seed_date DESC
       LIMIT 100`,
-      [steamId],
+      [steamId, serverId],
       'squadjs'
     );
 
@@ -91,7 +94,7 @@ export async function getSeederWhitelist(steamId) {
   }
 }
 
-export async function getTopSeeders(windowDays = 30, limit = 20) {
+export async function getTopSeeders(windowDays = 30, limit = 20, serverId = null) {
   try {
     const rows = await query(
       `SELECT
@@ -102,11 +105,12 @@ export async function getTopSeeders(windowDays = 30, limit = 20) {
       FROM squadjs_seed_sessions s
       JOIN squadjs_players p ON p.id = s.player_id
       WHERE s.status = 'completed'
+        AND s.server_id = ?
         AND s.seed_date >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
       GROUP BY s.player_id
       ORDER BY seedDays DESC, totalDuration DESC
       LIMIT ?`,
-      [windowDays, limit],
+      [serverId, windowDays, limit],
       'squadjs'
     );
     return rows.map((r) => ({
@@ -124,78 +128,71 @@ export async function getTopSeeders(windowDays = 30, limit = 20) {
 
 export async function processCompletedSession(data, client) {
   try {
-    const seedTracker = config.seedTracker;
-    if (!seedTracker) {
-      log.debug('seedTracker config not set, skipping');
+    const cfg = await getSeedingConfig();
+    if (!cfg?.tracker_enabled) {
+      log.debug('seed tracker disabled, skipping');
       return;
     }
-
+    if (cfg.tracker_server_id == null) {
+      log.warn('tracker_server_id not configured — seed tracker unavailable, skipping');
+      return;
+    }
     if (!data?.steamID) {
       log.warn({ player: data?.playerName }, 'Seed session complete event missing steamID, skipping');
       return;
     }
 
-    const requiredDays = seedTracker.requiredSeedDays || 10;
+    const requiredDays = cfg.required_seed_days || 10;
+    const windowDays = cfg.rolling_window_days || 30;
+    const serverId = cfg.tracker_server_id;
+
     const [stats, whitelist] = await Promise.all([
-      getPlayerSeedStats(data.steamID, seedTracker.rollingWindowDays || 30),
+      getPlayerSeedStats(data.steamID, windowDays, serverId),
       getSeederWhitelist(data.steamID),
     ]);
 
-    // If player has a non-Seeder whitelist (clan, admin, etc.), skip entirely
-    if (whitelist && whitelist.role !== 'Seeder') {
-      log.debug({ steamId: data.steamID, role: whitelist.role }, 'Player has non-Seeder whitelist, skipping');
+    const decision = decideSeederAction({
+      uniqueDays: stats.uniqueDays,
+      requiredDays,
+      whitelist,
+      durationDays: cfg.whitelist_duration_days || 30,
+      maxExtensionDays: cfg.max_extension_days || 60,
+      nowMs: Date.now(),
+    });
+
+    if (decision.action === 'skip') return;
+
+    if (decision.action === 'extend') {
+      await upsertSeederEntry(data.steamID, data.playerName, decision.expiresAt);
+      log.info({ steamId: data.steamID, newExpiry: decision.expiresAt }, 'Seeder whitelist renewed');
       return;
     }
 
-    // If player has a Seeder whitelist, check if they qualify for renewal/extension
-    if (whitelist && whitelist.role === 'Seeder') {
-      if (stats.uniqueDays >= requiredDays) {
-        const maxExtension = seedTracker.maxExtensionDays || 60;
-        const maxDate = new Date(Date.now() + maxExtension * 86400000);
-        const currentExpiry = whitelist.expiresAt ? new Date(whitelist.expiresAt) : null;
-        const newExpiry = new Date(Date.now() + (seedTracker.whitelistDurationDays || 30) * 86400000);
-
-        // Only extend if not already at max
-        if (!currentExpiry || newExpiry > currentExpiry) {
-          const cappedExpiry = newExpiry > maxDate ? maxDate : newExpiry;
-          await upsertSeederEntry(data.steamID, data.playerName, cappedExpiry);
-          log.info({ steamId: data.steamID, newExpiry: cappedExpiry }, 'Seeder whitelist renewed');
-        }
-      }
-      // Don't post progression for already-whitelisted seeders
-      return;
-    }
-
-    // Player is NOT whitelisted - check if they've earned one
-    if (stats.uniqueDays >= requiredDays) {
+    if (decision.action === 'grant') {
       await grantSeederWhitelist(data.steamID, data.playerName, client);
       return;
     }
 
-    // Post progression embed for non-whitelisted players
-    const channelId = seedTracker.progressionChannelId;
+    // progression
+    const channelId = cfg.progression_channel_id;
     if (!channelId) return;
-
-    const streak = await getSeedStreak(data.steamID);
+    const streak = await getSeedStreak(data.steamID, serverId);
     const embed = buildProgressionEmbed(
       data.playerName, data.steamID, stats.uniqueDays, requiredDays, streak, stats.avgQuality
     );
-
     const channel = await client.channels.fetch(channelId).catch(() => null);
-    if (channel) {
-      await channel.send({ embeds: [embed] });
-    }
+    if (channel) await channel.send({ embeds: [embed] });
   } catch (err) {
-    log.error({ err, steamId: data.steamID }, 'Failed to process completed seed session');
+    log.error({ err, steamId: data?.steamID }, 'Failed to process completed seed session');
   }
 }
 
 export async function grantSeederWhitelist(steamId, name, client) {
   try {
-    const seedTracker = config.seedTracker;
-    if (!seedTracker) return;
+    const cfg = await getSeedingConfig();
+    if (!cfg) return;
 
-    const durationDays = seedTracker.whitelistDurationDays || 30;
+    const durationDays = cfg.whitelist_duration_days || 30;
     const expiresAt = new Date(Date.now() + durationDays * 86400000);
 
     const result = await upsertSeederEntry(steamId, name, expiresAt);
@@ -206,13 +203,13 @@ export async function grantSeederWhitelist(steamId, name, client) {
 
     log.info({ steamId, expiresAt }, 'Seeder whitelist granted');
 
-    // Try to DM the player
+    // Try to DM the player (best-effort)
     try {
       const discordId = await getDiscordIdBySteamId(steamId);
       if (discordId) {
         const user = await client.users.fetch(discordId).catch(() => null);
         if (user) {
-          const dmEmbed = buildDmWhitelistNotification(name, expiresAt);
+          const dmEmbed = buildDmWhitelistNotification(name, expiresAt, durationDays);
           await user.send({ embeds: [dmEmbed] }).catch(() => {
             log.debug({ discordId }, 'Could not DM user about whitelist grant');
           });
@@ -222,15 +219,11 @@ export async function grantSeederWhitelist(steamId, name, client) {
       log.debug({ err, steamId }, 'Failed to DM player about whitelist grant');
     }
 
-    // Post celebration embed to progression channel
-    const channelId = seedTracker.progressionChannelId;
+    const channelId = cfg.progression_channel_id;
     if (!channelId) return;
-
-    const embed = buildWhitelistGrantedEmbed(name, steamId, expiresAt);
+    const embed = buildWhitelistGrantedEmbed(name, steamId, expiresAt, durationDays);
     const channel = await client.channels.fetch(channelId).catch(() => null);
-    if (channel) {
-      await channel.send({ embeds: [embed] });
-    }
+    if (channel) await channel.send({ embeds: [embed] });
   } catch (err) {
     log.error({ err, steamId }, 'Failed to grant seeder whitelist');
   }
@@ -238,8 +231,8 @@ export async function grantSeederWhitelist(steamId, name, client) {
 
 export async function processMilestone(data, client) {
   try {
-    const seedTracker = config.seedTracker;
-    if (!seedTracker) return;
+    const cfg = await getSeedingConfig();
+    if (!cfg?.tracker_enabled) return;
 
     const whitelist = await getSeederWhitelist(data.steamID);
     if (whitelist) {
@@ -247,15 +240,13 @@ export async function processMilestone(data, client) {
       return;
     }
 
-    const channelId = seedTracker.progressionChannelId;
+    const channelId = cfg.progression_channel_id;
     if (!channelId) return;
 
     const embed = buildMilestoneEmbed(data.playerName, data.milestone, data.uniqueDays);
     const channel = await client.channels.fetch(channelId).catch(() => null);
-    if (channel) {
-      await channel.send({ embeds: [embed] });
-    }
+    if (channel) await channel.send({ embeds: [embed] });
   } catch (err) {
-    log.error({ err, steamId: data.steamID }, 'Failed to process seed milestone');
+    log.error({ err, steamId: data?.steamID }, 'Failed to process seed milestone');
   }
 }

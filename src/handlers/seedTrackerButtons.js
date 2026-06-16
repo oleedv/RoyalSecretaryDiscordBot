@@ -1,8 +1,8 @@
 import { getStoredSteamId } from '../services/userService.js';
 import { getPlayerSeedStats, getSeedStreak, getSeederWhitelist } from '../services/seedTracker/seedTrackerService.js';
+import { getSeedingConfig } from '../services/seeding/seedingService.js';
 import { buildDmProgressionEmbed } from '../services/seedTracker/seedTrackerEmbeds.js';
 import { errorEmbed } from '../utils/embed.js';
-import config from '../config.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'seedTrackerButtons' });
@@ -18,9 +18,14 @@ export async function handleSeedProgression(interaction) {
   }
 
   try {
+    const cfg = await getSeedingConfig();
+    const windowDays = cfg?.rolling_window_days || 30;
+    const requiredDays = cfg?.required_seed_days || 10;
+    const serverId = cfg?.tracker_server_id ?? null;
+
     const [stats, streak, whitelist] = await Promise.all([
-      getPlayerSeedStats(steamId, config.seedTracker?.rollingWindowDays || 30),
-      getSeedStreak(steamId),
+      getPlayerSeedStats(steamId, windowDays, serverId),
+      getSeedStreak(steamId, serverId),
       getSeederWhitelist(steamId),
     ]);
 
@@ -28,7 +33,7 @@ export async function handleSeedProgression(interaction) {
       ? { hasWhitelist: true, role: whitelist.role, expiresAt: whitelist.expiresAt }
       : { hasWhitelist: false, role: null, expiresAt: null };
 
-    const embed = buildDmProgressionEmbed(stats, streak, whitelistStatus, config.seedTracker?.requiredSeedDays || 10);
+    const embed = buildDmProgressionEmbed(stats, streak, whitelistStatus, requiredDays);
     return interaction.editReply({ embeds: [embed] });
   } catch (err) {
     log.error({ err, userId: interaction.user.id }, 'Failed to fetch seed progression');
