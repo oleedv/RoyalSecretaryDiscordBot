@@ -1,4 +1,4 @@
-import { createEmbed } from '../utils/embed.js';
+import { createEmbed, infoEmbed, buildRelayEmbed } from '../utils/embed.js';
 import { formatForDb, applyAttachments } from '../utils/attachments.js';
 import { parseTextCommand } from '../utils/commands.js';
 import { trySendWithFiles } from '../utils/discord.js';
@@ -41,13 +41,14 @@ export async function handleGuild(message) {
       return true;
     }
 
-    const dmOptions = {};
-    if (replyContent) {
-      dmOptions.content = `**[Prospect]** **${message.author.displayName}**: ${replyContent}`;
-    }
-    if (message.attachments.size > 0) {
-      dmOptions.files = message.attachments.map((a) => ({ attachment: a.url, name: a.name }));
-    }
+    const dmEmbed = buildRelayEmbed({
+      type: 'Prospect',
+      senderName: message.author.displayName,
+      avatarUrl: message.author.displayAvatarURL(),
+      content: replyContent,
+    });
+    const dmOptions = { embeds: [dmEmbed] };
+    applyAttachments(dmEmbed, dmOptions, message.attachments);
 
     let dmFailed = false;
     let dmTooLarge = false;
@@ -107,7 +108,7 @@ export async function handleDM(message, prospect) {
   const { msg: sent, tooLarge } = await trySendWithFiles(channel, sendOptions);
 
   if (tooLarge) {
-    await message.reply('Your file was too large to embed directly. Staff can still access it via the link.').catch(() => null);
+    await message.reply({ embeds: [infoEmbed('Your file was too large to embed directly. Staff can still access it via the link.')] }).catch(() => null);
   }
 
   const attachments = formatForDb(message.attachments);

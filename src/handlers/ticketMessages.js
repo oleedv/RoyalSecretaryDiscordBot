@@ -1,5 +1,5 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
-import { createEmbed, infoEmbed, errorEmbed } from '../utils/embed.js';
+import { createEmbed, infoEmbed, errorEmbed, buildRelayEmbed } from '../utils/embed.js';
 import { formatForDb, applyAttachments } from '../utils/attachments.js';
 import { parseTextCommand } from '../utils/commands.js';
 import { trySendWithFiles } from '../utils/discord.js';
@@ -31,14 +31,16 @@ async function sendStaffReply(message, ticket, replyContent, anonymous) {
     return;
   }
 
-  const dmOptions = {};
-  if (replyContent) {
-    const senderName = anonymous ? 'Staff' : message.author.displayName;
-    dmOptions.content = `**[Ticket]** **${senderName}**: ${replyContent}`;
-  }
-  if (message.attachments.size > 0) {
-    dmOptions.files = message.attachments.map((a) => ({ attachment: a.url, name: a.name }));
-  }
+  const senderName = anonymous ? 'Staff' : message.author.displayName;
+  const dmEmbed = buildRelayEmbed({
+    type: 'Ticket',
+    senderName,
+    avatarUrl: message.author.displayAvatarURL(),
+    content: replyContent,
+    anonymous,
+  });
+  const dmOptions = { embeds: [dmEmbed] };
+  applyAttachments(dmEmbed, dmOptions, message.attachments);
 
   let dmFailed = false;
   let dmTooLarge = false;
@@ -205,7 +207,7 @@ export async function handleDM(message, ticket) {
   const { msg: sent, tooLarge } = await trySendWithFiles(channel, sendOptions);
 
   if (tooLarge) {
-    await message.reply('Your file was too large to embed directly. Staff can still access it via the link.').catch(() => null);
+    await message.reply({ embeds: [infoEmbed('Your file was too large to embed directly. Staff can still access it via the link.')] }).catch(() => null);
   }
 
   const { steamIds, vanityUrls } = detectSteamIds(message.content || '');
