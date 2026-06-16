@@ -4,7 +4,8 @@ import { createScheduler } from '../../utils/scheduler.js';
 import { createSlEntry, extendEntryByDays, findEntries, isConfigured } from '../whitelistService.js';
 import { decideRewardAction } from './eligibility.js';
 import { flushPendingDms, sendOrQueueDm } from './dmQueue.js';
-import { hypercareLog } from './hypercareLog.js';
+import { buildExtendLogEmbed, buildGrantLogEmbed, buildRunSummaryEmbed } from './embeds.js';
+import { hypercareSend } from './hypercareLog.js';
 import {
   SL_CLAN_ID,
   SL_DRY_RUN,
@@ -82,17 +83,13 @@ async function tick(client) {
       continue;
     }
 
+    const webUser = await getWebUser(c.steamId);
+
     if (decision.action === 'grant') {
+      const expiresAt = new Date(Date.now() + SL_REWARD_DAYS * 86400000);
       if (SL_DRY_RUN) {
         log.info({ steamId: c.steamId, hours }, 'DRY: would grant');
-        await hypercareLog(client, {
-          title: 'DRY — would grant',
-          description: `**${c.name}** — ${hours.toFixed(1)}h → 7d whitelist`,
-          color: 0x95a5a6,
-          verboseOnly: true
-        });
       } else {
-        const webUser = await getWebUser(c.steamId);
         const entry = await createSlEntry(
           c.steamId,
           webUser?.id ?? null,
@@ -109,13 +106,20 @@ async function tick(client) {
         log.info({ steamId: c.steamId, hours, entryId: entry.id }, 'granted SL whitelist');
         const delivered = await sendOrQueueDm(client, webUser?.discordId, GRANT_DM);
         if (!delivered && webUser?.discordId) dmsQueued++;
-        await hypercareLog(client, {
-          title: 'Granted SL whitelist',
-          description: `**${c.name}** — ${hours.toFixed(1)}h → ${SL_REWARD_DAYS}d (steam \`${c.steamId}\`)`,
-          color: 0x2ecc71,
-          verboseOnly: true
-        });
       }
+      await hypercareSend(
+        client,
+        buildGrantLogEmbed({
+          name: c.name,
+          steamId: c.steamId,
+          discordId: webUser?.discordId,
+          hours,
+          days: SL_REWARD_DAYS,
+          expiresAt,
+          dry: SL_DRY_RUN
+        }),
+        { verboseOnly: true }
+      );
       grants++;
       continue;
     }
@@ -123,12 +127,6 @@ async function tick(client) {
     if (decision.action === 'extend') {
       if (SL_DRY_RUN) {
         log.info({ steamId: c.steamId, entryId: decision.slEntry.id }, 'DRY: would extend');
-        await hypercareLog(client, {
-          title: 'DRY — would extend',
-          description: `**${c.name}** — ${hours.toFixed(1)}h, +${SL_REWARD_DAYS}d`,
-          color: 0x95a5a6,
-          verboseOnly: true
-        });
       } else {
         const ok = await extendEntryByDays(decision.slEntry.id, SL_REWARD_DAYS);
         if (!ok) {
@@ -136,34 +134,42 @@ async function tick(client) {
           continue;
         }
         log.info({ steamId: c.steamId, entryId: decision.slEntry.id }, 'extended SL whitelist');
-        await hypercareLog(client, {
-          title: 'Extended SL whitelist',
-          description: `**${c.name}** — ${hours.toFixed(1)}h, +${SL_REWARD_DAYS}d`,
-          color: 0x3498db,
-          verboseOnly: true
-        });
       }
+      await hypercareSend(
+        client,
+        buildExtendLogEmbed({
+          name: c.name,
+          steamId: c.steamId,
+          discordId: webUser?.discordId,
+          hours,
+          days: SL_REWARD_DAYS,
+          dry: SL_DRY_RUN
+        }),
+        { verboseOnly: true }
+      );
       extensions++;
     }
   }
 
-  const dmNote =
-    dmsQueued || flushed.sent ? ` · DMs queued ${dmsQueued} · redelivered ${flushed.sent}` : '';
-  const summary = `candidates ${candidates.length} · grants ${grants} · extensions ${extensions} · skips ${JSON.stringify(
-    skips
-  )}${dmNote}${SL_DRY_RUN ? ' · DRY-RUN' : ''}`;
   log.info(
     { candidates: candidates.length, grants, extensions, skips, dmsQueued, dmsRedelivered: flushed.sent, dry: SL_DRY_RUN },
     'sl-reward cron complete'
   );
-  await hypercareLog(client, {
-    title: 'SL grant cron run',
-    description: summary,
-    color: grants || extensions ? 0x2ecc71 : 0x3498db,
+  await hypercareSend(
+    client,
+    buildRunSummaryEmbed({
+      candidates: candidates.length,
+      grants,
+      extensions,
+      skips,
+      dmsQueued,
+      dmsRedelivered: flushed.sent,
+      dry: SL_DRY_RUN
+    }),
     // After hypercare (verbose off) only surface runs that actually did something,
     // so the channel isn't pinged every 30 min for a no-op run.
-    verboseOnly: !(grants || extensions)
-  });
+    { verboseOnly: !(grants || extensions) }
+  );
 }
 
 const scheduler = createScheduler({
