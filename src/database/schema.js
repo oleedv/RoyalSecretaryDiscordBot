@@ -16,6 +16,19 @@ export async function initSchema() {
     )
   `);
 
+  // Grant DMs that couldn't be delivered (recipient unreachable / DMs closed) are
+  // queued here and retried by the SL grant cron until they land or expire.
+  await query(`
+    CREATE TABLE IF NOT EXISTS sl_pending_dms (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      discord_id VARCHAR(20) NOT NULL,
+      content TEXT NOT NULL,
+      attempts INT NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_attempt_at TIMESTAMP NULL
+    )
+  `);
+
   await query(`
     CREATE TABLE IF NOT EXISTS tickets (
       id INT AUTO_INCREMENT PRIMARY KEY,

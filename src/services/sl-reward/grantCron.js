@@ -3,6 +3,7 @@ import logger from '../../logger.js';
 import { createScheduler } from '../../utils/scheduler.js';
 import { createSlEntry, extendEntryByDays, findEntries, isConfigured } from '../whitelistService.js';
 import { decideRewardAction } from './eligibility.js';
+import { flushPendingDms, sendOrQueueDm } from './dmQueue.js';
 import { hypercareLog } from './hypercareLog.js';
 import {
   SL_CLAN_ID,
@@ -43,21 +44,14 @@ async function getWebUser(steamId) {
   }
 }
 
-async function dmGrant(client, discordId) {
-  if (!discordId) return;
-  try {
-    const user = await client.users.fetch(discordId).catch(() => null);
-    if (user) await user.send(GRANT_DM).catch(() => log.debug({ discordId }, 'grant DM blocked'));
-  } catch (err) {
-    log.debug({ err, discordId }, 'grant DM failed');
-  }
-}
-
 async function tick(client) {
   if (!isConfigured()) {
     log.warn('website pool not configured; SL grant cron idle');
     return;
   }
+
+  // First retry any grant DMs that couldn't be delivered on an earlier run.
+  const flushed = await flushPendingDms(client);
 
   let candidates;
   try {
@@ -69,6 +63,7 @@ async function tick(client) {
 
   let grants = 0;
   let extensions = 0;
+  let dmsQueued = 0;
   const skips = {};
 
   for (const c of candidates) {
@@ -111,7 +106,8 @@ async function tick(client) {
           continue;
         }
         log.info({ steamId: c.steamId, hours, entryId: entry.id }, 'granted SL whitelist');
-        await dmGrant(client, webUser?.discordId);
+        const delivered = await sendOrQueueDm(client, webUser?.discordId, GRANT_DM);
+        if (!delivered && webUser?.discordId) dmsQueued++;
         await hypercareLog(client, {
           title: 'Granted SL whitelist',
           description: `**${c.name}** — ${hours.toFixed(1)}h → ${SL_REWARD_DAYS}d (steam \`${c.steamId}\`)`,
@@ -150,10 +146,15 @@ async function tick(client) {
     }
   }
 
+  const dmNote =
+    dmsQueued || flushed.sent ? ` · DMs queued ${dmsQueued} · redelivered ${flushed.sent}` : '';
   const summary = `candidates ${candidates.length} · grants ${grants} · extensions ${extensions} · skips ${JSON.stringify(
     skips
-  )}${SL_DRY_RUN ? ' · DRY-RUN' : ''}`;
-  log.info({ candidates: candidates.length, grants, extensions, skips, dry: SL_DRY_RUN }, 'sl-reward cron complete');
+  )}${dmNote}${SL_DRY_RUN ? ' · DRY-RUN' : ''}`;
+  log.info(
+    { candidates: candidates.length, grants, extensions, skips, dmsQueued, dmsRedelivered: flushed.sent, dry: SL_DRY_RUN },
+    'sl-reward cron complete'
+  );
   await hypercareLog(client, {
     title: 'SL grant cron run',
     description: summary,
