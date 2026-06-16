@@ -106,6 +106,19 @@ export function formatRotationList(lines, currentLayer = null) {
   return lines.map((line, idx) => formatRow(line, idx, idx === highlightIdx, aligned)).join('\n');
 }
 
+// Recently-played layers, most-recent first. Each entry is a layer token from
+// squadjs_matches.layer (no team fields), prettified to match the rotation spelling.
+export function formatLastMaps(lastMaps) {
+  if (!lastMaps || lastMaps.length === 0) return '_No recent maps_';
+  return lastMaps
+    .map((layer, idx) => {
+      const { map, variant } = prettifyLayerToken(layer);
+      const label = variant ? `${map} ${variant}` : map;
+      return `**${idx + 1}.** ${label}`;
+    })
+    .join('\n');
+}
+
 const COLOR_OK = 0x57F287;
 const COLOR_ERR = 0xED4245;
 const FOOTER = 'Validated via squadutils.org';
@@ -116,11 +129,10 @@ function modeLabel(mode) {
   return mode;
 }
 
-export function buildSuccessEmbed({ mode, lines, currentLayer = null, matchStartTime = null }) {
-  const list = formatRotationList(lines, currentLayer);
+export function buildSuccessEmbed({ mode, lines, currentLayer = null, matchStartTime = null, lastMaps = [] }) {
   const unix = Math.floor(Date.now() / 1000);
 
-  // Live block (between the Updated line and the list) only when we know the
+  // Live block (between the Updated line and the body) only when we know the
   // current layer. The Started line is independently optional.
   let liveBlock = '';
   if (currentLayer) {
@@ -128,12 +140,19 @@ export function buildSuccessEmbed({ mode, lines, currentLayer = null, matchStart
     if (matchStartTime) liveBlock += `\nStarted <t:${matchStartTime}:R>`;
   }
 
+  // In LayerList_Vote mode the cfg "rotation" is just vote candidates, not a real
+  // rotation, so listing it is misleading. Show the last few played layers instead.
+  const body =
+    mode === 'LayerList_Vote'
+      ? `Last 3 maps:\n${formatLastMaps(lastMaps)}`
+      : formatRotationList(lines, currentLayer);
+
   const description =
     `Mode: ${modeLabel(mode)}\n` +
     `Updated <t:${unix}:R>` +
     liveBlock +
     `\n\n` +
-    list;
+    body;
   return new EmbedBuilder()
     .setColor(COLOR_OK)
     .setTitle('Royal Battalion - Layer Rotation')
