@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import { successEmbed, errorEmbed } from '../utils/embed.js';
 import {
   createGiveaway,
@@ -13,6 +13,7 @@ import {
   cancelGiveaway,
 } from '../services/giveaway/giveawayService.js';
 import { buildEntryEmbed, buildEntryRow, buildLeaderboardEmbed, buildVoteMessages, buildWinnerEmbed } from '../services/giveaway/giveawayEmbeds.js';
+import { refreshEntryMessage } from '../services/giveaway/giveawayMessage.js';
 import { pickWinner } from '../services/giveaway/giveawayDraw.js';
 import logger from '../logger.js';
 
@@ -35,7 +36,6 @@ export default {
   data: new SlashCommandBuilder()
     .setName('giveaway')
     .setDescription('Manage the monthly RB game giveaway')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand((s) => s
       .setName('start')
       .setDescription('Post a new monthly giveaway entry message')
@@ -129,6 +129,7 @@ async function handleAddEntry(interaction) {
   const seed = interaction.options.getNumber('seed', true);
 
   await upsertManualEntry(giveaway.id, user.id, hours, seed, interaction.user.id);
+  await refreshEntryMessage(interaction.client, giveaway);
 
   log.info({ giveawayId: giveaway.id, userId: user.id, hours, seed, addedBy: interaction.user.id }, 'Manual entry added');
   await interaction.editReply({

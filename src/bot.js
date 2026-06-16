@@ -29,29 +29,56 @@ export async function createBot() {
 
   attachClientDiagnostics(client);
 
-  // Workaround: discord.js may silently drop DM messageCreate events when
-  // the DM channel isn't cached, even with Partials.Channel. Detect this
-  // via the raw gateway event and manually fetch + re-emit.
-  client.on('raw', async (packet) => {
-    if (packet.t !== 'MESSAGE_CREATE' || packet.d?.guild_id) return;
-
-    const cached = client.channels.cache.has(packet.d.channel_id);
-    if (cached) return; // discord.js will handle it normally
-
-    log.info({ authorId: packet.d?.author?.id, channelId: packet.d?.channel_id }, 'DM channel not cached, fetching manually');
-    try {
-      const channel = await client.channels.fetch(packet.d.channel_id);
-      const message = await channel.messages.fetch(packet.d.id);
-      client.emit('messageCreate', message);
-    } catch (err) {
-      log.error({ err }, 'Failed to fetch uncached DM channel/message');
-    }
-  });
+  installDmFallback(client);
 
   const commandCount = await loadCommands(client);
   const eventCount = await loadEvents(client);
 
   return { client, commandCount, eventCount };
+}
+
+/**
+ * Safety net for a discord.js quirk where DM messageCreate events were observed to be
+ * dropped for uncached DM channels (see commit 876f502). We watch the raw gateway event
+ * and re-emit the DM ourselves -- but ONLY if discord.js didn't already surface it.
+ *
+ * discord.js dispatches each packet by emitting 'raw' and THEN running its own handler
+ * synchronously in the same tick; with Partials.Channel it DOES emit DM messages. The old
+ * guard checked channels.cache before the native handler ran, so for an uncached DM both
+ * paths fired and the message was double-posted into the staff ticket channel. Here we
+ * defer one tick, let the native handler record the message id, and skip the re-emit when
+ * it already fired -- keeping the dropped-DM safety net without the double.
+ */
+export function installDmFallback(client, logArg = log) {
+  const surfacedDmIds = new Set();
+  const rememberDm = (id) => {
+    if (!id) return;
+    surfacedDmIds.add(id);
+    const timer = setTimeout(() => surfacedDmIds.delete(id), 60_000);
+    timer.unref?.();
+  };
+
+  // Record every DM messageCreate that reaches the client (native or re-emitted below).
+  client.on('messageCreate', (message) => {
+    if (!message.guildId) rememberDm(message.id);
+  });
+
+  client.on('raw', async (packet) => {
+    if (packet.t !== 'MESSAGE_CREATE' || packet.d?.guild_id) return;
+
+    // Let discord.js's own handler (which runs right after this raw event, same tick) emit first.
+    await new Promise((resolve) => setImmediate(resolve));
+    if (surfacedDmIds.has(packet.d.id)) return; // already delivered -- don't double-post
+
+    logArg.info({ authorId: packet.d?.author?.id, channelId: packet.d?.channel_id }, 'DM not delivered by discord.js, using raw fallback');
+    try {
+      const channel = await client.channels.fetch(packet.d.channel_id);
+      const message = await channel.messages.fetch(packet.d.id);
+      client.emit('messageCreate', message);
+    } catch (err) {
+      logArg.error({ err }, 'Failed to fetch uncached DM channel/message');
+    }
+  });
 }
 
 function attachClientDiagnostics(client) {

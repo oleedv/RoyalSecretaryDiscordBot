@@ -47,7 +47,33 @@ function compactTeam(team) {
   return team.replace(/ \+ /g, '+');
 }
 
-function formatRow(line, idx) {
+// Canonical key for layer matching. The live A2S map name ("Goose Bay RAAS v2")
+// differs from the rotation token ("GooseBay_RAAS_v2") in casing and in where the
+// word boundaries fall (spaces vs underscores vs camelCase), so collapse all of
+// those separators away before comparing.
+function canonLayer(s) {
+  return String(s).toLowerCase().replace(/[\s_]+/g, '');
+}
+
+// First whitespace-delimited field of a rotation line (the layer token).
+function layerToken(line) {
+  return String(line).trim().split(/\s+/)[0] || '';
+}
+
+// Human-readable "Current map" label. Prefer the matched rotation line so the
+// label reads identically to the highlighted row. With no match the live name may
+// be a spaced A2S string that prettifyLayerToken can't parse as a single token, so
+// swap spaces for underscores first; fall back to the raw string if all else fails.
+function currentMapLabel(currentLayer, lines) {
+  const target = canonLayer(currentLayer);
+  const match = (lines || []).find((line) => canonLayer(layerToken(line)) === target);
+  const source = match || String(currentLayer).trim().replace(/\s+/g, '_');
+  const { map, variant } = prettifyLayerToken(source);
+  const label = variant ? `${map} ${variant}` : map;
+  return label || String(currentLayer).trim();
+}
+
+function formatRow(line, idx, isCurrent, aligned) {
   const { map, variant, team1, team2 } = prettifyLayerToken(line);
   const layer = variant ? `${map} ${variant}` : map;
   const t1 = compactTeam(team1);
@@ -57,12 +83,45 @@ function formatRow(line, idx) {
   else if (t1 !== '-') teams = ` - *${t1}*`;
   else if (t2 !== '-') teams = ` - *${t2}*`;
   else teams = '';
+  // On the current line bold spans index + layer so the highlight reads as one unit.
+  if (isCurrent) return `:green_circle: **${idx + 1}. ${layer}**${teams}`;
+  // When some line is highlighted, prefix the rest with a muted dot so every
+  // row's text stays left-aligned with the green-dot row.
+  if (aligned) return `:white_circle: **${idx + 1}.** ${layer}${teams}`;
   return `**${idx + 1}.** ${layer}${teams}`;
 }
 
-export function formatRotationList(lines) {
+// currentLayer: the live layer name from the server. It may arrive as the game's
+// underscore token ("GooseBay_RAAS_v2") or as the A2S display name with spaces
+// ("Goose Bay RAAS v2"); both are matched against the rotation tokens via a
+// separator-insensitive canonical key. The first matching line is highlighted;
+// when a line is highlighted the others get a muted dot for alignment.
+export function formatRotationList(lines, currentLayer = null) {
   if (!lines || lines.length === 0) return '(empty rotation)';
-  return lines.map(formatRow).join('\n');
+  const target = currentLayer ? canonLayer(currentLayer) : null;
+  const highlightIdx = target
+    ? lines.findIndex((line) => canonLayer(layerToken(line)) === target)
+    : -1;
+  const aligned = highlightIdx !== -1;
+  return lines.map((line, idx) => formatRow(line, idx, idx === highlightIdx, aligned)).join('\n');
+}
+
+// A readable label for a single layer name. squadjs_matches.layer arrives in mixed
+// formats: underscore tokens ("Manicouagan_RAAS_v2") and spaced A2S names ("Mutaha
+// AAS v2"). prettifyLayerToken only parses the first whitespace field, so normalise
+// spaces to underscores first to keep the whole name (not just the first word).
+function layerLabel(layer) {
+  const token = String(layer).trim().replace(/\s+/g, '_');
+  const { map, variant } = prettifyLayerToken(token);
+  const label = variant ? `${map} ${variant}` : map;
+  return label || String(layer).trim();
+}
+
+// Recently-played layers, most-recent first. Each entry is a layer name from
+// squadjs_matches.layer (no team fields).
+export function formatLastMaps(lastMaps) {
+  if (!lastMaps || lastMaps.length === 0) return '_No recent maps_';
+  return lastMaps.map((layer, idx) => `**${idx + 1}.** ${layerLabel(layer)}`).join('\n');
 }
 
 const COLOR_OK = 0x57F287;
@@ -75,13 +134,30 @@ function modeLabel(mode) {
   return mode;
 }
 
-export function buildSuccessEmbed({ mode, lines }) {
-  const list = formatRotationList(lines);
+export function buildSuccessEmbed({ mode, lines, currentLayer = null, matchStartTime = null, lastMaps = [] }) {
   const unix = Math.floor(Date.now() / 1000);
+
+  // Live block (between the Updated line and the body) only when we know the
+  // current layer. The Started line is independently optional.
+  let liveBlock = '';
+  if (currentLayer) {
+    liveBlock = `\n\nCurrent map: ${currentMapLabel(currentLayer, lines)}`;
+    if (matchStartTime) liveBlock += `\nStarted <t:${matchStartTime}:R>`;
+  }
+
+  // In LayerList_Vote mode the cfg "rotation" is just vote candidates, not a real
+  // rotation, so listing it is misleading. Show the last few played layers instead.
+  const body =
+    mode === 'LayerList_Vote'
+      ? `Last 3 maps:\n${formatLastMaps(lastMaps)}`
+      : formatRotationList(lines, currentLayer);
+
   const description =
     `Mode: ${modeLabel(mode)}\n` +
-    `Updated <t:${unix}:R>\n\n` +
-    list;
+    `Updated <t:${unix}:R>` +
+    liveBlock +
+    `\n\n` +
+    body;
   return new EmbedBuilder()
     .setColor(COLOR_OK)
     .setTitle('Royal Battalion - Layer Rotation')

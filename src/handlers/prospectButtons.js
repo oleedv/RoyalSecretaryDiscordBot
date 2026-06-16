@@ -68,9 +68,10 @@ export async function handleApply(interaction) {
     ),
     new ActionRowBuilder().addComponents(
       new TextInputBuilder()
-        .setCustomId('preferred_roles')
-        .setLabel('Preferred roles')
+        .setCustomId('prev_clan')
+        .setLabel('Previous clan? (or "No")')
         .setStyle(TextInputStyle.Short)
+        .setMaxLength(200)
         .setRequired(true)
     )
   );
@@ -80,7 +81,7 @@ export async function handleApply(interaction) {
 
 export async function handleModal2Open(interaction) {
   const modal = rawModal('prospect_modal_2', 'Join Royal Battalion (2/2)', [
-    labelComponent('Previous clan? (or "No")', textInput('prev_clan', 'short', { required: true })),
+    labelComponent('Tell us a little about yourself', textInput('about_yourself', 'paragraph', { minLength: 10, required: true })),
     labelComponent('Why do you want to join RB?', textInput('why_rb', 'paragraph', { minLength: 10, required: true })),
     labelComponent('Active hours (UTC)', textInput('active_hours', 'short', { placeholder: 'e.g. 18:00 - 23:00 UTC', required: true })),
     labelComponent('Interested in competitive play?', radioGroup('competitive', [

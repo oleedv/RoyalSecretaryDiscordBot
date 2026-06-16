@@ -13,7 +13,7 @@ export async function handleSeedProgression(interaction) {
   const steamId = await getStoredSteamId(interaction.user.id);
   if (!steamId) {
     return interaction.editReply({
-      embeds: [errorEmbed('No Steam ID linked. Please verify your account first.')],
+      embeds: [errorEmbed('No Steam ID linked. **DM me and click Link Steam** to connect your account.')],
     });
   }
 

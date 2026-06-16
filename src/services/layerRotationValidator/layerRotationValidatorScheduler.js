@@ -14,6 +14,8 @@ import {
   writePersistedErrorHash,
 } from './layerRotationValidatorService.js';
 import { buildSuccessEmbed, buildErrorEmbed } from './layerRotationValidatorEmbeds.js';
+import { getServerStateByName } from '../seeding/seedingSocket.js';
+import { getActiveMatch, getRecentCompletedLayers } from '../serverStatus/serverStatusQueries.js';
 
 const log = logger.child({ module: 'layerRotationValidator' });
 
@@ -79,6 +81,33 @@ async function clearChannel(client, channelId) {
   }
 }
 
+// Resolve the current layer + match start time + (vote mode) recent layers.
+// The active match (layer + start) and recent layers come from the DB, so they are
+// available even right after a (re)boot before the live socket has delivered layer
+// info, or while the socket is disconnected. The live socket's currentLayer is
+// preferred when present (it reflects mid-match changes soonest). Any miss returns
+// nulls/[] and the embed renders without that piece.
+async function readLiveLayerState(embedMode) {
+  const name = config.seeding?.seedingServer;
+  if (!name) return { currentLayer: null, matchStartTime: null, lastMaps: [] };
+
+  const [active, lastMaps] = await Promise.all([
+    getActiveMatch(name).catch(() => null),
+    embedMode === 'LayerList_Vote'
+      ? getRecentCompletedLayers(name, 3).catch(() => [])
+      : Promise.resolve([]),
+  ]);
+
+  const state = getServerStateByName(name);
+  const socketLayer = state?.connected ? state.currentLayer || null : null;
+
+  return {
+    currentLayer: socketLayer || active?.layer || null,
+    matchStartTime: active?.startTime ?? null,
+    lastMaps,
+  };
+}
+
 export async function replaceLiveEmbed(client, { mode: embedMode, lines, source }) {
   const settings = getSettings();
   if (!settings?.channelId) return false;
@@ -87,7 +116,8 @@ export async function replaceLiveEmbed(client, { mode: embedMode, lines, source 
     log.error({ channelId: settings.channelId }, 'Cannot fetch prod channel for embed post');
     return false;
   }
-  const embed = buildSuccessEmbed({ mode: embedMode, lines });
+  const { currentLayer, matchStartTime, lastMaps } = await readLiveLayerState(embedMode);
+  const embed = buildSuccessEmbed({ mode: embedMode, lines, currentLayer, matchStartTime, lastMaps });
   const sent = await channel.send({ embeds: [embed] }).catch((err) => {
     log.error({ err }, 'Failed to send success embed');
     return null;
@@ -155,6 +185,35 @@ async function restoreFromPersistence(client, settings) {
   if (posted) {
     lastValidHash = hashRotation(row.mode || 'Unknown', lines.join('\n'));
   }
+}
+
+// Re-post the live rotation embed using the persisted rotation plus the latest
+// live layer/timer. Called when NEW_GAME fires for the seeding server, and by
+// the /layer-rotation command. Returns a status for the command to report.
+export async function refreshLiveLayerHighlight(client) {
+  const settings = getSettings();
+  if (!settings?.enabled) return { ok: false, reason: 'validator disabled in settings' };
+  if (!settings.channelId) return { ok: false, reason: 'no channel configured' };
+
+  let row = null;
+  try {
+    row = await readPersistedRotation();
+  } catch (err) {
+    log.warn({ err }, 'refreshLiveLayerHighlight: failed to read persisted rotation');
+    return { ok: false, reason: 'failed to read persisted rotation' };
+  }
+  if (!row) return { ok: false, reason: 'no rotation cached yet (wait for the next 5-minute fetch)' };
+
+  const { lines } = parseLayerRotation(row.cleanedText);
+  if (lines.length === 0) return { ok: false, reason: 'cached rotation is empty' };
+
+  const posted = await replaceLiveEmbed(client, {
+    mode: row.mode || lastKnownMode || 'Unknown',
+    lines,
+    source: row.source || 'live-refresh',
+  });
+  if (posted) lastValidHash = hashRotation(row.mode || lastKnownMode || 'Unknown', lines.join('\n'));
+  return posted ? { ok: true } : { ok: false, reason: 'failed to post embed' };
 }
 
 async function tickSftpMode(client, settings) {

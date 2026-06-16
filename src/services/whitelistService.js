@@ -135,6 +135,42 @@ export async function updateRole(steamId, fromRole, toRole, { clearExpiry = fals
   }
 }
 
+// Squad Leader reward entries are identified by clanId (the SL clan). They also set
+// role='Whitelist' (the AdminGroup name that admins.cfg maps players into) and name so
+// the entry shows the player's name in the panel/cfg rather than a bare steamId. Grants
+// stamp addedBy/reason so they're auditable on the website.
+export async function createSlEntry(steamId, userId, name, clanId, addedBy, reason, days) {
+  if (!isConfigured()) return null;
+  try {
+    const id = generateId();
+    await query(
+      `INSERT INTO WhitelistEntry (id, steamId, server, name, clanId, role, userId, addedBy, reason, expiresAt, createdAt)
+       VALUES (?, ?, 'main', ?, ?, 'Whitelist', ?, ?, ?, NOW() + INTERVAL ? DAY, NOW())`,
+      [id, steamId, name, clanId, userId, addedBy, reason, days],
+      'website'
+    );
+    return { id, steamId, name, clanId, userId, days };
+  } catch (err) {
+    log.warn({ err, steamId }, 'Failed to create SL whitelist entry');
+    return null;
+  }
+}
+
+export async function extendEntryByDays(id, days) {
+  if (!isConfigured()) return null;
+  try {
+    await query(
+      'UPDATE WhitelistEntry SET expiresAt = expiresAt + INTERVAL ? DAY WHERE id = ?',
+      [days, id],
+      'website'
+    );
+    return true;
+  } catch (err) {
+    log.warn({ err, id }, 'Failed to extend whitelist entry');
+    return null;
+  }
+}
+
 export async function updateExpiryByRole(steamId, role, expiresAt) {
   if (!isConfigured()) return null;
   try {

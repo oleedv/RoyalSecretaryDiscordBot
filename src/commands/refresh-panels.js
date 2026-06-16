@@ -6,6 +6,7 @@ import { buildPanelMessage as buildVerifyPanel } from '../services/verify/verify
 import { buildPanelMessage as buildPurgedPanel } from '../services/purged/purgedPanel.js';
 import { getSeedingConfig, setPanelMessageId } from '../services/seeding/seedingService.js';
 import { stopStatusUpdater, startStatusUpdater } from '../services/serverStatus/serverStatusService.js';
+import { refreshLiveLayerHighlight } from '../services/layerRotationValidator/layerRotationValidatorScheduler.js';
 import { successEmbed, errorEmbed } from '../utils/embed.js';
 import config from '../config.js';
 import logger from '../logger.js';
@@ -82,6 +83,15 @@ async function refreshServerStatus(interaction) {
   return `Server Status: refreshed (${botEmbeds.size} message(s) replaced)`;
 }
 
+async function refreshLayerRotation(interaction) {
+  const result = await refreshLiveLayerHighlight(interaction.client);
+  if (result.ok) {
+    log.info('Layer rotation embed refreshed');
+    return 'Layer Rotation: refreshed';
+  }
+  return `Layer Rotation: skipped (${result.reason})`;
+}
+
 export default {
   data: new SlashCommandBuilder()
     .setName('refresh-panels')
@@ -99,6 +109,7 @@ export default {
           { name: 'Purged', value: 'purged' },
           { name: 'Seeding', value: 'seeding' },
           { name: 'Server Status', value: 'server-status' },
+          { name: 'Layer Rotation', value: 'layer-rotation' },
         )
     ),
 
@@ -126,6 +137,10 @@ export default {
 
       if (choice === 'all' || choice === 'server-status') {
         results.push(await refreshServerStatus(interaction));
+      }
+
+      if (choice === 'all' || choice === 'layer-rotation') {
+        results.push(await refreshLayerRotation(interaction));
       }
 
       await interaction.editReply({ embeds: [successEmbed(results.join('\n'))] });

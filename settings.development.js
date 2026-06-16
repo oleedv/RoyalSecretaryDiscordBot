@@ -62,6 +62,20 @@ export default {
     defaultMaxExtensionDays: 60,
     schedulerCheckMs: 60000,
   },
+  slReward: {
+    // Inert in development: no channels, dry-run on.
+    leaderboardChannelId: '',
+    hypercareChannelId: '',
+    hypercareVerbose: false,
+    dryRun: true,
+    clanId: 'cmq8eaiat03ym01qtcdgs7bri',
+    server: 'main',
+    thresholdHours: 5,
+    rewardDays: 7,
+    extendWhenRemainingHours: 24,
+    grantIntervalMs: 1800000,
+    leaderboardIntervalMs: 10800000,
+  },
   purged: {
     roleId: '1491082532236820742',                         // Purged member role
     channelId: '1491095974771167423',                      // Purged members info channel

@@ -150,7 +150,7 @@ Alias: ${sanitize(prospect.alias)}
 Country: ${sanitize(prospect.nationality)}
 Date of Birth: ${sanitize(prospect.date_of_birth)}
 Hours in Squad (self-reported): ${sanitize(prospect.squad_hours)}
-Preferred Roles: ${sanitize(prospect.preferred_roles)}
+About Yourself: ${sanitize(prospect.about_yourself)}
 Previous Clan: ${sanitize(prospect.prev_clan)}
 Why RB?: ${sanitize(prospect.why_rb)}
 Active Hours (UTC): ${sanitize(prospect.active_hours)}

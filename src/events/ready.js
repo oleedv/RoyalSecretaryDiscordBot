@@ -9,6 +9,8 @@ import { connect as connectSquadJS } from '../services/seeding/seedingSocket.js'
 import { startScheduler as startSeedingScheduler } from '../services/seeding/seedingScheduler.js';
 import { startHeartbeat } from '../services/admin/statusHeartbeat.js';
 import { startScheduler as startSeedTrackerScheduler } from '../services/seedTracker/seedTrackerScheduler.js';
+import { startScheduler as startSlRewardScheduler } from '../services/sl-reward/grantCron.js';
+import { startScheduler as startSlLeaderboardScheduler } from '../services/sl-reward/leaderboardCron.js';
 import { resumeClosingTimers, restoreAnonymousModes } from '../services/ticket/ticketService.js';
 import { startStatusUpdater } from '../services/serverStatus/serverStatusService.js';
 import { startActionProcessor } from '../services/actionProcessor.js';
@@ -46,6 +48,8 @@ export default {
     await safeInit('squadJSSocket', () => connectSquadJS(client));
     await safeInit('seedingScheduler', () => startSeedingScheduler(client));
     await safeInit('seedTrackerScheduler', () => startSeedTrackerScheduler(client));
+    await safeInit('slRewardScheduler', () => startSlRewardScheduler(client));
+    await safeInit('slLeaderboardScheduler', () => startSlLeaderboardScheduler(client));
     await safeInit('heartbeat', () => startHeartbeat(client));
     await safeInit('statusUpdater', () => startStatusUpdater(client));
     await safeInit('actionProcessor', () => startActionProcessor(client));

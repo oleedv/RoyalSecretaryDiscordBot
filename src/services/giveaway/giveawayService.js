@@ -104,6 +104,14 @@ export async function listEntries(giveawayId) {
   );
 }
 
+export async function countEntries(giveawayId) {
+  const rows = await query(
+    `SELECT COUNT(*) AS n FROM giveaway_entries WHERE giveaway_id = ?`,
+    [giveawayId]
+  );
+  return Number(rows[0]?.n) || 0;
+}
+
 export async function countVotesByVoter(giveawayId, voterId) {
   const rows = await query(
     `SELECT COUNT(*) AS n FROM giveaway_votes WHERE giveaway_id = ? AND voter_id = ?`,

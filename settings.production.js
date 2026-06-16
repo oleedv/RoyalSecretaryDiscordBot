@@ -62,6 +62,7 @@ export default {
     memberFlagId: '60539480-0d14-11ec-a83f-b32d5968dd59',
   },
   seeding: {
+    seedingServer: 'production',  // SQUADJS_SERVERS connection name used by the layer-rotation validator (name-based DB queries)
     // First-insert defaults for the seeding_config DB row. All live config (servers,
     // channels, role list, thresholds, tracker rules) is edited on the website /seeding page.
     defaultThreshold: 40,
@@ -73,6 +74,19 @@ export default {
     defaultWhitelistDurationDays: 30,
     defaultMaxExtensionDays: 60,
     schedulerCheckMs: 60000,
+  },
+  slReward: {
+    leaderboardChannelId: '1516397123007021087',          // SL rolling-7d leaderboard embed
+    hypercareChannelId: '1516396946355654707',            // Launch hypercare: grant/extend/skip/error log
+    hypercareVerbose: true,                               // Verbose during launch; flip to false to keep only run summaries
+    dryRun: false,                                        // Live grants (straight to prod)
+    clanId: 'cmq8eaiat03ym01qtcdgs7bri',                 // Squadleader whitelist clan
+    server: 'main',
+    thresholdHours: 5,                                    // Rolling-7d qualifying SL hours to earn whitelist
+    rewardDays: 7,                                        // Whitelist length per grant/extend
+    extendWhenRemainingHours: 24,                         // Extend an SL entry only when under this much time left
+    grantIntervalMs: 1800000,                             // 30 min
+    leaderboardIntervalMs: 10800000,                      // 3 h
   },
   serverStatus: {
     channelId: '1476956161566572705',                    // Server status channel

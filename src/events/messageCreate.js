@@ -1,6 +1,7 @@
 import { Events, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { getOpenTicketByUser, getClosingTicketByUser, reopenTicket, rebuildTicketInfoEmbed } from '../services/ticket/ticketService.js';
 import { getOpenProspectByUser, getProspectByUserWithChannel } from '../services/prospect/prospectService.js';
+import { getStoredSteamId } from '../services/userService.js';
 import * as ticketMessages from '../handlers/ticketMessages.js';
 import * as prospectMessages from '../handlers/prospectMessages.js';
 import * as prospectForumMessages from '../handlers/prospectForumMessages.js';
@@ -161,6 +162,16 @@ async function handleDM(message) {
       .setLabel('Join RB')
       .setStyle(ButtonStyle.Secondary),
   );
+
+  const linkedSteamId = await getStoredSteamId(message.author.id);
+  if (!linkedSteamId) {
+    buttons.addComponents(
+      new ButtonBuilder()
+        .setCustomId('link_steam')
+        .setLabel('Link Steam')
+        .setStyle(ButtonStyle.Secondary),
+    );
+  }
 
   const infoChannelId = config.dm?.infoChannelId;
   if (infoChannelId) {

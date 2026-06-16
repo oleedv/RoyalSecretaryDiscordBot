@@ -101,6 +101,65 @@ async function fetchNewPlayers(serverId) {
     : 0;
 }
 
+async function fetchRecentCompletedLayers(serverId, limit) {
+  // limit is internal (always small); coerce to a bounded integer so it can be
+  // inlined safely (LIMIT does not bind cleanly as a placeholder in mysql2).
+  const n = Math.max(1, Math.min(10, Math.trunc(Number(limit)) || 3));
+  const rows = await query(
+    `SELECT layer FROM squadjs_matches
+     WHERE server_id = ? AND end_time IS NOT NULL AND layer IS NOT NULL AND layer <> ''
+     ORDER BY start_time DESC
+     LIMIT ${n}`,
+    [serverId],
+    'squadjs'
+  );
+  return rows.map((r) => r.layer);
+}
+
+// The most recently completed layers on a server, most-recent first. Returns []
+// on any failure (unknown server, query error) so callers can render without it.
+export async function getRecentCompletedLayers(serverName, limit = 3) {
+  const serverId = await getServerId(serverName);
+  if (serverId == null) return [];
+  try {
+    return await fetchRecentCompletedLayers(serverId, limit);
+  } catch (err) {
+    log.warn({ err, serverName }, 'Failed to query recent completed layers');
+    return [];
+  }
+}
+
+async function fetchActiveMatch(serverId) {
+  const rows = await query(
+    `SELECT layer, UNIX_TIMESTAMP(start_time) AS start_ts
+     FROM squadjs_matches
+     WHERE server_id = ? AND end_time IS NULL
+     ORDER BY start_time DESC
+     LIMIT 1`,
+    [serverId],
+    'squadjs'
+  );
+  if (rows.length === 0) return null;
+  return {
+    layer: rows[0].layer || null,
+    startTime: rows[0].start_ts != null ? Number(rows[0].start_ts) : null,
+  };
+}
+
+// The current (in-progress) match: its layer + start unix ts. Sourced from the DB
+// so it is available even when the live socket has no layer yet (e.g. right after a
+// reboot) or is disconnected. Returns null on any failure.
+export async function getActiveMatch(serverName) {
+  const serverId = await getServerId(serverName);
+  if (serverId == null) return null;
+  try {
+    return await fetchActiveMatch(serverId);
+  } catch (err) {
+    log.warn({ err, serverName }, 'Failed to query active match');
+    return null;
+  }
+}
+
 export async function getServerStats(serverName) {
   const serverId = await getServerId(serverName);
   if (serverId == null) return {};

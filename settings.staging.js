@@ -59,6 +59,7 @@ export default {
     memberFlagId: '60539480-0d14-11ec-a83f-b32d5968dd59',
   },
   seeding: {
+    seedingServer: 'staging',  // SQUADJS_SERVERS connection name used by the layer-rotation validator (name-based DB queries)
     // First-insert defaults for the seeding_config DB row. All live config (servers,
     // channels, role list, thresholds, tracker rules) is edited on the website /seeding page.
     defaultThreshold: 40,
@@ -70,6 +71,20 @@ export default {
     defaultWhitelistDurationDays: 30,
     defaultMaxExtensionDays: 60,
     schedulerCheckMs: 60000,
+  },
+  slReward: {
+    // Inert on staging: no channels, dry-run on (avoids writing real WhitelistEntry rows).
+    leaderboardChannelId: '',
+    hypercareChannelId: '',
+    hypercareVerbose: false,
+    dryRun: true,
+    clanId: 'cmq8eaiat03ym01qtcdgs7bri',
+    server: 'main',
+    thresholdHours: 5,
+    rewardDays: 7,
+    extendWhenRemainingHours: 24,
+    grantIntervalMs: 1800000,
+    leaderboardIntervalMs: 10800000,
   },
   serverStatus: {
     channelId: '1476163752863862875',
