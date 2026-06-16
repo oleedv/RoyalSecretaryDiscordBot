@@ -96,6 +96,7 @@ async function tick(client) {
         const entry = await createSlEntry(
           c.steamId,
           webUser?.id ?? null,
+          c.name,
           SL_CLAN_ID,
           'sl-reward-system',
           'Earned via Squad Leader rewards (5h+ rolling 7d)',
