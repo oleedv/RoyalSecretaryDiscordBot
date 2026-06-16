@@ -135,19 +135,21 @@ export async function updateRole(steamId, fromRole, toRole, { clearExpiry = fals
   }
 }
 
-// Squad Leader reward entries are identified by clanId (the SL clan), not by role like
-// the seeder reward. Grants stamp addedBy/reason so they're auditable on the website.
-export async function createSlEntry(steamId, userId, clanId, addedBy, reason, days) {
+// Squad Leader reward entries are identified by clanId (the SL clan). They also set
+// role='Whitelist' (the AdminGroup name that admins.cfg maps players into) and name so
+// the entry shows the player's name in the panel/cfg rather than a bare steamId. Grants
+// stamp addedBy/reason so they're auditable on the website.
+export async function createSlEntry(steamId, userId, name, clanId, addedBy, reason, days) {
   if (!isConfigured()) return null;
   try {
     const id = generateId();
     await query(
-      `INSERT INTO WhitelistEntry (id, steamId, server, clanId, userId, addedBy, reason, expiresAt, createdAt)
-       VALUES (?, ?, 'main', ?, ?, ?, ?, NOW() + INTERVAL ? DAY, NOW())`,
-      [id, steamId, clanId, userId, addedBy, reason, days],
+      `INSERT INTO WhitelistEntry (id, steamId, server, name, clanId, role, userId, addedBy, reason, expiresAt, createdAt)
+       VALUES (?, ?, 'main', ?, ?, 'Whitelist', ?, ?, ?, NOW() + INTERVAL ? DAY, NOW())`,
+      [id, steamId, name, clanId, userId, addedBy, reason, days],
       'website'
     );
-    return { id, steamId, clanId, userId, days };
+    return { id, steamId, name, clanId, userId, days };
   } catch (err) {
     log.warn({ err, steamId }, 'Failed to create SL whitelist entry');
     return null;
