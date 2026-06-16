@@ -15,7 +15,7 @@ import {
 } from './layerRotationValidatorService.js';
 import { buildSuccessEmbed, buildErrorEmbed } from './layerRotationValidatorEmbeds.js';
 import { getServerState } from '../seeding/seedingSocket.js';
-import { getServerStats } from '../serverStatus/serverStatusQueries.js';
+import { getServerStats, getRecentCompletedLayers } from '../serverStatus/serverStatusQueries.js';
 
 const log = logger.child({ module: 'layerRotationValidator' });
 
@@ -82,15 +82,26 @@ async function clearChannel(client, channelId) {
 }
 
 // Best-effort resolve of the live layer + match start time from the seeding
-// server socket. Any miss (no server configured, socket down, query error)
-// returns nulls and the embed renders without highlight / timer.
-async function readLiveLayerState() {
+// server socket, plus (vote mode only) the last few played layers from the DB.
+// Any miss (no server configured, socket down, query error) returns nulls/[] and
+// the embed renders without highlight / timer / last-maps.
+async function readLiveLayerState(embedMode) {
   const name = config.seeding?.seedingServer;
-  if (!name) return { currentLayer: null, matchStartTime: null };
+  if (!name) return { currentLayer: null, matchStartTime: null, lastMaps: [] };
+  // Last-played maps come from the DB, independent of socket liveness, so fetch
+  // them even when the live socket is down. Only needed in vote mode.
+  const lastMaps =
+    embedMode === 'LayerList_Vote'
+      ? await getRecentCompletedLayers(name, 3).catch(() => [])
+      : [];
   const state = getServerState(name);
-  if (!state?.connected) return { currentLayer: null, matchStartTime: null };
+  if (!state?.connected) return { currentLayer: null, matchStartTime: null, lastMaps };
   const stats = await getServerStats(name).catch(() => ({}));
-  return { currentLayer: state.currentLayer || null, matchStartTime: stats?.matchStartTime ?? null };
+  return {
+    currentLayer: state.currentLayer || null,
+    matchStartTime: stats?.matchStartTime ?? null,
+    lastMaps,
+  };
 }
 
 export async function replaceLiveEmbed(client, { mode: embedMode, lines, source }) {
@@ -101,8 +112,8 @@ export async function replaceLiveEmbed(client, { mode: embedMode, lines, source 
     log.error({ channelId: settings.channelId }, 'Cannot fetch prod channel for embed post');
     return false;
   }
-  const { currentLayer, matchStartTime } = await readLiveLayerState();
-  const embed = buildSuccessEmbed({ mode: embedMode, lines, currentLayer, matchStartTime });
+  const { currentLayer, matchStartTime, lastMaps } = await readLiveLayerState(embedMode);
+  const embed = buildSuccessEmbed({ mode: embedMode, lines, currentLayer, matchStartTime, lastMaps });
   const sent = await channel.send({ embeds: [embed] }).catch((err) => {
     log.error({ err }, 'Failed to send success embed');
     return null;

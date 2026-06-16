@@ -115,8 +115,9 @@ describe('buildSuccessEmbed - current map block', () => {
   });
 
   test('matches and labels a spaced live A2S name (GooseBay regression)', () => {
+    // Fixed LayerList mode shows the rotation list, so the current line is highlighted.
     const rot = ['Fallujah_Seed_v1 WPMC CAF', 'GooseBay_RAAS_v2 PLA+Motorized CAF'];
-    const d = buildSuccessEmbed({ mode: 'LayerList_Vote', lines: rot, currentLayer: 'Goose Bay RAAS v2', matchStartTime: 1717003600 }).data.description;
+    const d = buildSuccessEmbed({ mode: 'LayerList', lines: rot, currentLayer: 'Goose Bay RAAS v2', matchStartTime: 1717003600 }).data.description;
     expect(d).toContain('Current map: Goose Bay RAAS v2');
     expect(d).toContain(':green_circle: **2. Goose Bay RAAS v2** - *PLA+Motorized vs CAF*');
   });
@@ -128,5 +129,74 @@ describe('buildSuccessEmbed - current map block', () => {
     const d = buildSuccessEmbed({ mode: 'LayerList', lines: rot, currentLayer: 'Goose Bay RAAS v2' }).data.description;
     expect(d).toContain('Current map: Goose Bay RAAS v2');
     expect(d).not.toContain(':green_circle:');
+  });
+});
+
+describe('buildSuccessEmbed - vote mode (last 3 maps)', () => {
+  // In LayerList_Vote mode players vote on the next layer, so the cfg "rotation" is
+  // just vote candidates and is not meaningful to display. Show current + last 3 played.
+  const candidates = ['Kohat_RAAS_v1 USA RGF', 'Yehorivka_AAS_v1 USA RGF'];
+  const lastMaps = ['Yehorivka_RAAS_v1', 'Narva_RAAS_v2', 'Sumari_Invasion_v1'];
+
+  test('shows the Last 3 maps block instead of the vote-candidate rotation list', () => {
+    const d = buildSuccessEmbed({
+      mode: 'LayerList_Vote',
+      lines: candidates,
+      currentLayer: 'Mutaha_RAAS_v1',
+      matchStartTime: 1717003600,
+      lastMaps,
+    }).data.description;
+    expect(d).toContain('Last 3 maps:');
+    expect(d).toContain('**1.** Yehorivka RAAS v1');
+    expect(d).toContain('**2.** Narva RAAS v2');
+    expect(d).toContain('**3.** Sumari Invasion v1');
+    // The vote candidates (only present in `lines`) must NOT be rendered as a rotation.
+    expect(d).not.toContain('Kohat');
+    expect(d).not.toContain(':green_circle:');
+    expect(d).not.toContain(':white_circle:');
+  });
+
+  test('still shows the Current map + Started block in vote mode', () => {
+    const d = buildSuccessEmbed({
+      mode: 'LayerList_Vote',
+      lines: candidates,
+      currentLayer: 'Mutaha_RAAS_v1',
+      matchStartTime: 1717003600,
+      lastMaps,
+    }).data.description;
+    expect(d).toContain('Mode: LayerList_Vote (players vote)');
+    expect(d).toContain('Current map: Mutaha RAAS v1');
+    expect(d).toContain('Started <t:1717003600:R>');
+  });
+
+  test('renders a placeholder when there are no recent maps', () => {
+    const d = buildSuccessEmbed({
+      mode: 'LayerList_Vote',
+      lines: candidates,
+      currentLayer: 'Mutaha_RAAS_v1',
+      matchStartTime: 1717003600,
+      lastMaps: [],
+    }).data.description;
+    expect(d).toContain('Last 3 maps:');
+    expect(d).toContain('No recent maps');
+  });
+
+  test('back-compat: vote mode with no lastMaps field shows the placeholder', () => {
+    const d = buildSuccessEmbed({ mode: 'LayerList_Vote', lines: candidates }).data.description;
+    expect(d).toContain('Last 3 maps:');
+    expect(d).toContain('No recent maps');
+    expect(d).not.toContain('Kohat');
+  });
+
+  test('fixed LayerList mode shows the rotation list, not the Last 3 maps block', () => {
+    const d = buildSuccessEmbed({
+      mode: 'LayerList',
+      lines: candidates,
+      currentLayer: 'Kohat_RAAS_v1',
+      matchStartTime: 1717003600,
+      lastMaps,
+    }).data.description;
+    expect(d).not.toContain('Last 3 maps:');
+    expect(d).toContain('Kohat RAAS v1');
   });
 });
