@@ -143,7 +143,8 @@ function connectServer(serverCfg) {
     conn.state.currentMap = extractMapName(conn.state.currentLayer);
     conn.state.playerCount = 0;
     log.info({ name: serverCfg.name, map: conn.state.currentMap, layer: conn.state.currentLayer }, 'New game started');
-    if (discordClient && coerceServerId(conn.serverId) != null && coerceServerId(conn.serverId) === announcerServerId) {
+    const connServerId = coerceServerId(conn.serverId);
+    if (discordClient && connServerId != null && connServerId === announcerServerId) {
       import('../layerRotationValidator/layerRotationValidatorScheduler.js')
         .then(({ refreshLiveLayerHighlight }) => refreshLiveLayerHighlight(discordClient))
         .catch((err) => log.error({ err }, 'Failed to refresh layer rotation highlight on NEW_GAME'));

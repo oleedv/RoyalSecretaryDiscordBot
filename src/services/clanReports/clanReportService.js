@@ -5,11 +5,11 @@
 // KPI block, the requested panel body, and the tag-spotters count (shown in KPI).
 
 import { AttachmentBuilder } from 'discord.js';
-import config from '../../config.js';
 import logger from '../../logger.js';
 import * as q from './clanReportQueries.js';
 import * as f from './clanReportFormatters.js';
 import { getPanel, getWindow } from './panelRegistry.js';
+import { getSeedingConfig } from '../seeding/seedingService.js';
 
 const log = logger.child({ module: 'clanReports:service' });
 
@@ -127,9 +127,10 @@ export async function generateReport({ clanId, serverId, window, panel, generate
     const rows = await q.getActivityRows(steamIds, serverId, days);
     body = f.formatActivity({ rows, members, lastSeenMap });
   } else if (panel === 'seeding') {
+    const seedingCfg = await getSeedingConfig();
     const [rows, milestoneTarget] = [
       await q.getSeedingRows(steamIds, serverId, days),
-      config.seedTracker?.requiredSeedDays || null,
+      seedingCfg?.required_seed_days || null,
     ];
     body = f.formatSeeding({ rows, members, milestoneTarget });
   } else if (panel === 'roster') {
