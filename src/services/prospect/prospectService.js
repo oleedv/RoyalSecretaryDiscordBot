@@ -10,6 +10,7 @@ import { fetchCblData } from '../cblService.js';
 import { getSteamBans } from '../steamService.js';
 import { getPlaytime, getConnectionStats } from '../playtimeService.js';
 import { getPlayerSeedStats, getSeedStreak } from '../seedTracker/seedTrackerService.js';
+import { getSeedingConfig } from '../seeding/seedingService.js';
 import { getActivitySummary } from '../activity/activityService.js';
 import { generateProspectEvaluation } from '../ai/prospectAiService.js';
 import { query, transaction } from '../../database/connection.js';
@@ -178,11 +179,11 @@ function appendAllStatsToMessage(message, steamId, userId, prospect) {
   const start = startDate.toISOString().slice(0, 10);
   const now = new Date().toISOString().slice(0, 10);
 
-  Promise.all([
+  getSeedingConfig().catch(() => null).then((seedingCfg) => Promise.all([
     getConnectionStats(steamId, start).catch(() => null),
     getPlaytime(steamId, start).catch(() => null),
-    getPlayerSeedStats(steamId, 30).catch(() => null),
-    getSeedStreak(steamId).catch(() => 0),
+    getPlayerSeedStats(steamId, 30, seedingCfg?.tracker_server_id ?? null).catch(() => null),
+    getSeedStreak(steamId, seedingCfg?.tracker_server_id ?? null).catch(() => 0),
     getActivitySummary(userId, start, now).catch(() => null),
     fetchCblData(steamId).catch(() => null),
     bm.getPlayerProfile(steamId).catch(() => null),
@@ -368,7 +369,7 @@ function appendAllStatsToMessage(message, steamId, userId, prospect) {
     );
   }).catch((err) => {
     log.warn({ err, steamId }, 'appendAllStatsToMessage failed');
-  });
+  }));
 }
 
 // ── DB Accessors ──
