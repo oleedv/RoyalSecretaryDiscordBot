@@ -973,10 +973,10 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
     }
 
     if (outcome === 'accepted') {
-      whitelistService.updateRole(prospect.steam_id, 'Prospect', 'Member', { clearExpiry: true })
+      whitelistService.updateRole(prospect.steam_id, 'Prospect', 'Member', { clearExpiry: true, actor: { discordId: closedById } })
         .catch((err) => log.warn({ err }, 'Failed to update whitelist role to member'));
     } else {
-      whitelistService.expireByRole(prospect.steam_id, 'Prospect')
+      whitelistService.expireByRole(prospect.steam_id, 'Prospect', { discordId: closedById })
         .catch((err) => log.warn({ err }, 'Failed to expire prospect whitelist entry'));
     }
   }
@@ -1074,7 +1074,7 @@ export async function togglePause(prospect, actorId, guild) {
     );
     log.info({ prospectId: prospect.id, pausedDays }, 'Prospect unpaused');
 
-    await slideProspectWhitelistExpiry(prospect.id, guild, 'unpause');
+    await slideProspectWhitelistExpiry(prospect.id, guild, 'unpause', actorId);
   } else {
     const result = await query(
       'UPDATE prospects SET paused_at = NOW() WHERE id = ? AND paused_at IS NULL',
@@ -1107,13 +1107,13 @@ export async function extendProspect(prospect, days, actorId, guild) {
   );
   log.info({ prospectId: prospect.id, days }, 'Prospect extended');
 
-  await slideProspectWhitelistExpiry(prospect.id, guild, 'extended');
+  await slideProspectWhitelistExpiry(prospect.id, guild, 'extended', actorId);
 
   await refreshStaffEmbed(prospect, guild);
   await refreshForumEmbed(prospect, guild);
 }
 
-async function slideProspectWhitelistExpiry(prospectId, guild, cause) {
+async function slideProspectWhitelistExpiry(prospectId, guild, cause, actorId = null) {
   const rows = await query(`SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE id = ?`, [prospectId]);
   const updated = rows[0];
   if (!updated || !updated.vote_posted_at) return;
@@ -1122,7 +1122,7 @@ async function slideProspectWhitelistExpiry(prospectId, guild, cause) {
   const expiryUnix = Math.floor(periodEnd.getTime() / 1000);
 
   if (!isTestSteamId(updated.steam_id)) {
-    await whitelistService.updateExpiryByRole(updated.steam_id, 'Prospect', periodEnd)
+    await whitelistService.updateExpiryByRole(updated.steam_id, 'Prospect', periodEnd, { discordId: actorId })
       .catch((err) => log.warn({ err, prospectId }, 'Failed to slide prospect whitelist expiry'));
   }
 
