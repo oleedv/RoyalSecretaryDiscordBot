@@ -1,13 +1,28 @@
 import { createEmbed } from '../utils/embed.js';
+import { query } from '../database/connection.js';
 import config from '../config.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'steam' });
 
 const STEAM_API_BASE = 'https://api.steampowered.com';
+const AVATAR_CDN_BASE = 'https://avatars.steamstatic.com';
+const DAY_MS = 86400000;
+export const AVATAR_REFRESH_DAYS = 30;
 
 export function isConfigured() {
   return !!config.steam?.apiKey;
+}
+
+/** Reconstruct the full-size avatar url from a Steam avatar hash. */
+export function buildAvatarUrl(hash) {
+  return hash ? `${AVATAR_CDN_BASE}/${hash}_full.jpg` : null;
+}
+
+/** True if a cached avatar was last checked within the refresh window. */
+export function isAvatarFresh(lastCheckedAt, nowMs, refreshDays = AVATAR_REFRESH_DAYS) {
+  if (!lastCheckedAt) return false;
+  return (nowMs - new Date(lastCheckedAt).getTime()) < refreshDays * DAY_MS;
 }
 
 export async function getSteamProfile(steamId) {
@@ -27,11 +42,59 @@ export async function getSteamProfile(steamId) {
       profileUrl: player.profileurl || null,
       visibility: player.communityvisibilitystate === 3 ? 'public' : 'private',
       accountCreated: player.timecreated ? new Date(player.timecreated * 1000).toISOString().slice(0, 10) : null,
+      avatarHash: player.avatarhash || null,
     };
   } catch (err) {
     log.warn({ err: err.message, steamId }, 'Steam: profile fetch failed');
     return null;
   }
+}
+
+async function getCachedAvatar(steamId) {
+  const rows = await query(
+    'SELECT avatar_hash AS avatarHash, last_checked_at AS lastCheckedAt FROM steam_avatar_cache WHERE steam_id = ? LIMIT 1',
+    [steamId]
+  );
+  return rows[0] || null;
+}
+
+async function upsertCachedAvatar(steamId, hash) {
+  await query(
+    `INSERT INTO steam_avatar_cache (steam_id, avatar_hash) VALUES (?, ?)
+     ON DUPLICATE KEY UPDATE avatar_hash = VALUES(avatar_hash), last_checked_at = NOW()`,
+    [steamId, hash]
+  );
+}
+
+/**
+ * Resolve a player's avatar url, cached by hash in steam_avatar_cache.
+ * Fresh hit -> no API call. Stale/miss -> refresh from API + upsert.
+ * API failure with a stale row -> serve the stale url. Otherwise null.
+ */
+export async function getAvatarUrl(steamId) {
+  let cached = null;
+  try {
+    cached = await getCachedAvatar(steamId);
+  } catch (err) {
+    log.warn({ err: err.message, steamId }, 'Steam: avatar cache read failed');
+  }
+
+  if (cached && isAvatarFresh(cached.lastCheckedAt, Date.now())) {
+    return buildAvatarUrl(cached.avatarHash);
+  }
+
+  const profile = await getSteamProfile(steamId);
+  if (profile?.avatarHash) {
+    try {
+      await upsertCachedAvatar(steamId, profile.avatarHash);
+    } catch (err) {
+      log.warn({ err: err.message, steamId }, 'Steam: avatar cache write failed');
+    }
+    return buildAvatarUrl(profile.avatarHash);
+  }
+
+  if (cached?.avatarHash) return buildAvatarUrl(cached.avatarHash);
+  return null;
 }
 
 export async function getSteamBans(steamId) {

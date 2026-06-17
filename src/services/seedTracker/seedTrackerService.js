@@ -10,6 +10,7 @@ import {
 import logger from '../../logger.js';
 import { getSeedingConfig } from '../seeding/seedingService.js';
 import { decideSeederAction } from './seederRewardLogic.js';
+import { getAvatarUrl } from '../steamService.js';
 
 const log = logger.child({ module: 'seedTrackerService' });
 
@@ -20,6 +21,7 @@ export async function getPlayerSeedStats(steamId, windowDays = 30, serverId = nu
         COUNT(DISTINCT s.seed_date) AS uniqueDays,
         AVG(s.quality_score) AS avgQuality,
         MAX(s.seed_date) AS lastSeedDate,
+        MIN(s.seed_date) AS firstSeedDate,
         COALESCE(SUM(s.duration_seconds), 0) AS totalDuration
       FROM squadjs_seed_sessions s
       JOIN squadjs_players p ON p.id = s.player_id
@@ -34,11 +36,12 @@ export async function getPlayerSeedStats(steamId, windowDays = 30, serverId = nu
       uniqueDays: Number(row.uniqueDays) || 0,
       avgQuality: row.avgQuality != null ? Number(row.avgQuality) : null,
       lastSeedDate: row.lastSeedDate || null,
+      firstSeedDate: row.firstSeedDate || null,
       totalDuration: Number(row.totalDuration) || 0,
     };
   } catch (err) {
     log.warn({ err, steamId }, 'Failed to fetch player seed stats');
-    return { uniqueDays: 0, avgQuality: null, lastSeedDate: null, totalDuration: 0 };
+    return { uniqueDays: 0, avgQuality: null, lastSeedDate: null, firstSeedDate: null, totalDuration: 0 };
   }
 }
 
@@ -177,9 +180,19 @@ export async function processCompletedSession(data, client) {
     const channelId = cfg.progression_channel_id;
     if (!channelId) return;
     const streak = await getSeedStreak(data.steamID, serverId);
-    const embed = buildProgressionEmbed(
-      data.playerName, data.steamID, stats.uniqueDays, requiredDays, streak, stats.avgQuality
-    );
+    const avatarUrl = await getAvatarUrl(data.steamID);
+    const seedAgainBy = stats.firstSeedDate
+      ? new Date(new Date(stats.firstSeedDate).getTime() + windowDays * 86400000)
+      : null;
+    const embed = buildProgressionEmbed({
+      name: data.playerName,
+      steamId: data.steamID,
+      uniqueDays: stats.uniqueDays,
+      required: requiredDays,
+      streak,
+      avatarUrl,
+      seedAgainBy,
+    });
     const channel = await client.channels.fetch(channelId).catch(() => null);
     if (channel) await channel.send({ embeds: [embed] });
   } catch (err) {
