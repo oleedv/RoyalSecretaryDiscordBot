@@ -16,6 +16,19 @@ export async function initSchema() {
     )
   `);
 
+  // Steam avatar cache: store only the avatar hash (the CDN url is reconstructable
+  // from it) plus first/last cache times. Refreshed every AVATAR_REFRESH_DAYS.
+  // last_checked_at is set explicitly on every refresh (NOT ON UPDATE CURRENT_TIMESTAMP)
+  // so an unchanged hash still re-bumps the freshness clock.
+  await query(`
+    CREATE TABLE IF NOT EXISTS steam_avatar_cache (
+      steam_id        VARCHAR(20) NOT NULL PRIMARY KEY,
+      avatar_hash     CHAR(40)    NOT NULL,
+      first_cached_at TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_checked_at TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // Grant DMs that couldn't be delivered (recipient unreachable / DMs closed) are
   // queued here and retried by the SL grant cron until they land or expire.
   await query(`
