@@ -181,6 +181,7 @@ export async function processCompletedSession(data, client) {
       durationDays: cfg.whitelist_duration_days || 30,
       maxExtensionDays: cfg.max_extension_days || 60,
       nowMs: Date.now(),
+      minProgressionDays: cfg.min_progression_days ?? 2,
     });
 
     if (decision.action === 'skip') return;

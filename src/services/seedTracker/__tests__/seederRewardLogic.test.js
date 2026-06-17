@@ -3,7 +3,7 @@ import { decideSeederAction, shouldThankToday } from '../seederRewardLogic.js';
 
 const DAY = 86400000;
 const NOW = 1_700_000_000_000; // fixed reference instant
-const base = { requiredDays: 10, durationDays: 30, maxExtensionDays: 60, nowMs: NOW };
+const base = { requiredDays: 10, durationDays: 30, maxExtensionDays: 60, nowMs: NOW, minProgressionDays: 2 };
 
 describe('decideSeederAction', () => {
   test('non-Seeder whitelist (clan/admin) => thank', () => {
@@ -18,6 +18,16 @@ describe('decideSeederAction', () => {
 
   test('no whitelist + below threshold = progression', () => {
     const r = decideSeederAction({ ...base, uniqueDays: 4, whitelist: null });
+    expect(r.action).toBe('progression');
+  });
+
+  test('no whitelist + 1 seed day (one-time connect) => skip (gated)', () => {
+    const r = decideSeederAction({ ...base, uniqueDays: 1, whitelist: null });
+    expect(r.action).toBe('skip');
+  });
+
+  test('no whitelist + exactly minProgressionDays => progression', () => {
+    const r = decideSeederAction({ ...base, uniqueDays: 2, whitelist: null });
     expect(r.action).toBe('progression');
   });
 
