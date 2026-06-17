@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test';
-import { buildMilestoneTrack, buildProgressionEmbed, buildLeaderboardEmbed } from '../seedTrackerEmbeds.js';
+import { buildMilestoneTrack, buildProgressionEmbed, buildLeaderboardEmbed, buildSeederThanksEmbed } from '../seedTrackerEmbeds.js';
 
 const fieldNames = (embed) => embed.data.fields.map((f) => f.name);
 
@@ -71,5 +71,20 @@ describe('buildLeaderboardEmbed', () => {
     );
     expect(e.data.description).not.toContain('Quality');
     expect(e.data.description).toContain('Jonas');
+  });
+});
+
+describe('buildSeederThanksEmbed', () => {
+  test('renders a thank-you with the name and no stats', () => {
+    const e = buildSeederThanksEmbed({ name: 'Anders' });
+    expect(e.data.title).toBe('Thanks for seeding!');
+    expect(e.data.description).toContain('Anders');
+    expect(e.data.thumbnail).toBeUndefined();
+    expect(e.data.fields ?? []).toHaveLength(0);
+  });
+
+  test('sets the thumbnail when an avatar is provided', () => {
+    const e = buildSeederThanksEmbed({ name: 'Anders', avatarUrl: 'https://avatars.steamstatic.com/x_full.jpg' });
+    expect(e.data.thumbnail?.url).toBe('https://avatars.steamstatic.com/x_full.jpg');
   });
 });
