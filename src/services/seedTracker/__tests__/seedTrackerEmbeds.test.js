@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test';
-import { buildMilestoneTrack, buildProgressionEmbed } from '../seedTrackerEmbeds.js';
+import { buildMilestoneTrack, buildProgressionEmbed, buildLeaderboardEmbed } from '../seedTrackerEmbeds.js';
 
 const fieldNames = (embed) => embed.data.fields.map((f) => f.name);
 
@@ -60,5 +60,16 @@ describe('buildProgressionEmbed', () => {
   test('omits the thumbnail when no avatar', () => {
     const e = buildProgressionEmbed({ ...base });
     expect(e.data.thumbnail).toBeUndefined();
+  });
+});
+
+describe('buildLeaderboardEmbed', () => {
+  test('lines do not expose Quality', () => {
+    const e = buildLeaderboardEmbed(
+      [{ name: 'Jonas', seedDays: 8, totalDuration: 3600, avgQuality: 0.9 }],
+      30
+    );
+    expect(e.data.description).not.toContain('Quality');
+    expect(e.data.description).toContain('Jonas');
   });
 });

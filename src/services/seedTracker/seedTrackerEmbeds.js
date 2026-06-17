@@ -94,8 +94,7 @@ export function buildLeaderboardEmbed(seeders, windowDays) {
   const lines = seeders.map((s, i) => {
     const rank = i + 1;
     const duration = formatDuration(s.totalDuration);
-    const quality = formatQuality(s.avgQuality);
-    return `**#${rank}** ${s.name} - ${s.seedDays} days | ${duration} | Quality: ${quality}`;
+    return `**#${rank}** ${s.name} - ${s.seedDays} days | ${duration}`;
   });
 
   return createEmbed('Seed Tracker')
