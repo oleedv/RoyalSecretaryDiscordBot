@@ -1,8 +1,11 @@
 import { query, getPool } from '../database/connection.js';
 import { generateId } from '../utils/id.js';
+import { logWhitelistActivity } from './whitelistAudit.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'whitelist' });
+
+const toIso = (d) => (d ? new Date(d).toISOString() : null);
 
 export function isConfigured() {
   try {
@@ -22,6 +25,9 @@ export async function createEntry(steamId, name, clan, role, addedBy, expiresAt 
       [id, steamId, name, clan, role, addedBy, expiresAt],
       'website'
     );
+    await logWhitelistActivity('whitelist.add', id, { discordId: addedBy, system: 'bot' }, {
+      steamId, server: 'main', name, clan, role, expiresAt: toIso(expiresAt),
+    });
     return { id, steamId, server: 'main', name, clan, role, addedBy, expiresAt };
   } catch (err) {
     log.warn({ err, steamId }, 'Failed to create whitelist entry');
@@ -54,13 +60,16 @@ export async function expireEntry(id) {
   }
 }
 
-export async function expireByRole(steamId, role) {
+export async function expireByRole(steamId, role, actor = null) {
   if (!isConfigured()) return null;
   try {
     const entries = await findEntries(steamId);
     const matching = entries.filter((e) => e.role === role);
     for (const entry of matching) {
       await expireEntry(entry.id);
+      await logWhitelistActivity('whitelist.update', entry.id, actor, {
+        steamId, role, changes: { expiresAt: { to: 'expired' } },
+      });
     }
     return matching.length;
   } catch (err) {
@@ -91,6 +100,10 @@ export async function upsertSeederEntry(steamId, name, expiresAt) {
         ['Seeder', name, expiresAt, 'SeedTracker', seederEntry.id],
         'website'
       );
+      await logWhitelistActivity('whitelist.update', seederEntry.id, { system: 'seedTracker' }, {
+        steamId, name, role: 'Seeder', source: 'seed-tracker',
+        changes: { expiresAt: { to: toIso(expiresAt) } },
+      });
       return { id: seederEntry.id, steamId, role: 'Seeder', expiresAt };
     }
 
@@ -101,6 +114,9 @@ export async function upsertSeederEntry(steamId, name, expiresAt) {
       [id, steamId, name, expiresAt],
       'website'
     );
+    await logWhitelistActivity('whitelist.add', id, { system: 'seedTracker' }, {
+      steamId, server: 'main', name, role: 'Seeder', source: 'seed-tracker', expiresAt: toIso(expiresAt),
+    });
     return { id, steamId, role: 'Seeder', expiresAt };
   } catch (err) {
     log.warn({ err, steamId }, 'Failed to upsert seeder whitelist entry');
@@ -108,7 +124,7 @@ export async function upsertSeederEntry(steamId, name, expiresAt) {
   }
 }
 
-export async function updateRole(steamId, fromRole, toRole, { clearExpiry = false } = {}) {
+export async function updateRole(steamId, fromRole, toRole, { clearExpiry = false, actor = null } = {}) {
   if (!isConfigured()) return null;
   try {
     const entries = await findEntries(steamId);
@@ -127,6 +143,13 @@ export async function updateRole(steamId, fromRole, toRole, { clearExpiry = fals
           'website'
         );
       }
+      await logWhitelistActivity('whitelist.update', entry.id, actor, {
+        steamId,
+        changes: {
+          role: { from: fromRole, to: toRole },
+          ...(clearExpiry ? { expiresAt: { to: null } } : {}),
+        },
+      });
     }
     return matching.length;
   } catch (err) {
@@ -149,6 +172,9 @@ export async function createSlEntry(steamId, userId, name, clanId, addedBy, reas
       [id, steamId, name, clanId, userId, addedBy, reason, days],
       'website'
     );
+    await logWhitelistActivity('whitelist.add', id, { discordId: addedBy, system: 'slReward' }, {
+      steamId, server: 'main', name, role: 'Whitelist', clanId, days, reason, source: 'sl-reward',
+    });
     return { id, steamId, name, clanId, userId, days };
   } catch (err) {
     log.warn({ err, steamId }, 'Failed to create SL whitelist entry');
@@ -164,6 +190,9 @@ export async function extendEntryByDays(id, days) {
       [days, id],
       'website'
     );
+    await logWhitelistActivity('whitelist.update', id, { system: 'slReward' }, {
+      source: 'sl-reward', changes: { expiresAt: { extendedByDays: days } },
+    });
     return true;
   } catch (err) {
     log.warn({ err, id }, 'Failed to extend whitelist entry');
@@ -171,7 +200,7 @@ export async function extendEntryByDays(id, days) {
   }
 }
 
-export async function updateExpiryByRole(steamId, role, expiresAt) {
+export async function updateExpiryByRole(steamId, role, expiresAt, actor = null) {
   if (!isConfigured()) return null;
   try {
     const entries = await findEntries(steamId);
@@ -182,6 +211,9 @@ export async function updateExpiryByRole(steamId, role, expiresAt) {
         [expiresAt, entry.id],
         'website'
       );
+      await logWhitelistActivity('whitelist.update', entry.id, actor, {
+        steamId, role, changes: { expiresAt: { to: toIso(expiresAt) } },
+      });
     }
     return matching.length;
   } catch (err) {
