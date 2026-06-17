@@ -11,6 +11,32 @@ function buildProgressBar(current, total, barLength = 20) {
   return `[${'#'.repeat(filled)}${'-'.repeat(empty)}] ${current}/${total} days`;
 }
 
+const TRACK_GLYPH = {
+  doneDay: '●', remainDay: '○',
+  doneHalf: '◆', remainHalf: '◇',
+  doneGoal: '◉', remainGoal: '◎',
+};
+
+/**
+ * Render a milestone track: one node per required seed day, joined by `━`.
+ * The halfway node (floor(total/2)) and the final goal node are distinct
+ * checkpoints that fill once reached. `done` is clamped to [0, total].
+ */
+export function buildMilestoneTrack(done, total) {
+  const filled = Math.max(0, Math.min(done, total));
+  const halfwayIdx = Math.floor(total / 2);
+  const nodes = [];
+  for (let i = 1; i <= total; i++) {
+    const reached = i <= filled;
+    let glyph;
+    if (i === total) glyph = reached ? TRACK_GLYPH.doneGoal : TRACK_GLYPH.remainGoal;
+    else if (i === halfwayIdx) glyph = reached ? TRACK_GLYPH.doneHalf : TRACK_GLYPH.remainHalf;
+    else glyph = reached ? TRACK_GLYPH.doneDay : TRACK_GLYPH.remainDay;
+    nodes.push(glyph);
+  }
+  return nodes.join('━');
+}
+
 function formatQuality(avgQuality) {
   if (avgQuality == null) return 'N/A';
   return `${Math.round(avgQuality * 100)}%`;
@@ -21,18 +47,27 @@ function discordTimestamp(date, style = 'R') {
   return `<t:${ts}:${style}>`;
 }
 
-export function buildProgressionEmbed(name, steamId, uniqueDays, required, streak, avgQuality) {
-  const progress = buildProgressBar(uniqueDays, required);
+export function buildProgressionEmbed({ name, steamId, uniqueDays, required, streak, avatarUrl = null, seedAgainBy = null }) {
+  const done = Math.max(0, Math.min(uniqueDays, required));
+  const track = buildMilestoneTrack(uniqueDays, required);
 
-  return createEmbed('Seed Tracker')
+  const embed = createEmbed('Seed Tracker')
     .setColor(COLOR_INFO)
     .setTitle('Seed Progress')
-    .setDescription(`**${name}**\n\`${progress}\``)
-    .addFields(
-      { name: 'Streak', value: `${streak} day${streak !== 1 ? 's' : ''}`, inline: true },
-      { name: 'Quality', value: formatQuality(avgQuality), inline: true },
-      { name: 'Steam ID', value: steamId, inline: false },
-    );
+    .setDescription(`**${name}**\n\`${track}\`\n**${done} / ${required} days**`);
+
+  if (avatarUrl) embed.setThumbnail(avatarUrl);
+
+  const fields = [
+    { name: 'Streak', value: `${streak} day${streak !== 1 ? 's' : ''}`, inline: true },
+  ];
+  if (seedAgainBy) {
+    fields.push({ name: 'Seed again by', value: discordTimestamp(seedAgainBy, 'R'), inline: true });
+  }
+  fields.push({ name: 'Steam ID', value: steamId, inline: false });
+  embed.addFields(...fields);
+
+  return embed;
 }
 
 export function buildMilestoneEmbed(name, milestone, uniqueDays) {
@@ -59,8 +94,7 @@ export function buildLeaderboardEmbed(seeders, windowDays) {
   const lines = seeders.map((s, i) => {
     const rank = i + 1;
     const duration = formatDuration(s.totalDuration);
-    const quality = formatQuality(s.avgQuality);
-    return `**#${rank}** ${s.name} - ${s.seedDays} days | ${duration} | Quality: ${quality}`;
+    return `**#${rank}** ${s.name} - ${s.seedDays} days | ${duration}`;
   });
 
   return createEmbed('Seed Tracker')
