@@ -47,18 +47,27 @@ function discordTimestamp(date, style = 'R') {
   return `<t:${ts}:${style}>`;
 }
 
-export function buildProgressionEmbed(name, steamId, uniqueDays, required, streak, avgQuality) {
-  const progress = buildProgressBar(uniqueDays, required);
+export function buildProgressionEmbed({ name, steamId, uniqueDays, required, streak, avatarUrl = null, seedAgainBy = null }) {
+  const done = Math.max(0, Math.min(uniqueDays, required));
+  const track = buildMilestoneTrack(uniqueDays, required);
 
-  return createEmbed('Seed Tracker')
+  const embed = createEmbed('Seed Tracker')
     .setColor(COLOR_INFO)
     .setTitle('Seed Progress')
-    .setDescription(`**${name}**\n\`${progress}\``)
-    .addFields(
-      { name: 'Streak', value: `${streak} day${streak !== 1 ? 's' : ''}`, inline: true },
-      { name: 'Quality', value: formatQuality(avgQuality), inline: true },
-      { name: 'Steam ID', value: steamId, inline: false },
-    );
+    .setDescription(`**${name}**\n\`${track}\`\n**${done} / ${required} days**`);
+
+  if (avatarUrl) embed.setThumbnail(avatarUrl);
+
+  const fields = [
+    { name: 'Streak', value: `${streak} day${streak !== 1 ? 's' : ''}`, inline: true },
+  ];
+  if (seedAgainBy) {
+    fields.push({ name: 'Seed again by', value: discordTimestamp(seedAgainBy, 'R'), inline: true });
+  }
+  fields.push({ name: 'Steam ID', value: steamId, inline: false });
+  embed.addFields(...fields);
+
+  return embed;
 }
 
 export function buildMilestoneEmbed(name, milestone, uniqueDays) {
