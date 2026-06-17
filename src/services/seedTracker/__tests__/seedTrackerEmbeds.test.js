@@ -5,15 +5,15 @@ const fieldNames = (embed) => embed.data.fields.map((f) => f.name);
 
 describe('buildMilestoneTrack', () => {
   test('empty progress: halfway/goal shown unfilled', () => {
-    expect(buildMilestoneTrack(0, 10)).toBe('○━○━○━○━◇━○━○━○━○━◎');
+    expect(buildMilestoneTrack(0, 10)).toBe('◯━━◯━━◯━━◯━━◇━━◯━━◯━━◯━━◯━━◎');
   });
 
   test('halfway reached fills the halfway diamond', () => {
-    expect(buildMilestoneTrack(5, 10)).toBe('●━●━●━●━◆━○━○━○━○━◎');
+    expect(buildMilestoneTrack(5, 10)).toBe('⬤━━⬤━━⬤━━⬤━━◆━━◯━━◯━━◯━━◯━━◎');
   });
 
   test('goal reached fills the goal marker', () => {
-    expect(buildMilestoneTrack(10, 10)).toBe('●━●━●━●━◆━●━●━●━●━◉');
+    expect(buildMilestoneTrack(10, 10)).toBe('⬤━━⬤━━⬤━━⬤━━◆━━⬤━━⬤━━⬤━━⬤━━◉');
   });
 
   test('done is clamped to total', () => {
@@ -21,7 +21,7 @@ describe('buildMilestoneTrack', () => {
   });
 
   test('non-default total places halfway at floor(total/2)', () => {
-    expect(buildMilestoneTrack(3, 7)).toBe('●━●━◆━○━○━○━◎');
+    expect(buildMilestoneTrack(3, 7)).toBe('⬤━━⬤━━◆━━◯━━◯━━◯━━◎');
   });
 });
 
@@ -30,7 +30,7 @@ describe('buildProgressionEmbed', () => {
 
   test('renders the milestone track and day count, no legend', () => {
     const e = buildProgressionEmbed({ ...base });
-    expect(e.data.description).toContain('●━●━●━●━◆━○━○━○━○━◎');
+    expect(e.data.description).toContain('⬤━━⬤━━⬤━━⬤━━◆━━◯━━◯━━◯━━◯━━◎');
     expect(e.data.description).toContain('5 / 10 days');
     expect(e.data.description).not.toContain('halfway');
   });
@@ -40,16 +40,16 @@ describe('buildProgressionEmbed', () => {
     expect(fieldNames(e)).not.toContain('Quality');
   });
 
-  test('shows Seed again by when a deadline is given', () => {
+  test('shows Resets when a deadline is given', () => {
     const e = buildProgressionEmbed({ ...base, seedAgainBy: new Date(1_700_000_000_000) });
-    expect(fieldNames(e)).toContain('Seed again by');
-    const field = e.data.fields.find((f) => f.name === 'Seed again by');
+    expect(fieldNames(e)).toContain('Resets');
+    const field = e.data.fields.find((f) => f.name === 'Resets');
     expect(field.value).toContain('<t:');
   });
 
-  test('omits Seed again by when no deadline', () => {
+  test('omits Resets when no deadline', () => {
     const e = buildProgressionEmbed({ ...base, seedAgainBy: null });
-    expect(fieldNames(e)).not.toContain('Seed again by');
+    expect(fieldNames(e)).not.toContain('Resets');
   });
 
   test('sets the avatar thumbnail when provided', () => {

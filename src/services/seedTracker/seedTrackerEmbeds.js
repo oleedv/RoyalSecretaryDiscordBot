@@ -12,13 +12,13 @@ function buildProgressBar(current, total, barLength = 20) {
 }
 
 const TRACK_GLYPH = {
-  doneDay: '●', remainDay: '○',
+  doneDay: '⬤', remainDay: '◯',
   doneHalf: '◆', remainHalf: '◇',
   doneGoal: '◉', remainGoal: '◎',
 };
 
 /**
- * Render a milestone track: one node per required seed day, joined by `━`.
+ * Render a milestone track: one node per required seed day, joined by `━━`.
  * The halfway node (floor(total/2)) and the final goal node are distinct
  * checkpoints that fill once reached. `done` is clamped to [0, total].
  */
@@ -34,7 +34,7 @@ export function buildMilestoneTrack(done, total) {
     else glyph = reached ? TRACK_GLYPH.doneDay : TRACK_GLYPH.remainDay;
     nodes.push(glyph);
   }
-  return nodes.join('━');
+  return nodes.join('━━');
 }
 
 function formatQuality(avgQuality) {
@@ -62,7 +62,7 @@ export function buildProgressionEmbed({ name, steamId, uniqueDays, required, str
     { name: 'Streak', value: `${streak} day${streak !== 1 ? 's' : ''}`, inline: true },
   ];
   if (seedAgainBy) {
-    fields.push({ name: 'Seed again by', value: discordTimestamp(seedAgainBy, 'R'), inline: true });
+    fields.push({ name: 'Resets', value: discordTimestamp(seedAgainBy, 'R'), inline: true });
   }
   fields.push({ name: 'Steam ID', value: steamId, inline: false });
   embed.addFields(...fields);
