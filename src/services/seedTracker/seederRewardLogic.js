@@ -5,13 +5,14 @@ const DAY_MS = 86400000;
  * @param {object} p
  * @param {number} p.uniqueDays      distinct seed days in the rolling window
  * @param {number} p.requiredDays    threshold to earn/renew
+ * @param {number} p.minProgressionDays minimum seed days before a progression embed shows (gates one-time connects)
  * @param {{role: string, expiresAt: (Date|string|null)}|null} p.whitelist
  * @param {number} p.durationDays    grant/renewal length
  * @param {number} p.maxExtensionDays cap measured from now
  * @param {number} p.nowMs           current epoch ms (injected for testability)
  * @returns {{action: 'skip'|'progression'|'grant'|'extend'|'thank', expiresAt?: Date}}
  */
-export function decideSeederAction({ uniqueDays, requiredDays, whitelist, durationDays, maxExtensionDays, nowMs }) {
+export function decideSeederAction({ uniqueDays, requiredDays, whitelist, durationDays, maxExtensionDays, nowMs, minProgressionDays = 2 }) {
   // Active non-Seeder whitelist (clan, admin, donor, etc.) — thank them for helping seed.
   if (whitelist && whitelist.role !== 'Seeder') return { action: 'thank' };
 
@@ -27,7 +28,8 @@ export function decideSeederAction({ uniqueDays, requiredDays, whitelist, durati
   }
 
   if (earned) return { action: 'grant' };
-  return { action: 'progression' };
+  // Below the minimum, stay silent — avoids spamming the channel on one-time connects.
+  return uniqueDays >= minProgressionDays ? { action: 'progression' } : { action: 'skip' };
 }
 
 /**
