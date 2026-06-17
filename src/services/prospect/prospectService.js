@@ -973,7 +973,7 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
     }
 
     if (outcome === 'accepted') {
-      whitelistService.updateRole(prospect.steam_id, 'Prospect', 'RBMembers', { clearExpiry: true })
+      whitelistService.updateRole(prospect.steam_id, 'Prospect', 'Member', { clearExpiry: true })
         .catch((err) => log.warn({ err }, 'Failed to update whitelist role to member'));
     } else {
       whitelistService.expireByRole(prospect.steam_id, 'Prospect')
@@ -990,7 +990,7 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
     if (outcome === 'accepted') {
       wlEmbed = createEmbed('Prospect')
         .setTitle('Whitelist Promoted')
-        .setDescription(`Prospect whitelist upgraded to RBMembers (permanent)${dbNote}. Added ${roleMention} to ${userMention}.`)
+        .setDescription(`Prospect whitelist upgraded to Member (permanent)${dbNote}. Added ${roleMention} to ${userMention}.`)
         .setColor(0x57f287);
     } else if (outcome === 'denied') {
       wlEmbed = createEmbed('Prospect')
