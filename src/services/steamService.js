@@ -5,9 +5,23 @@ import logger from '../logger.js';
 const log = logger.child({ module: 'steam' });
 
 const STEAM_API_BASE = 'https://api.steampowered.com';
+const AVATAR_CDN_BASE = 'https://avatars.steamstatic.com';
+const DAY_MS = 86400000;
+export const AVATAR_REFRESH_DAYS = 30;
 
 export function isConfigured() {
   return !!config.steam?.apiKey;
+}
+
+/** Reconstruct the full-size avatar url from a Steam avatar hash. */
+export function buildAvatarUrl(hash) {
+  return hash ? `${AVATAR_CDN_BASE}/${hash}_full.jpg` : null;
+}
+
+/** True if a cached avatar was last checked within the refresh window. */
+export function isAvatarFresh(lastCheckedAt, nowMs, refreshDays = AVATAR_REFRESH_DAYS) {
+  if (!lastCheckedAt) return false;
+  return (nowMs - new Date(lastCheckedAt).getTime()) < refreshDays * DAY_MS;
 }
 
 export async function getSteamProfile(steamId) {
@@ -27,6 +41,7 @@ export async function getSteamProfile(steamId) {
       profileUrl: player.profileurl || null,
       visibility: player.communityvisibilitystate === 3 ? 'public' : 'private',
       accountCreated: player.timecreated ? new Date(player.timecreated * 1000).toISOString().slice(0, 10) : null,
+      avatarHash: player.avatarhash || null,
     };
   } catch (err) {
     log.warn({ err: err.message, steamId }, 'Steam: profile fetch failed');
