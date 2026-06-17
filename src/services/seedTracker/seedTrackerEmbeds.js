@@ -11,6 +11,32 @@ function buildProgressBar(current, total, barLength = 20) {
   return `[${'#'.repeat(filled)}${'-'.repeat(empty)}] ${current}/${total} days`;
 }
 
+const TRACK_GLYPH = {
+  doneDay: '●', remainDay: '○',
+  doneHalf: '◆', remainHalf: '◇',
+  doneGoal: '◉', remainGoal: '◎',
+};
+
+/**
+ * Render a milestone track: one node per required seed day, joined by `━`.
+ * The halfway node (floor(total/2)) and the final goal node are distinct
+ * checkpoints that fill once reached. `done` is clamped to [0, total].
+ */
+export function buildMilestoneTrack(done, total) {
+  const filled = Math.max(0, Math.min(done, total));
+  const halfwayIdx = Math.floor(total / 2);
+  const nodes = [];
+  for (let i = 1; i <= total; i++) {
+    const reached = i <= filled;
+    let glyph;
+    if (i === total) glyph = reached ? TRACK_GLYPH.doneGoal : TRACK_GLYPH.remainGoal;
+    else if (i === halfwayIdx) glyph = reached ? TRACK_GLYPH.doneHalf : TRACK_GLYPH.remainHalf;
+    else glyph = reached ? TRACK_GLYPH.doneDay : TRACK_GLYPH.remainDay;
+    nodes.push(glyph);
+  }
+  return nodes.join('━');
+}
+
 function formatQuality(avgQuality) {
   if (avgQuality == null) return 'N/A';
   return `${Math.round(avgQuality * 100)}%`;
