@@ -305,6 +305,16 @@ export async function initSchema() {
   await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS max_extension_days INT DEFAULT 60`);
   await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS progression_channel_id VARCHAR(20) NULL`);
   await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS leaderboard_channel_id VARCHAR(20) NULL`);
+  await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS appreciation_channel_id VARCHAR(20) NULL`);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS seed_thanks (
+      steam_id VARCHAR(20) NOT NULL PRIMARY KEY,
+      player_name VARCHAR(255) NULL,
+      last_thanked_date DATE NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
 
   // Backfill role_ids from the legacy single role_id (only when role_ids is still null)
   await query(`UPDATE seeding_config SET role_ids = JSON_ARRAY(role_id) WHERE role_ids IS NULL AND role_id IS NOT NULL AND role_id <> ''`);
