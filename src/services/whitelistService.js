@@ -7,6 +7,29 @@ const log = logger.child({ module: 'whitelist' });
 
 const toIso = (d) => (d ? new Date(d).toISOString() : null);
 
+// Resolve a clan tag / admin-group name to its FK id so bot-created entries are linked
+// (clanId/groupId) exactly like website-created ones — the panel then shows the full clan
+// name + group badge instead of a bare string. Cached: tags/names effectively never change.
+// Returns null on miss, so callers degrade gracefully to the string-only entry.
+const linkIdCache = new Map();
+async function resolveLinkId(kind, key) {
+  if (!key) return null;
+  const cacheKey = `${kind}:${key}`;
+  if (linkIdCache.has(cacheKey)) return linkIdCache.get(cacheKey);
+  let id = null;
+  try {
+    const sql = kind === 'clan'
+      ? 'SELECT id FROM Clan WHERE tag = ?'
+      : 'SELECT id FROM AdminGroup WHERE name = ?';
+    const rows = await query(sql, [key], 'website');
+    id = rows[0]?.id ?? null;
+  } catch (err) {
+    log.warn({ err, kind, key }, 'Failed to resolve clan/group link id');
+  }
+  if (id) linkIdCache.set(cacheKey, id);
+  return id;
+}
+
 export function isConfigured() {
   try {
     getPool('website');
@@ -20,9 +43,13 @@ export async function createEntry(steamId, name, clan, role, addedBy, expiresAt 
   if (!isConfigured()) return null;
   try {
     const id = generateId();
+    const [clanId, groupId] = await Promise.all([
+      resolveLinkId('clan', clan),
+      resolveLinkId('group', role),
+    ]);
     await query(
-      'INSERT INTO WhitelistEntry (id, steamId, server, name, clan, role, addedBy, expiresAt, createdAt) VALUES (?, ?, \'main\', ?, ?, ?, ?, ?, NOW())',
-      [id, steamId, name, clan, role, addedBy, expiresAt],
+      'INSERT INTO WhitelistEntry (id, steamId, server, name, clan, clanId, role, groupId, addedBy, expiresAt, createdAt) VALUES (?, ?, \'main\', ?, ?, ?, ?, ?, ?, ?, NOW())',
+      [id, steamId, name, clan, clanId, role, groupId, addedBy, expiresAt],
       'website'
     );
     await logWhitelistActivity('whitelist.add', id, { discordId: addedBy, system: 'bot' }, {
@@ -95,9 +122,10 @@ export async function upsertSeederEntry(steamId, name, expiresAt) {
 
       // Find an existing Seeder entry to update, or use the first entry
       const seederEntry = existing.find(e => e.role === 'Seeder') || existing[0];
+      const seederGroupId = await resolveLinkId('group', 'Seeder');
       await query(
-        'UPDATE WhitelistEntry SET role = ?, name = ?, expiresAt = ?, addedBy = ? WHERE id = ?',
-        ['Seeder', name, expiresAt, 'SeedTracker', seederEntry.id],
+        'UPDATE WhitelistEntry SET role = ?, groupId = ?, name = ?, expiresAt = ?, addedBy = ? WHERE id = ?',
+        ['Seeder', seederGroupId, name, expiresAt, 'SeedTracker', seederEntry.id],
         'website'
       );
       await logWhitelistActivity('whitelist.update', seederEntry.id, { system: 'seedTracker' }, {
@@ -109,9 +137,10 @@ export async function upsertSeederEntry(steamId, name, expiresAt) {
 
     // Create new entry
     const id = generateId();
+    const seederGroupId = await resolveLinkId('group', 'Seeder');
     await query(
-      "INSERT INTO WhitelistEntry (id, steamId, server, name, role, addedBy, expiresAt, createdAt) VALUES (?, ?, 'main', ?, 'Seeder', 'SeedTracker', ?, NOW())",
-      [id, steamId, name, expiresAt],
+      "INSERT INTO WhitelistEntry (id, steamId, server, name, role, groupId, addedBy, expiresAt, createdAt) VALUES (?, ?, 'main', ?, 'Seeder', ?, 'SeedTracker', ?, NOW())",
+      [id, steamId, name, seederGroupId, expiresAt],
       'website'
     );
     await logWhitelistActivity('whitelist.add', id, { system: 'seedTracker' }, {
@@ -129,17 +158,18 @@ export async function updateRole(steamId, fromRole, toRole, { clearExpiry = fals
   try {
     const entries = await findEntries(steamId);
     const matching = entries.filter((e) => e.role === fromRole);
+    const toGroupId = await resolveLinkId('group', toRole);
     for (const entry of matching) {
       if (clearExpiry) {
         await query(
-          'UPDATE WhitelistEntry SET role = ?, expiresAt = NULL WHERE id = ?',
-          [toRole, entry.id],
+          'UPDATE WhitelistEntry SET role = ?, groupId = ?, expiresAt = NULL WHERE id = ?',
+          [toRole, toGroupId, entry.id],
           'website'
         );
       } else {
         await query(
-          'UPDATE WhitelistEntry SET role = ? WHERE id = ?',
-          [toRole, entry.id],
+          'UPDATE WhitelistEntry SET role = ?, groupId = ? WHERE id = ?',
+          [toRole, toGroupId, entry.id],
           'website'
         );
       }
@@ -166,10 +196,11 @@ export async function createSlEntry(steamId, userId, name, clanId, addedBy, reas
   if (!isConfigured()) return null;
   try {
     const id = generateId();
+    const groupId = await resolveLinkId('group', 'Whitelist');
     await query(
-      `INSERT INTO WhitelistEntry (id, steamId, server, name, clanId, role, userId, addedBy, reason, expiresAt, createdAt)
-       VALUES (?, ?, 'main', ?, ?, 'Whitelist', ?, ?, ?, NOW() + INTERVAL ? DAY, NOW())`,
-      [id, steamId, name, clanId, userId, addedBy, reason, days],
+      `INSERT INTO WhitelistEntry (id, steamId, server, name, clanId, role, groupId, userId, addedBy, reason, expiresAt, createdAt)
+       VALUES (?, ?, 'main', ?, ?, 'Whitelist', ?, ?, ?, ?, NOW() + INTERVAL ? DAY, NOW())`,
+      [id, steamId, name, clanId, groupId, userId, addedBy, reason, days],
       'website'
     );
     await logWhitelistActivity('whitelist.add', id, { discordId: addedBy, system: 'slReward' }, {
