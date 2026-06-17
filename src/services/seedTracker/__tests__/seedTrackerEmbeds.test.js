@@ -5,15 +5,15 @@ const fieldNames = (embed) => embed.data.fields.map((f) => f.name);
 
 describe('buildMilestoneTrack', () => {
   test('empty progress: halfway/goal shown unfilled', () => {
-    expect(buildMilestoneTrack(0, 10)).toBe('◯━━◯━━◯━━◯━━◇━━◯━━◯━━◯━━◯━━◎');
+    expect(buildMilestoneTrack(0, 10)).toBe('◯━━◯━━◯━━◯━━⬦━━◯━━◯━━◯━━◯━━⊙');
   });
 
   test('halfway reached fills the halfway diamond', () => {
-    expect(buildMilestoneTrack(5, 10)).toBe('⬤━━⬤━━⬤━━⬤━━◆━━◯━━◯━━◯━━◯━━◎');
+    expect(buildMilestoneTrack(5, 10)).toBe('⬤━━⬤━━⬤━━⬤━━⬥━━◯━━◯━━◯━━◯━━⊙');
   });
 
   test('goal reached fills the goal marker', () => {
-    expect(buildMilestoneTrack(10, 10)).toBe('⬤━━⬤━━⬤━━⬤━━◆━━⬤━━⬤━━⬤━━⬤━━◉');
+    expect(buildMilestoneTrack(10, 10)).toBe('⬤━━⬤━━⬤━━⬤━━⬥━━⬤━━⬤━━⬤━━⬤━━⨀');
   });
 
   test('done is clamped to total', () => {
@@ -21,7 +21,7 @@ describe('buildMilestoneTrack', () => {
   });
 
   test('non-default total places halfway at floor(total/2)', () => {
-    expect(buildMilestoneTrack(3, 7)).toBe('⬤━━⬤━━◆━━◯━━◯━━◯━━◎');
+    expect(buildMilestoneTrack(3, 7)).toBe('⬤━━⬤━━⬥━━◯━━◯━━◯━━⊙');
   });
 });
 
@@ -30,7 +30,7 @@ describe('buildProgressionEmbed', () => {
 
   test('renders the milestone track and day count, no legend', () => {
     const e = buildProgressionEmbed({ ...base });
-    expect(e.data.description).toContain('⬤━━⬤━━⬤━━⬤━━◆━━◯━━◯━━◯━━◯━━◎');
+    expect(e.data.description).toContain('⬤━━⬤━━⬤━━⬤━━⬥━━◯━━◯━━◯━━◯━━⊙');
     expect(e.data.description).toContain('5 / 10 days');
     expect(e.data.description).not.toContain('halfway');
   });

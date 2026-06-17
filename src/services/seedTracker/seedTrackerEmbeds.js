@@ -13,8 +13,8 @@ function buildProgressBar(current, total, barLength = 20) {
 
 const TRACK_GLYPH = {
   doneDay: '⬤', remainDay: '◯',
-  doneHalf: '◆', remainHalf: '◇',
-  doneGoal: '◉', remainGoal: '◎',
+  doneHalf: '⬥', remainHalf: '⬦',
+  doneGoal: '⨀', remainGoal: '⊙',
 };
 
 /**
