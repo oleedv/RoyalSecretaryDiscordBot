@@ -9,11 +9,11 @@ const DAY_MS = 86400000;
  * @param {number} p.durationDays    grant/renewal length
  * @param {number} p.maxExtensionDays cap measured from now
  * @param {number} p.nowMs           current epoch ms (injected for testability)
- * @returns {{action: 'skip'|'progression'|'grant'|'extend', expiresAt?: Date}}
+ * @returns {{action: 'skip'|'progression'|'grant'|'extend'|'thank', expiresAt?: Date}}
  */
 export function decideSeederAction({ uniqueDays, requiredDays, whitelist, durationDays, maxExtensionDays, nowMs }) {
-  // Any active non-Seeder whitelist (clan, admin, etc.) takes precedence — never touch it.
-  if (whitelist && whitelist.role !== 'Seeder') return { action: 'skip' };
+  // Active non-Seeder whitelist (clan, admin, donor, etc.) — thank them for helping seed.
+  if (whitelist && whitelist.role !== 'Seeder') return { action: 'thank' };
 
   const earned = uniqueDays >= requiredDays;
 
@@ -28,4 +28,15 @@ export function decideSeederAction({ uniqueDays, requiredDays, whitelist, durati
 
   if (earned) return { action: 'grant' };
   return { action: 'progression' };
+}
+
+/**
+ * Once-per-day gate for the seeder thank-you. Pure equality of YYYY-MM-DD
+ * strings (both computed in the same timezone by the caller).
+ * @param {string|null} lastThankedDate  last date we thanked this player (YYYY-MM-DD) or null
+ * @param {string} today                 today's date (YYYY-MM-DD)
+ * @returns {boolean} true if we should thank now
+ */
+export function shouldThankToday(lastThankedDate, today) {
+  return !lastThankedDate || lastThankedDate !== today;
 }

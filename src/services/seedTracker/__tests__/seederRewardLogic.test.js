@@ -1,14 +1,19 @@
 import { describe, test, expect } from 'bun:test';
-import { decideSeederAction } from '../seederRewardLogic.js';
+import { decideSeederAction, shouldThankToday } from '../seederRewardLogic.js';
 
 const DAY = 86400000;
 const NOW = 1_700_000_000_000; // fixed reference instant
 const base = { requiredDays: 10, durationDays: 30, maxExtensionDays: 60, nowMs: NOW };
 
 describe('decideSeederAction', () => {
-  test('non-Seeder whitelist is always skipped', () => {
+  test('non-Seeder whitelist (clan/admin) => thank', () => {
     const r = decideSeederAction({ ...base, uniqueDays: 99, whitelist: { role: 'Admin', expiresAt: null } });
-    expect(r.action).toBe('skip');
+    expect(r.action).toBe('thank');
+  });
+
+  test('non-Seeder whitelist below threshold also => thank', () => {
+    const r = decideSeederAction({ ...base, uniqueDays: 1, whitelist: { role: 'Clan', expiresAt: new Date(NOW + 5 * DAY) } });
+    expect(r.action).toBe('thank');
   });
 
   test('no whitelist + below threshold = progression', () => {
@@ -44,5 +49,19 @@ describe('decideSeederAction', () => {
     const wl = { role: 'Seeder', expiresAt: new Date(NOW + 50 * DAY) };
     const r = decideSeederAction({ ...base, uniqueDays: 10, whitelist: wl });
     expect(r.action).toBe('skip');
+  });
+});
+
+describe('shouldThankToday', () => {
+  test('null last date => thank', () => {
+    expect(shouldThankToday(null, '2026-06-17')).toBe(true);
+  });
+
+  test('earlier date => thank', () => {
+    expect(shouldThankToday('2026-06-16', '2026-06-17')).toBe(true);
+  });
+
+  test('same date => do not thank', () => {
+    expect(shouldThankToday('2026-06-17', '2026-06-17')).toBe(false);
   });
 });
