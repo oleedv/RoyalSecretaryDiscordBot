@@ -149,3 +149,12 @@ export function buildExpiryWarningEmbed(name, daysRemaining, seedsNeeded) {
       `${name}'s seed whitelist expires in ${daysRemaining} days. ${seedsNeeded} more seeds needed to renew.`
     );
 }
+
+export function buildSeederThanksEmbed({ name, avatarUrl = null }) {
+  const embed = createEmbed('Seed Tracker')
+    .setColor(COLOR_SUCCESS)
+    .setTitle('Thanks for seeding!')
+    .setDescription(`**${name}** helped seed the server today. Thanks for getting the round started!`);
+  if (avatarUrl) embed.setThumbnail(avatarUrl);
+  return embed;
+}

@@ -6,10 +6,12 @@ import {
   buildMilestoneEmbed,
   buildWhitelistGrantedEmbed,
   buildDmWhitelistNotification,
+  buildSeederThanksEmbed,
 } from './seedTrackerEmbeds.js';
 import logger from '../../logger.js';
 import { getSeedingConfig } from '../seeding/seedingService.js';
-import { decideSeederAction } from './seederRewardLogic.js';
+import { getTodayDate } from '../seeding/seedingScheduler.js';
+import { decideSeederAction, shouldThankToday } from './seederRewardLogic.js';
 import { getAvatarUrl } from '../steamService.js';
 
 const log = logger.child({ module: 'seedTrackerService' });
@@ -129,6 +131,24 @@ export async function getTopSeeders(windowDays = 30, limit = 20, serverId = null
   }
 }
 
+async function thankWhitelistedSeeder(data, cfg, client) {
+  const channelId = cfg.appreciation_channel_id;
+  if (!channelId) return;
+
+  const tz = cfg.timezone || 'UTC';
+  const today = getTodayDate(tz);
+  const lastThanked = await getLastThankedDate(data.steamID);
+  if (!shouldThankToday(lastThanked, today)) return;
+
+  const avatarUrl = await getAvatarUrl(data.steamID);
+  const embed = buildSeederThanksEmbed({ name: data.playerName, avatarUrl });
+  const channel = await client.channels.fetch(channelId).catch(() => null);
+  if (!channel) return;
+
+  await channel.send({ embeds: [embed] });
+  await recordThanked(data.steamID, data.playerName, today);
+}
+
 export async function processCompletedSession(data, client) {
   try {
     const cfg = await getSeedingConfig();
@@ -173,6 +193,11 @@ export async function processCompletedSession(data, client) {
 
     if (decision.action === 'grant') {
       await grantSeederWhitelist(data.steamID, data.playerName, client);
+      return;
+    }
+
+    if (decision.action === 'thank') {
+      await thankWhitelistedSeeder(data, cfg, client);
       return;
     }
 
@@ -262,4 +287,27 @@ export async function processMilestone(data, client) {
   } catch (err) {
     log.error({ err, steamId: data?.steamID }, 'Failed to process seed milestone');
   }
+}
+
+export async function getLastThankedDate(steamId) {
+  try {
+    const rows = await query(
+      `SELECT DATE_FORMAT(last_thanked_date, '%Y-%m-%d') AS lastThankedDate
+       FROM seed_thanks WHERE steam_id = ? LIMIT 1`,
+      [steamId]
+    );
+    return rows[0]?.lastThankedDate || null;
+  } catch (err) {
+    log.warn({ err, steamId }, 'Failed to read seed_thanks');
+    return null;
+  }
+}
+
+export async function recordThanked(steamId, name, dateStr) {
+  await query(
+    `INSERT INTO seed_thanks (steam_id, player_name, last_thanked_date)
+     VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE player_name = VALUES(player_name), last_thanked_date = VALUES(last_thanked_date)`,
+    [steamId, name, dateStr]
+  );
 }

@@ -71,7 +71,7 @@ function getCurrentTime(timezone) {
   }
 }
 
-function getTodayDate(timezone) {
+export function getTodayDate(timezone) {
   try {
     return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date());
   } catch {
