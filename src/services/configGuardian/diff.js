@@ -14,10 +14,17 @@ const DEL    = '\x1b[1;31m';
 const UL     = '\x1b[4m';
 const UL_OFF = '\x1b[24m';
 
+// Minimum character-similarity (difflib-style ratio) for a deleted/added line
+// pair to be treated as an in-place edit and given inline highlighting. Below
+// this the two lines are unrelated (e.g. a wholesale-reordered rotation), so we
+// render them as a plain removal + addition instead of garbled underline noise.
+const SIMILARITY_THRESHOLD = 0.6;
+
 export function inlineHighlight(oldText, newText) {
   const changes = diffChars(oldText, newText);
   let oldHl = '';
   let newHl = '';
+  let common = 0;
   for (const part of changes) {
     if (part.added) {
       newHl += `${UL}${part.value}${UL_OFF}`;
@@ -26,9 +33,12 @@ export function inlineHighlight(oldText, newText) {
     } else {
       oldHl += part.value;
       newHl += part.value;
+      common += part.value.length;
     }
   }
-  return [oldHl, newHl];
+  const total = oldText.length + newText.length;
+  const similarity = total === 0 ? 1 : (2 * common) / total;
+  return { oldHl, newHl, similarity };
 }
 
 export function computeDiff(oldContent, newContent, filename) {
@@ -49,10 +59,17 @@ export function computeDiff(oldContent, newContent, filename) {
     const flushBlock = () => {
       const pairs = Math.min(delBlock.length, addBlock.length);
       for (let i = 0; i < pairs; i++) {
-        const [oldHl, newHl] = inlineHighlight(delBlock[i], addBlock[i]);
-        ansiLines.push(`${DEL}-${oldHl}${RESET}`);
-        ansiLines.push(`${ADD}+${newHl}${RESET}`);
-        stats.modified++;
+        const { oldHl, newHl, similarity } = inlineHighlight(delBlock[i], addBlock[i]);
+        if (similarity >= SIMILARITY_THRESHOLD) {
+          ansiLines.push(`${DEL}-${oldHl}${RESET}`);
+          ansiLines.push(`${ADD}+${newHl}${RESET}`);
+          stats.modified++;
+        } else {
+          ansiLines.push(`${DEL}-${delBlock[i]}${RESET}`);
+          ansiLines.push(`${ADD}+${addBlock[i]}${RESET}`);
+          stats.removed++;
+          stats.added++;
+        }
       }
       for (let i = pairs; i < delBlock.length; i++) {
         ansiLines.push(`${DEL}-${delBlock[i]}${RESET}`);
