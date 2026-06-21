@@ -17,7 +17,8 @@ Whole-word matching **with common inflectional endings** — not substring.
 - Lowercase the name and split into tokens on non-letter characters.
   `cuck_lounge` -> `["cuck", "lounge"]`; `asdcuckasd` -> `["asdcuckasd"]` (one token).
 - A token is profane if it is a list word directly, **or** stripping one common
-  ending yields a list word. Endings: `s, es, ed, d, ing, in, er, ers`.
+  ending yields a list word. Endings: `s, es, ed, d, ing, er, ers`.
+  (`in` is deliberately excluded: with the base `cum` it would flag `cumin`.)
 - Therefore, given `cuck` in the list:
   - blocked: `cuck`, `cucks`, `cucked`, `cuck lounge`
   - allowed: `asdcuckasd`, `classic`, `analysis`, `sparse`, `bass`
@@ -36,7 +37,7 @@ and a regenerate note are recorded in a comment block at the top of
 
 ### 2. `contentFilter.js` (rewrite)
 - Load the word file once at module init into a `Set<string>` of lowercased base words.
-- `SUFFIXES = ['s', 'es', 'ed', 'd', 'ing', 'in', 'er', 'ers']` (editable constant).
+- `SUFFIXES = ['s', 'es', 'ed', 'd', 'ing', 'er', 'ers']` (editable constant).
 - `findProfanity(name) -> string | null` — first offending base word, or null.
 - `isInappropriateName(name)` keeps the existing URL / mention / excessive-caps /
   excessive-special-char checks, now backed by `findProfanity` for the word check.
