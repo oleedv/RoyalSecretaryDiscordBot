@@ -1,6 +1,7 @@
-import { ChannelType, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
+import { ChannelType, PermissionFlagsBits, EmbedBuilder, AuditLogEvent } from 'discord.js';
 import * as db from './tempvoiceService.js';
 import { buildControlPanelMessage } from './tempvoiceEmbeds.js';
+import { getSafeChannelName, findProfanity } from './contentFilter.js';
 import logger from '../../logger.js';
 import { reportError } from '../admin/errorAlertService.js';
 
@@ -99,7 +100,21 @@ export async function handleJoinTrigger(member, guild) {
     // Load user presets (null if never set)
     const preset = await db.getPreset(userId, guild.id);
 
-    const channelName = preset?.channel_name || `${member.displayName}'s Channel`;
+    // Presets are filtered when set, but a profane Discord display name can still
+    // leak into the default name -- fall back to a neutral name if so.
+    let channelName = preset?.channel_name || `${member.displayName}'s Channel`;
+    const creationMatch = findProfanity(channelName);
+    if (creationMatch) {
+      log.info({ userId, attempted: channelName, matched: creationMatch }, 'Blocked profane name at channel creation');
+      channelName = 'Voice Channel';
+      await logBlockedName(guild, {
+        actor: member.user,
+        attempted: preset?.channel_name || `${member.displayName}'s Channel`,
+        reason: 'profanity',
+        matched: creationMatch,
+        source: 'Creation',
+      });
+    }
 
     // Build @everyone permissions from preset flags
     const everyoneAllow = [];
@@ -389,6 +404,55 @@ export async function claimChannel(channelId, claimerId, guild) {
   }
 }
 
+// ── Channel rename guard ──
+
+// Owners hold ManageChannels on their temp channel, so they can rename it via
+// Discord's native UI, bypassing the bot's (filtered) rename button. This guard
+// catches those direct renames, reverts a blocked name, and logs it.
+export async function handleTempChannelRename(oldChannel, newChannel) {
+  const data = activeChannels.get(newChannel.id);
+  if (!data) return;
+
+  const newName = newChannel.name;
+  const result = getSafeChannelName(newName);
+  if (result.safe) {
+    // Clean rename (including the bot's own renames) -- just keep cache in sync.
+    data.channelName = newName;
+    return;
+  }
+
+  // Prefer reverting to the previous name; fall back to a neutral default if it
+  // was also unsafe. Both fallbacks are clean, so the resulting channelUpdate is
+  // a no-op and cannot loop.
+  const oldName = oldChannel?.name;
+  const fallback = oldName && getSafeChannelName(oldName).safe ? oldName : 'Voice Channel';
+
+  await newChannel.setName(fallback).catch((err) => {
+    log.error({ err, channelId: newChannel.id }, 'Failed to revert blocked channel rename');
+  });
+  data.channelName = fallback;
+
+  // Best-effort: attribute the rename via the audit log; fall back to the owner.
+  let actorId = data.ownerId;
+  try {
+    const logs = await newChannel.guild.fetchAuditLogs({ type: AuditLogEvent.ChannelUpdate, limit: 5 });
+    const entry = logs.entries.find((e) => e.target?.id === newChannel.id && !e.executor?.bot);
+    if (entry?.executor) actorId = entry.executor.id;
+  } catch {
+    // ViewAuditLog permission may be missing -- ignore.
+  }
+
+  log.info({ channelId: newChannel.id, attempted: newName, matched: result.matched, actorId }, 'Reverted blocked channel rename');
+  await logBlockedName(newChannel.guild, {
+    actorId,
+    channel: { id: newChannel.id, name: fallback },
+    attempted: newName,
+    reason: result.reason,
+    matched: result.matched,
+    source: 'Direct rename',
+  });
+}
+
 // ── Voice state handler ──
 
 export async function handleTempVoiceStateUpdate(oldState, newState) {
@@ -597,3 +661,37 @@ async function logEvent(guild, opts) {
 }
 
 export { logEvent };
+
+const BLOCK_REASON_LABELS = {
+  profanity: 'Profanity',
+  url: 'Link not allowed',
+  mention: 'Mention not allowed',
+  caps: 'Excessive capitals',
+  special: 'Too many symbols',
+  length: 'Invalid length',
+  empty: 'Empty name',
+};
+
+// Post a yellow "blocked name" warning to the RB Voice log channel. Shared by the
+// rename button, the direct-rename guard, and channel creation.
+export async function logBlockedName(guild, opts) {
+  const { actor = null, actorId = null, channel = null, attempted = '', reason = 'profanity', matched = null, source = 'Unknown' } = opts;
+
+  // Channel names are <=100 chars; sanitize backticks so the code span renders.
+  const safeAttempted = String(attempted).slice(0, 100).replace(/`/g, "'") || '(empty)';
+  let reasonValue = BLOCK_REASON_LABELS[reason] || 'Not allowed';
+  if (reason === 'profanity' && matched) reasonValue += ` (\`${matched.replace(/`/g, "'")}\`)`;
+
+  await logEvent(guild, {
+    title: 'Blocked Channel Name',
+    actor,
+    actorId,
+    channel,
+    fields: [
+      { name: 'Attempted name', value: `\`${safeAttempted}\``, inline: false },
+      { name: 'Reason', value: reasonValue, inline: true },
+      { name: 'Source', value: source, inline: true },
+    ],
+    kind: 'warn',
+  });
+}

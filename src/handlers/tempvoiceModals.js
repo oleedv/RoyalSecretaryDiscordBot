@@ -1,4 +1,4 @@
-import { isTrackedChannel, isOwner, checkRateLimit, logEvent } from '../services/tempvoice/tempvoiceManager.js';
+import { isTrackedChannel, isOwner, checkRateLimit, logEvent, logBlockedName } from '../services/tempvoice/tempvoiceManager.js';
 import { touchActivity, updatePresetField } from '../services/tempvoice/tempvoiceService.js';
 import { getSafeChannelName } from '../services/tempvoice/contentFilter.js';
 import { errorEmbed, successEmbed } from '../utils/embed.js';
@@ -19,9 +19,17 @@ export async function handleNameModal(interaction) {
   if (!checkAccess(interaction, vc.id)) return;
 
   const input = interaction.fields.getTextInputValue('tv_name_input');
-  const { safe, name } = getSafeChannelName(input);
+  const { safe, name, reason, matched } = getSafeChannelName(input);
 
   if (!safe) {
+    await logBlockedName(interaction.guild, {
+      actor: interaction.user,
+      channel: { id: vc.id, name: vc.name },
+      attempted: input,
+      reason,
+      matched,
+      source: 'Rename button',
+    });
     return interaction.reply({ embeds: [errorEmbed('That name is not allowed. Please choose a different name.')], flags: ['Ephemeral'] });
   }
 
