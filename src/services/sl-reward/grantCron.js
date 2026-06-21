@@ -1,3 +1,4 @@
+import { AttachmentBuilder } from 'discord.js';
 import { query } from '../../database/connection.js';
 import logger from '../../logger.js';
 import { createScheduler } from '../../utils/scheduler.js';
@@ -5,6 +6,7 @@ import { createSlEntry, extendEntryByDays, findEntries, isConfigured } from '../
 import { decideRewardAction } from './eligibility.js';
 import { flushPendingDms, sendOrQueueDm } from './dmQueue.js';
 import { buildExtendLogEmbed, buildGrantLogEmbed, buildRunSummaryEmbed } from './embeds.js';
+import { buildCandidateReport } from './report.js';
 import { hypercareSend } from './hypercareLog.js';
 import {
   SL_CLAN_ID,
@@ -66,6 +68,7 @@ async function tick(client) {
   let extensions = 0;
   let dmsQueued = 0;
   const skips = {};
+  const rows = [];
 
   for (const c of candidates) {
     const hours = Number(c.hours);
@@ -78,12 +81,18 @@ async function tick(client) {
       extendThresholdHours: SL_EXTEND_WHEN_REMAINING_HOURS
     });
 
+    // One report row per candidate, reflecting the decision; discordId is filled in
+    // below for grant/extend (skips don't resolve a web user).
+    const row = { name: c.name, steamId: c.steamId, hours, action: decision.action, reason: decision.reason, discordId: null };
+    rows.push(row);
+
     if (decision.action === 'skip') {
       skips[decision.reason] = (skips[decision.reason] ?? 0) + 1;
       continue;
     }
 
     const webUser = await getWebUser(c.steamId);
+    row.discordId = webUser?.discordId ?? null;
 
     if (decision.action === 'grant') {
       const expiresAt = new Date(Date.now() + SL_REWARD_DAYS * 86400000);
@@ -155,6 +164,31 @@ async function tick(client) {
     { candidates: candidates.length, grants, extensions, skips, dmsQueued, dmsRedelivered: flushed.sent, dry: SL_DRY_RUN },
     'sl-reward cron complete'
   );
+
+  // Only post a run summary when the run actually did something (a grant, extension,
+  // or DM that was queued/redelivered) — no-op runs stay silent so the channel isn't
+  // pinged every interval. Posts carry the full candidate list as a .txt attachment.
+  const activity = grants || extensions || dmsQueued || flushed.sent;
+  if (!activity) return;
+
+  const nowIso = new Date().toISOString();
+  const report = buildCandidateReport(rows, {
+    nowIso,
+    env: process.env.NODE_ENV ?? 'development',
+    dry: SL_DRY_RUN,
+    thresholdHours: SL_THRESHOLD_HOURS,
+    rewardDays: SL_REWARD_DAYS,
+    candidates: candidates.length,
+    grants,
+    extensions,
+    skipped: Object.values(skips).reduce((a, b) => a + b, 0),
+    dmsQueued,
+    dmsRedelivered: flushed.sent
+  });
+  const file = new AttachmentBuilder(Buffer.from(report, 'utf8'), {
+    name: `sl-grant-run-${nowIso.slice(0, 16).replace(/[:T]/g, '-')}.txt`
+  });
+
   await hypercareSend(
     client,
     buildRunSummaryEmbed({
@@ -166,9 +200,7 @@ async function tick(client) {
       dmsRedelivered: flushed.sent,
       dry: SL_DRY_RUN
     }),
-    // After hypercare (verbose off) only surface runs that actually did something,
-    // so the channel isn't pinged every 30 min for a no-op run.
-    { verboseOnly: !(grants || extensions) }
+    { files: [file] }
   );
 }
 
