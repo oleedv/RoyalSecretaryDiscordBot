@@ -120,7 +120,7 @@ export default {
     roleId: '1164520968421646419',                                          // Role assigned on successful verification
   },
   moderation: {
-    enabled: true,
+    enabled: false,                                      // Daily chat moderation report disabled
     channelId: '1497185678281408592',                    // Daily moderation report destination
     productionServerName: 'RB | Royal Battalion [ENG] discord.gg/royalbattalion', // exact squadjs_servers.name; null = use latest-match fallback
     dailyTime: '08:00',                                  // HH:MM in `timezone`
