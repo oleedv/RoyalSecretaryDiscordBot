@@ -97,7 +97,7 @@ export default {
   },
   layerRotationValidator: {
     enabled: true,
-    channelId: '1509632566548889773',                      // Prod: live rotation status channel
+    channelId: '646687873952776203',                       // Prod: live rotation status channel
     errorRoleIds: ['1225894972084060290', '733974178797191189'],  // Pinged on SFTP-mode errors AND authorised to post in Channel mode
     intervalMs: 5 * 60 * 1000,
     squadUtilsUrl: process.env.SQUAD_UTILS_URL || 'https://squadutils.org/api/v3/parse',
