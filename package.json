@@ -1,6 +1,6 @@
 {
   "name": "royal-battalion-bot",
-  "version": "2.23.2",
+  "version": "2.24.0",
   "description": "Royal Battalion gaming community Discord bot",
   "type": "module",
   "main": "src/index.js",
@@ -14,6 +14,7 @@
     "@anthropic-ai/sdk": "^0.39.0",
     "diff": "^8.0.4",
     "discord.js": "^14.16.3",
+    "luxon": "^3.7.2",
     "mariadb": "^3.4.0",
     "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",

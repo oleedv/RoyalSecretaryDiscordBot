@@ -646,5 +646,15 @@ export async function initSchema() {
     )
   `);
 
+  // ── User timezone (remembered per user for /timestamp) ──
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS user_timezone (
+      discord_id VARCHAR(32) NOT NULL PRIMARY KEY,
+      timezone   VARCHAR(64) NOT NULL,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+
   log.info('Database schema initialized');
 }
