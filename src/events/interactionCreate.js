@@ -14,6 +14,7 @@ import * as clanReportButtons from '../handlers/clanReportButtons.js';
 import * as clanReportSelects from '../handlers/clanReportSelects.js';
 import * as giveawayButtons from '../handlers/giveawayButtons.js';
 import * as steamLinkButtons from '../handlers/steamLinkButtons.js';
+import * as timestampInteractions from '../handlers/timestampInteractions.js';
 import { errorEmbed } from '../utils/embed.js';
 import { reportError } from '../services/admin/errorAlertService.js';
 import { logDmInteraction } from '../services/admin/dmLogService.js';
@@ -123,6 +124,7 @@ const buttonHandlers = {
   tv_claim: tempvoiceButtons.handleClaim,
   tv_transfer: tempvoiceButtons.handleTransfer,
   tv_delete: tempvoiceButtons.handleDelete,
+  tz_clear: timestampInteractions.handleClearTimezone,
 };
 
 const modalHandlers = {
@@ -158,6 +160,10 @@ export default {
       if (interaction.isButton()) logDmInteraction(interaction, 'button').catch((err) => log.warn({ err }, 'logDmInteraction button failed'));
       else if (interaction.isModalSubmit()) logDmInteraction(interaction, 'modal').catch((err) => log.warn({ err }, 'logDmInteraction modal failed'));
       else if (interaction.isAnySelectMenu?.()) logDmInteraction(interaction, 'select').catch((err) => log.warn({ err }, 'logDmInteraction select failed'));
+    }
+
+    if (interaction.isAutocomplete?.()) {
+      return handleAutocomplete(interaction);
     }
 
     if (interaction.isChatInputCommand()) {
@@ -213,6 +219,9 @@ export default {
       if (!handler && interaction.customId.startsWith('giveaway_vote:')) {
         handler = giveawayButtons.handleVote;
       }
+      if (!handler && interaction.customId.startsWith('ts_post:')) {
+        handler = timestampInteractions.handlePostButton;
+      }
       if (handler) {
         log.info({ userId: interaction.user.id, userTag: interaction.user.tag, customId: interaction.customId, channelId: interaction.channel?.id }, 'Button pressed');
         try {
@@ -247,6 +256,8 @@ export default {
         handler = clanReportSelects.handleClanSelect;
       } else if (interaction.customId.startsWith('cr_server_select')) {
         handler = clanReportSelects.handleServerSelect;
+      } else if (interaction.customId.startsWith('ts_style:')) {
+        handler = timestampInteractions.handleStyleSelect;
       }
       if (handler) {
         log.info({ userId: interaction.user.id, userTag: interaction.user.tag, customId: interaction.customId, channelId: interaction.channel?.id }, 'Select menu used');
@@ -307,6 +318,17 @@ export default {
     }
   },
 };
+
+async function handleAutocomplete(interaction) {
+  const command = interaction.client.commands.get(interaction.commandName);
+  if (!command?.autocomplete) return;
+  try {
+    await command.autocomplete(interaction);
+  } catch (err) {
+    log.warn({ err, commandName: interaction.commandName }, 'autocomplete handler failed');
+    if (!interaction.responded) await interaction.respond([]).catch(() => {});
+  }
+}
 
 async function handleCommand(interaction) {
   const command = interaction.client.commands.get(interaction.commandName);
