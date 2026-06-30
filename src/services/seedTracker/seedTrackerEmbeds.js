@@ -5,34 +5,18 @@ const COLOR_SUCCESS = 0x57f287;
 const COLOR_INFO = 0x5865f2;
 const COLOR_WARNING = 0xfee75c;
 
-function buildProgressBar(current, total, barLength = 20) {
-  const filled = Math.min(Math.round((current / total) * barLength), barLength);
-  const empty = barLength - filled;
-  return `[${'#'.repeat(filled)}${'-'.repeat(empty)}] ${current}/${total} days`;
-}
-
-const TRACK_GLYPH = {
-  doneDay: '⬤', remainDay: '◯',
-  doneHalf: '⬥', remainHalf: '⬦',
-  doneGoal: '⨀', remainGoal: '⊙',
-};
+const TRACK_GLYPH = { done: '⬤', remain: '◯' };
 
 /**
  * Render a milestone track: one node per required seed day, joined by `━━`.
- * The halfway node (floor(total/2)) and the final goal node are distinct
- * checkpoints that fill once reached. `done` is clamped to [0, total].
+ * Each node is filled (`⬤`) once reached, hollow (`◯`) otherwise. `done` is
+ * clamped to [0, total].
  */
 export function buildMilestoneTrack(done, total) {
   const filled = Math.max(0, Math.min(done, total));
-  const halfwayIdx = Math.floor(total / 2);
   const nodes = [];
   for (let i = 1; i <= total; i++) {
-    const reached = i <= filled;
-    let glyph;
-    if (i === total) glyph = reached ? TRACK_GLYPH.doneGoal : TRACK_GLYPH.remainGoal;
-    else if (i === halfwayIdx) glyph = reached ? TRACK_GLYPH.doneHalf : TRACK_GLYPH.remainHalf;
-    else glyph = reached ? TRACK_GLYPH.doneDay : TRACK_GLYPH.remainDay;
-    nodes.push(glyph);
+    nodes.push(i <= filled ? TRACK_GLYPH.done : TRACK_GLYPH.remain);
   }
   return nodes.join('━━');
 }
@@ -114,7 +98,7 @@ export function buildDmWhitelistNotification(name, expiresAt, durationDays = 30)
 }
 
 export function buildDmProgressionEmbed(stats, streak, whitelistStatus, requiredDays) {
-  const progress = buildProgressBar(stats.uniqueDays, requiredDays);
+  const track = buildMilestoneTrack(stats.uniqueDays, requiredDays);
   const duration = formatDuration(stats.totalDuration);
   const quality = formatQuality(stats.avgQuality);
 
@@ -131,7 +115,7 @@ export function buildDmProgressionEmbed(stats, streak, whitelistStatus, required
   return createEmbed('Seed Tracker')
     .setColor(COLOR_INFO)
     .setTitle('Your Seed Progression')
-    .setDescription(`\`${progress}\``)
+    .setDescription(`\`${track}\``)
     .addFields(
       { name: 'Days', value: `${stats.uniqueDays}/${requiredDays}`, inline: true },
       { name: 'Streak', value: `${streak} day${streak !== 1 ? 's' : ''}`, inline: true },
@@ -141,20 +125,44 @@ export function buildDmProgressionEmbed(stats, streak, whitelistStatus, required
     );
 }
 
-export function buildExpiryWarningEmbed(name, daysRemaining, seedsNeeded) {
-  return createEmbed('Seed Tracker')
+export function buildExpiryWarningEmbed({ name, steamId, avatarUrl = null, expiresAt, uniqueDays, required, seedsNeeded }) {
+  const done = Math.max(0, Math.min(uniqueDays, required));
+  const track = buildMilestoneTrack(uniqueDays, required);
+  const toRenew = seedsNeeded === 0
+    ? 'Seed once to renew'
+    : `${seedsNeeded} more day${seedsNeeded !== 1 ? 's' : ''}`;
+
+  const embed = createEmbed('Seed Tracker')
     .setColor(COLOR_WARNING)
     .setTitle('Whitelist Expiring Soon')
     .setDescription(
-      `${name}'s seed whitelist expires in ${daysRemaining} days. ${seedsNeeded} more seeds needed to renew.`
+      `**${name}**, your seed whitelist is expiring soon — seed again to keep it!\n\`${track}\`\n**${done} / ${required} days**`
     );
+
+  if (avatarUrl) embed.setThumbnail(avatarUrl);
+
+  embed.addFields(
+    { name: 'Expires', value: discordTimestamp(expiresAt, 'R'), inline: true },
+    { name: 'To renew', value: toRenew, inline: true },
+    { name: 'Steam ID', value: steamId, inline: false },
+  );
+
+  return embed;
 }
 
-export function buildSeederThanksEmbed({ name, avatarUrl = null }) {
+export function buildSeederThanksEmbed({ name, avatarUrl = null, streak = 0, totalDays = 0 }) {
   const embed = createEmbed('Seed Tracker')
     .setColor(COLOR_SUCCESS)
     .setTitle('Thanks for seeding!')
     .setDescription(`**${name}** helped seed the server today. Thanks for getting the round started!`);
   if (avatarUrl) embed.setThumbnail(avatarUrl);
+
+  const fields = [];
+  if (streak >= 2) {
+    fields.push({ name: 'Streak', value: `${streak} days`, inline: true });
+  }
+  fields.push({ name: 'Total seeded', value: `${totalDays} day${totalDays !== 1 ? 's' : ''}`, inline: true });
+  embed.addFields(...fields);
+
   return embed;
 }
