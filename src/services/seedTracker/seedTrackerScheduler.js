@@ -3,6 +3,7 @@ import { createScheduler } from '../../utils/scheduler.js';
 import { getTopSeeders, getPlayerSeedStats } from './seedTrackerService.js';
 import { getSeedingConfig } from '../seeding/seedingService.js';
 import { getAvatarUrl } from '../steamService.js';
+import { getDiscordIdBySteamId } from '../userService.js';
 import { buildLeaderboardEmbed, buildExpiryWarningEmbed } from './seedTrackerEmbeds.js';
 import { query } from '../../database/connection.js';
 import { reportError } from '../admin/errorAlertService.js';
@@ -86,7 +87,10 @@ async function checkExpiringWhitelists(client, cfg) {
     for (const entry of rows) {
       const stats = await getPlayerSeedStats(entry.steamId, windowDays, cfg.tracker_server_id);
       const seedsNeeded = Math.max(0, requiredDays - stats.uniqueDays);
-      const avatarUrl = await getAvatarUrl(entry.steamId);
+      const [avatarUrl, discordId] = await Promise.all([
+        getAvatarUrl(entry.steamId),
+        getDiscordIdBySteamId(entry.steamId),
+      ]);
       const embed = buildExpiryWarningEmbed({
         name: entry.name,
         steamId: entry.steamId,
@@ -95,6 +99,7 @@ async function checkExpiringWhitelists(client, cfg) {
         uniqueDays: stats.uniqueDays,
         required: requiredDays,
         seedsNeeded,
+        discordId,
       });
       await channel.send({ embeds: [embed] });
     }

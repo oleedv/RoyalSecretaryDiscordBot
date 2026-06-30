@@ -61,6 +61,17 @@ describe('buildProgressionEmbed', () => {
     const e = buildProgressionEmbed({ ...base });
     expect(e.data.thumbnail).toBeUndefined();
   });
+
+  test('appends the Discord mention when a discordId is given', () => {
+    const e = buildProgressionEmbed({ ...base, discordId: '111222333' });
+    expect(e.data.description).toContain('**Jonas** (<@111222333>)');
+  });
+
+  test('shows the bare name when no discordId', () => {
+    const e = buildProgressionEmbed({ ...base });
+    expect(e.data.description).toContain('**Jonas**');
+    expect(e.data.description).not.toContain('<@');
+  });
 });
 
 describe('buildLeaderboardEmbed', () => {
@@ -97,6 +108,11 @@ describe('buildSeederThanksEmbed', () => {
   test('hides the streak field when only 1 day', () => {
     const e = buildSeederThanksEmbed({ name: 'Anders', streak: 1, totalDays: 27 });
     expect(fieldNames(e)).not.toContain('Streak');
+  });
+
+  test('appends the Discord mention when a discordId is given', () => {
+    const e = buildSeederThanksEmbed({ name: 'Anders', totalDays: 27, discordId: '111222333' });
+    expect(e.data.description).toContain('**Anders** (<@111222333>)');
   });
 
   test('sets the thumbnail when an avatar is provided', () => {
@@ -140,5 +156,10 @@ describe('buildExpiryWarningEmbed', () => {
   test('sets the avatar thumbnail when provided', () => {
     const e = buildExpiryWarningEmbed({ ...base, avatarUrl: 'https://avatars.steamstatic.com/x_full.jpg' });
     expect(e.data.thumbnail?.url).toBe('https://avatars.steamstatic.com/x_full.jpg');
+  });
+
+  test('appends the Discord mention when a discordId is given', () => {
+    const e = buildExpiryWarningEmbed({ ...base, discordId: '111222333' });
+    expect(e.data.description).toContain('**Anders** (<@111222333>)');
   });
 });
