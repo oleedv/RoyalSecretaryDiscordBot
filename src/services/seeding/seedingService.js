@@ -233,7 +233,7 @@ export async function getSeedingRapport(date, serverId) {
   // Query SquadJS database for per-player seeding data
   const seeders = await query(
     `SELECT
-       p.last_known_name AS playerName,
+       p.name AS playerName,
        p.steam_id AS steamId,
        j.time AS joinTime,
        l.time AS leaveTime,
