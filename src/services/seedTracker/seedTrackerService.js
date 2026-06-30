@@ -82,6 +82,24 @@ export async function getSeedStreak(steamId, serverId = null) {
   }
 }
 
+export async function getTotalSeedDays(steamId, serverId = null) {
+  try {
+    const rows = await query(
+      `SELECT COUNT(DISTINCT s.seed_date) AS totalDays
+      FROM squadjs_seed_sessions s
+      JOIN squadjs_players p ON p.id = s.player_id
+      WHERE p.steam_id = ? AND s.status = 'completed'
+        AND s.server_id = ?`,
+      [steamId, serverId],
+      'squadjs'
+    );
+    return Number(rows[0]?.totalDays) || 0;
+  } catch (err) {
+    log.warn({ err, steamId }, 'Failed to fetch total seed days');
+    return 0;
+  }
+}
+
 export async function getSeederWhitelist(steamId) {
   try {
     const rows = await query(
@@ -140,8 +158,13 @@ async function thankWhitelistedSeeder(data, cfg, client) {
   const lastThanked = await getLastThankedDate(data.steamID);
   if (!shouldThankToday(lastThanked, today)) return;
 
-  const avatarUrl = await getAvatarUrl(data.steamID);
-  const embed = buildSeederThanksEmbed({ name: data.playerName, avatarUrl });
+  const serverId = cfg.tracker_server_id;
+  const [avatarUrl, streak, totalDays] = await Promise.all([
+    getAvatarUrl(data.steamID),
+    getSeedStreak(data.steamID, serverId),
+    getTotalSeedDays(data.steamID, serverId),
+  ]);
+  const embed = buildSeederThanksEmbed({ name: data.playerName, avatarUrl, streak, totalDays });
   const channel = await client.channels.fetch(channelId).catch(() => null);
   if (!channel) return;
 

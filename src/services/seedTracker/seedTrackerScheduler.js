@@ -2,6 +2,7 @@ import logger from '../../logger.js';
 import { createScheduler } from '../../utils/scheduler.js';
 import { getTopSeeders, getPlayerSeedStats } from './seedTrackerService.js';
 import { getSeedingConfig } from '../seeding/seedingService.js';
+import { getAvatarUrl } from '../steamService.js';
 import { buildLeaderboardEmbed, buildExpiryWarningEmbed } from './seedTrackerEmbeds.js';
 import { query } from '../../database/connection.js';
 import { reportError } from '../admin/errorAlertService.js';
@@ -83,10 +84,18 @@ async function checkExpiringWhitelists(client, cfg) {
     const windowDays = cfg.rolling_window_days || 30;
 
     for (const entry of rows) {
-      const daysRemaining = Math.ceil((new Date(entry.expiresAt).getTime() - Date.now()) / 86400000);
       const stats = await getPlayerSeedStats(entry.steamId, windowDays, cfg.tracker_server_id);
       const seedsNeeded = Math.max(0, requiredDays - stats.uniqueDays);
-      const embed = buildExpiryWarningEmbed(entry.name, daysRemaining, seedsNeeded);
+      const avatarUrl = await getAvatarUrl(entry.steamId);
+      const embed = buildExpiryWarningEmbed({
+        name: entry.name,
+        steamId: entry.steamId,
+        avatarUrl,
+        expiresAt: entry.expiresAt,
+        uniqueDays: stats.uniqueDays,
+        required: requiredDays,
+        seedsNeeded,
+      });
       await channel.send({ embeds: [embed] });
     }
 
