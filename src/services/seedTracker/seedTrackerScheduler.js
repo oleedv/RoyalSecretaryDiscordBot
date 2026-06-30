@@ -1,17 +1,17 @@
 import logger from '../../logger.js';
 import { createScheduler } from '../../utils/scheduler.js';
 import { getTopSeeders, getPlayerSeedStats } from './seedTrackerService.js';
-import { getSeedingConfig } from '../seeding/seedingService.js';
+import {
+  getSeedingConfig, setLastExpiryCheckDate, setLastLeaderboardMonth,
+} from '../seeding/seedingService.js';
 import { getAvatarUrl } from '../steamService.js';
 import { getDiscordIdBySteamId } from '../userService.js';
 import { buildLeaderboardEmbed, buildExpiryWarningEmbed } from './seedTrackerEmbeds.js';
+import { shouldRunForPeriod } from './seederRewardLogic.js';
 import { query } from '../../database/connection.js';
 import { reportError } from '../admin/errorAlertService.js';
 
 const log = logger.child({ module: 'seedTrackerScheduler' });
-
-let lastLeaderboardMonth = null;
-let lastExpiryCheckDate = null;
 
 async function tick(client) {
   const cfg = await getSeedingConfig();
@@ -21,13 +21,19 @@ async function tick(client) {
   const currentMonth = `${now.getFullYear()}-${now.getMonth()}`;
   const currentDate = now.toISOString().slice(0, 10);
 
-  if (now.getDate() === 1 && lastLeaderboardMonth !== currentMonth) {
-    lastLeaderboardMonth = currentMonth;
+  // Run-once-per-period markers are persisted in the DB (seeding_config), not in
+  // memory, so a restart does not re-fire these tasks. Set the marker before
+  // posting so an at-most-once guarantee holds even if a post throws mid-run.
+  if (now.getDate() === 1 && shouldRunForPeriod(cfg.last_leaderboard_month, currentMonth)) {
+    await setLastLeaderboardMonth(currentMonth);
     await postLeaderboard(client, cfg);
   }
 
-  if (lastExpiryCheckDate !== currentDate) {
-    lastExpiryCheckDate = currentDate;
+  const lastExpiryCheckDate = cfg.last_expiry_check_date
+    ? new Date(cfg.last_expiry_check_date).toISOString().slice(0, 10)
+    : null;
+  if (shouldRunForPeriod(lastExpiryCheckDate, currentDate)) {
+    await setLastExpiryCheckDate(currentDate);
     await checkExpiringWhitelists(client, cfg);
   }
 }

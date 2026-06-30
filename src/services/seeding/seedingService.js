@@ -71,6 +71,21 @@ export async function setLastResetDate(date) {
   );
 }
 
+// Seed-tracker scheduler markers (persisted so they survive restarts).
+export async function setLastExpiryCheckDate(date) {
+  await query(
+    'UPDATE seeding_config SET last_expiry_check_date = ? WHERE id = 1',
+    [date]
+  );
+}
+
+export async function setLastLeaderboardMonth(month) {
+  await query(
+    'UPDATE seeding_config SET last_leaderboard_month = ? WHERE id = 1',
+    [month]
+  );
+}
+
 // ── Sessions ──
 
 export async function getActiveSession() {
