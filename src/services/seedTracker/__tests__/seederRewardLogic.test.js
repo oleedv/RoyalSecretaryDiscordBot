@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test';
-import { decideSeederAction, shouldThankToday } from '../seederRewardLogic.js';
+import { decideSeederAction, shouldThankToday, shouldRunForPeriod } from '../seederRewardLogic.js';
 
 const DAY = 86400000;
 const NOW = 1_700_000_000_000; // fixed reference instant
@@ -73,5 +73,27 @@ describe('shouldThankToday', () => {
 
   test('same date => do not thank', () => {
     expect(shouldThankToday('2026-06-17', '2026-06-17')).toBe(false);
+  });
+});
+
+describe('shouldRunForPeriod', () => {
+  test('null last-run marker => run', () => {
+    expect(shouldRunForPeriod(null, '2026-06-30')).toBe(true);
+  });
+
+  test('earlier period => run', () => {
+    expect(shouldRunForPeriod('2026-06-29', '2026-06-30')).toBe(true);
+  });
+
+  // Regression: a restart must NOT re-fire a task already done this period.
+  // Previously the gate lived in an in-memory var that reset to null on every
+  // boot, so each restart re-posted the daily expiry warnings.
+  test('same period (e.g. after a restart) => do not run again', () => {
+    expect(shouldRunForPeriod('2026-06-30', '2026-06-30')).toBe(false);
+  });
+
+  test('works for monthly keys too', () => {
+    expect(shouldRunForPeriod('2026-5', '2026-5')).toBe(false);
+    expect(shouldRunForPeriod('2026-4', '2026-5')).toBe(true);
   });
 });

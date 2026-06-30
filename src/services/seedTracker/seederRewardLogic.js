@@ -42,3 +42,16 @@ export function decideSeederAction({ uniqueDays, requiredDays, whitelist, durati
 export function shouldThankToday(lastThankedDate, today) {
   return !lastThankedDate || lastThankedDate !== today;
 }
+
+/**
+ * Generic once-per-period gate for scheduler tasks. The "last run" marker is
+ * expected to be PERSISTED (DB), not held in memory, so the task does not
+ * re-fire on every bot restart. Pure string equality of period keys (both
+ * computed by the caller, e.g. YYYY-MM-DD for daily or YYYY-M for monthly).
+ * @param {string|null} lastRunPeriod  period we last ran in, or null/empty
+ * @param {string} currentPeriod       current period key
+ * @returns {boolean} true if the task should run now
+ */
+export function shouldRunForPeriod(lastRunPeriod, currentPeriod) {
+  return !lastRunPeriod || lastRunPeriod !== currentPeriod;
+}

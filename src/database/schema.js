@@ -307,6 +307,11 @@ export async function initSchema() {
   await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS leaderboard_channel_id VARCHAR(20) NULL`);
   await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS appreciation_channel_id VARCHAR(20) NULL`);
   await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS min_progression_days INT DEFAULT 2`);
+  // Persisted seed-tracker scheduler markers so the daily expiry check and monthly
+  // leaderboard fire at most once per period even across bot restarts (in-memory
+  // guards reset to null on every boot, which re-posted the expiry warnings).
+  await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS last_expiry_check_date DATE NULL`);
+  await query(`ALTER TABLE seeding_config ADD COLUMN IF NOT EXISTS last_leaderboard_month VARCHAR(10) NULL`);
 
   await query(`
     CREATE TABLE IF NOT EXISTS seed_thanks (
