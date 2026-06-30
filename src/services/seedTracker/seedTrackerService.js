@@ -159,12 +159,13 @@ async function thankWhitelistedSeeder(data, cfg, client) {
   if (!shouldThankToday(lastThanked, today)) return;
 
   const serverId = cfg.tracker_server_id;
-  const [avatarUrl, streak, totalDays] = await Promise.all([
+  const [avatarUrl, streak, totalDays, discordId] = await Promise.all([
     getAvatarUrl(data.steamID),
     getSeedStreak(data.steamID, serverId),
     getTotalSeedDays(data.steamID, serverId),
+    getDiscordIdBySteamId(data.steamID),
   ]);
-  const embed = buildSeederThanksEmbed({ name: data.playerName, avatarUrl, streak, totalDays });
+  const embed = buildSeederThanksEmbed({ name: data.playerName, avatarUrl, streak, totalDays, discordId });
   const channel = await client.channels.fetch(channelId).catch(() => null);
   if (!channel) return;
 
@@ -228,8 +229,11 @@ export async function processCompletedSession(data, client) {
     // progression
     const channelId = cfg.progression_channel_id;
     if (!channelId) return;
-    const streak = await getSeedStreak(data.steamID, serverId);
-    const avatarUrl = await getAvatarUrl(data.steamID);
+    const [streak, avatarUrl, discordId] = await Promise.all([
+      getSeedStreak(data.steamID, serverId),
+      getAvatarUrl(data.steamID),
+      getDiscordIdBySteamId(data.steamID),
+    ]);
     const seedAgainBy = stats.firstSeedDate
       ? new Date(new Date(stats.firstSeedDate).getTime() + windowDays * 86400000)
       : null;
@@ -241,6 +245,7 @@ export async function processCompletedSession(data, client) {
       streak,
       avatarUrl,
       seedAgainBy,
+      discordId,
     });
     const channel = await client.channels.fetch(channelId).catch(() => null);
     if (channel) await channel.send({ embeds: [embed] });

@@ -31,14 +31,19 @@ function discordTimestamp(date, style = 'R') {
   return `<t:${ts}:${style}>`;
 }
 
-export function buildProgressionEmbed({ name, steamId, uniqueDays, required, streak, avatarUrl = null, seedAgainBy = null }) {
+/** `**Name**`, or `**Name** (<@id>)` when a linked Discord id is known. */
+function nameLabel(name, discordId = null) {
+  return discordId ? `**${name}** (<@${discordId}>)` : `**${name}**`;
+}
+
+export function buildProgressionEmbed({ name, steamId, uniqueDays, required, streak, avatarUrl = null, seedAgainBy = null, discordId = null }) {
   const done = Math.max(0, Math.min(uniqueDays, required));
   const track = buildMilestoneTrack(uniqueDays, required);
 
   const embed = createEmbed('Seed Tracker')
     .setColor(COLOR_INFO)
     .setTitle('Seed Progress')
-    .setDescription(`**${name}**\n\`${track}\`\n**${done} / ${required} days**`);
+    .setDescription(`${nameLabel(name, discordId)}\n\`${track}\`\n**${done} / ${required} days**`);
 
   if (avatarUrl) embed.setThumbnail(avatarUrl);
 
@@ -125,7 +130,7 @@ export function buildDmProgressionEmbed(stats, streak, whitelistStatus, required
     );
 }
 
-export function buildExpiryWarningEmbed({ name, steamId, avatarUrl = null, expiresAt, uniqueDays, required, seedsNeeded }) {
+export function buildExpiryWarningEmbed({ name, steamId, avatarUrl = null, expiresAt, uniqueDays, required, seedsNeeded, discordId = null }) {
   const done = Math.max(0, Math.min(uniqueDays, required));
   const track = buildMilestoneTrack(uniqueDays, required);
   const toRenew = seedsNeeded === 0
@@ -136,7 +141,7 @@ export function buildExpiryWarningEmbed({ name, steamId, avatarUrl = null, expir
     .setColor(COLOR_WARNING)
     .setTitle('Whitelist Expiring Soon')
     .setDescription(
-      `**${name}**, your seed whitelist is expiring soon — seed again to keep it!\n\`${track}\`\n**${done} / ${required} days**`
+      `${nameLabel(name, discordId)}, your seed whitelist is expiring soon — seed again to keep it!\n\`${track}\`\n**${done} / ${required} days**`
     );
 
   if (avatarUrl) embed.setThumbnail(avatarUrl);
@@ -150,11 +155,11 @@ export function buildExpiryWarningEmbed({ name, steamId, avatarUrl = null, expir
   return embed;
 }
 
-export function buildSeederThanksEmbed({ name, avatarUrl = null, streak = 0, totalDays = 0 }) {
+export function buildSeederThanksEmbed({ name, avatarUrl = null, streak = 0, totalDays = 0, discordId = null }) {
   const embed = createEmbed('Seed Tracker')
     .setColor(COLOR_SUCCESS)
     .setTitle('Thanks for seeding!')
-    .setDescription(`**${name}** helped seed the server today. Thanks for getting the round started!`);
+    .setDescription(`${nameLabel(name, discordId)} helped seed the server today. Thanks for getting the round started!`);
   if (avatarUrl) embed.setThumbnail(avatarUrl);
 
   const fields = [];
