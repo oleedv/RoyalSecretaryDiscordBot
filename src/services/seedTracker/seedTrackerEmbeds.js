@@ -83,7 +83,7 @@ export function buildLeaderboardEmbed(seeders, windowDays) {
   const lines = seeders.map((s, i) => {
     const rank = i + 1;
     const duration = formatDuration(s.totalDuration);
-    return `**#${rank}** ${s.name} - ${s.seedDays} days | ${duration}`;
+    return `**#${rank}** ${s.name} - ${s.seedDays} days | ${duration} on server`;
   });
 
   return createEmbed('Seed Tracker')
@@ -124,7 +124,7 @@ export function buildDmProgressionEmbed(stats, streak, whitelistStatus, required
     .addFields(
       { name: 'Days', value: `${stats.uniqueDays}/${requiredDays}`, inline: true },
       { name: 'Streak', value: `${streak} day${streak !== 1 ? 's' : ''}`, inline: true },
-      { name: 'Total Duration', value: duration, inline: true },
+      { name: 'Time on Server', value: duration, inline: true },
       { name: 'Avg Quality', value: quality, inline: true },
       { name: 'Whitelist Status', value: wlStatus, inline: false },
     );
