@@ -219,8 +219,35 @@ export async function updateRole(steamId, fromRole, toRole, { clearExpiry = fals
 export async function createSlEntry(steamId, userId, name, clanId, addedBy, reason, days) {
   if (!isConfigured()) return null;
   try {
-    const id = generateId();
     const groupId = await resolveLinkId('group', 'Whitelist');
+
+    // Eligibility uses findEntries() which excludes EXPIRED rows, so a player whose only
+    // (steamId,'main') entry has expired is judged a first-time grant — but that expired row
+    // still occupies the unique key. Revive it in place instead of INSERTing a duplicate:
+    // a blind INSERT throws ER_DUP_ENTRY on every cron run and the grant silently fails.
+    const existing = await query(
+      'SELECT id FROM WhitelistEntry WHERE steamId = ? AND server = \'main\' LIMIT 1',
+      [steamId],
+      'website'
+    );
+
+    if (existing.length > 0) {
+      const entryId = existing[0].id;
+      await query(
+        `UPDATE WhitelistEntry
+           SET name = ?, clanId = ?, role = 'Whitelist', groupId = ?, userId = ?, addedBy = ?,
+               reason = ?, expiresAt = NOW() + INTERVAL ? DAY
+         WHERE id = ?`,
+        [name, clanId, groupId, userId, addedBy, reason, days, entryId],
+        'website'
+      );
+      await logWhitelistActivity('whitelist.update', entryId, { discordId: addedBy, system: 'slReward' }, {
+        steamId, server: 'main', name, role: 'Whitelist', clanId, days, reason, source: 'sl-reward',
+      });
+      return { id: entryId, steamId, name, clanId, userId, days };
+    }
+
+    const id = generateId();
     await query(
       `INSERT INTO WhitelistEntry (id, steamId, server, name, clanId, role, groupId, userId, addedBy, reason, expiresAt, createdAt)
        VALUES (?, ?, 'main', ?, ?, 'Whitelist', ?, ?, ?, ?, NOW() + INTERVAL ? DAY, NOW())`,
