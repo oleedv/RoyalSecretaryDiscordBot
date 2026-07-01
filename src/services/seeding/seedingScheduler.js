@@ -4,8 +4,9 @@ import {
   resetSession, updateSessionPeak, updateSessionCallMessage,
   expireOldSessions, getSeedingStats, trackMessage,
   clearTrackedMessages, setLastDailyCallDate, setPanelMessageId,
-  setLastResetDate, writeLiveStatus,
+  setLastResetDate, writeLiveStatus, getLastSessionStartedAt,
 } from './seedingService.js';
+import { decideSeedingAction } from './seedingLogic.js';
 import {
   buildSeedingCallEmbed, buildSeedingCompletionEmbed,
   buildSeedingPanelMessage, getLayerImageUrl,
@@ -358,47 +359,61 @@ async function updateSeedingState(client) {
     // Unavailable (unresolved id or socket down): never act on stale/absent data.
     if (!state || !state.connected) return;
 
-    // No active session - check if we should re-seed (server crash recovery)
+    // Keep the persisted peak current before deciding (peak only grows).
+    if (session) await updateSessionPeak(session.id, state.playerCount);
+
+    const tz = cfg.timezone || 'UTC';
+    const dailyTime = normalizeTime(cfg.daily_time || '16:00');
+    const currentTime = getCurrentTime(tz);
+    const today = getTodayDate(tz);
+    const lastCallDate = cfg.last_daily_call_date
+      ? new Date(cfg.last_daily_call_date).toISOString().slice(0, 10)
+      : null;
+
+    // Cooldown reference (only needed when deciding whether to re-seed).
+    const reseedCooldownMinutes = config.seeding?.reseedCooldownMinutes ?? 60;
+    let minutesSinceLastCall = Infinity;
     if (!session) {
-      const tz = cfg.timezone || 'UTC';
-      const dailyTime = normalizeTime(cfg.daily_time || '16:00');
-      const currentTime = getCurrentTime(tz);
-      const today = getTodayDate(tz);
-      const lastCallDate = cfg.last_daily_call_date
-        ? new Date(cfg.last_daily_call_date).toISOString().slice(0, 10)
-        : null;
+      const lastStart = await getLastSessionStartedAt();
+      minutesSinceLastCall = lastStart ? (Date.now() - lastStart.getTime()) / 60000 : Infinity;
+    }
 
-      // Re-seed if today's call was already posted, we're past daily time,
-      // we're not in the reset window, and server has players (avoid loop when server is down)
-      if (lastCallDate === today && currentTime >= dailyTime && !isInResetWindow(currentTime, dailyTime) && state.playerCount > 0) {
-        log.info('No active session in seeding window - re-seeding');
-        await postSeedingCall(client, cfg);
+    const { action } = decideSeedingAction({
+      hasActiveSession: !!session,
+      playerCount: state.playerCount,
+      peakPlayers: session ? Math.max(session.peak_players, state.playerCount) : 0,
+      seedThreshold: cfg.seed_threshold,
+      resetThreshold: cfg.reset_threshold,
+      callPostedToday: lastCallDate === today,
+      pastDailyTime: currentTime >= dailyTime,
+      inResetWindow: isInResetWindow(currentTime, dailyTime),
+      minutesSinceLastCall,
+      reseedCooldownMinutes,
+    });
+
+    switch (action) {
+      case 'complete': {
+        const duration = Math.round(
+          (Date.now() - new Date(session.started_at).getTime()) / 60000
+        );
+        await completeSession(session.id, state.playerCount);
+        await postCompletionMessage(client, cfg, session, state, duration);
+        break;
       }
-      return;
+      case 'reset':
+        // resetSession logs; the next collapse can re-seed once past the cooldown.
+        await resetSession(session.id);
+        break;
+      case 'update':
+        await updateCallMessage(client, cfg, session, state);
+        break;
+      case 'reseed':
+        log.info('No active session in seeding window - re-seeding (collapse detected)');
+        await postSeedingCall(client, cfg);
+        break;
+      default:
+        break;
     }
-
-    await updateSessionPeak(session.id, state.playerCount);
-
-    // Completion: threshold reached
-    if (state.playerCount >= cfg.seed_threshold) {
-      const duration = Math.round(
-        (Date.now() - new Date(session.started_at).getTime()) / 60000
-      );
-      await completeSession(session.id, state.playerCount);
-      await postCompletionMessage(client, cfg, session, state, duration);
-      return;
-    }
-
-    // Reset: players dropped below reset threshold after reaching it
-    if (state.playerCount < cfg.reset_threshold && session.peak_players >= cfg.reset_threshold) {
-      await resetSession(session.id);
-      log.info({ sessionId: session.id }, 'Session reset (population dropped)');
-      // Don't post a new call here - the re-seed logic above handles it on the next tick
-      return;
-    }
-
-    // Normal update
-    await updateCallMessage(client, cfg, session, state);
   } catch (err) {
     log.error({ err }, 'Seeding state update failed');
     reportError(err, { source: 'scheduler:seeding:stateUpdate' }).catch(() => {});
@@ -478,6 +493,16 @@ async function postCompletionMessage(client, cfg, session, state, duration) {
   log.info({ sessionId: session.id, duration, players: state.playerCount }, 'Seeding completion posted');
 }
 
+// Signature of the meaningful, state-derived parts of the call embed: description
+// (holds the "N / threshold" population line) plus each field's name+value. Ignores
+// inline flags and received-embed extras (type, image proxy_url) so equal state
+// compares equal.
+function callEmbedSignature(embedData) {
+  if (!embedData) return null;
+  const fields = (embedData.fields || []).map((f) => `${f.name}=${f.value}`).join('\x1f');
+  return `${embedData.description || ''}\x1e${fields}`;
+}
+
 async function updateCallMessage(client, cfg, session, state) {
   if (!session.call_message_id || !cfg.channel_id) return;
 
@@ -502,6 +527,10 @@ async function updateCallMessage(client, cfg, session, state) {
       gameMode,
       fastestSeed: stats.fastest,
     });
+
+    // Skip the edit when nothing visible changed — the message updated every 60s tick
+    // (and showed a perpetual "(edited)") only because of a ticking timestamp field.
+    if (callEmbedSignature(message.embeds[0]?.data) === callEmbedSignature(embed.toJSON())) return;
 
     await message.edit({ embeds: [embed] });
   } catch (err) {

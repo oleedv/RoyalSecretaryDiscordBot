@@ -88,10 +88,6 @@ export function buildSeedingCallEmbed({
   }
   if (row2.length) embed.addFields(...row2);
 
-  // Last updated timestamp
-  const now = Math.floor(Date.now() / 1000);
-  embed.addFields({ name: '\u200b', value: `Last updated <t:${now}:R>`, inline: false });
-
   if (thumbnailUrl) {
     embed.setImage(thumbnailUrl);
   }

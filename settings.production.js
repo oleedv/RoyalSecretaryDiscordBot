@@ -74,6 +74,7 @@ export default {
     defaultWhitelistDurationDays: 30,
     defaultMaxExtensionDays: 60,
     schedulerCheckMs: 60000,
+    reseedCooldownMinutes: 60,                            // min minutes between seeding calls (re-seed spam backstop)
   },
   slReward: {
     leaderboardChannelId: '1516397123007021087',          // SL rolling-7d leaderboard embed
