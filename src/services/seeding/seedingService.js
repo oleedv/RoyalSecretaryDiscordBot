@@ -96,6 +96,13 @@ export async function getActiveSession() {
   return rows[0] || null;
 }
 
+// Most recent session start time, used as the re-seed cooldown reference (every daily
+// call and re-seed sets started_at). Returns null when there are no sessions yet.
+export async function getLastSessionStartedAt() {
+  const rows = await query('SELECT MAX(started_at) AS ts FROM seeding_sessions');
+  return rows[0]?.ts ? new Date(rows[0].ts) : null;
+}
+
 export async function startSession(mapName, layerName, playerCount) {
   const result = await query(
     `INSERT INTO seeding_sessions (map_name, layer_name, start_players, peak_players)
