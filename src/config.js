@@ -23,6 +23,9 @@ const config = Object.freeze({
     port: parseInt(process.env.DB_PORT || '3306', 10),
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
+    // Opt-in TLS for the MariaDB connection (set DB_SSL=true). Self-signed server cert,
+    // so validation is relaxed in connection.js. Off by default (internal docker network).
+    ssl: process.env.DB_SSL === 'true',
     databases: {
       secretary: process.env.DB_NAME,
       squadjs: 'SquadJS',

@@ -15,6 +15,7 @@ function createPoolForDb(name, database) {
     user: config.database.user,
     password: config.database.password,
     database,
+    ssl: config.database.ssl ? { rejectUnauthorized: false } : undefined,
     connectionLimit: 10,
     idleTimeout: 60000,
     acquireTimeout: 10000,
