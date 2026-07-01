@@ -42,11 +42,35 @@ export function isConfigured() {
 export async function createEntry(steamId, name, clan, role, addedBy, expiresAt = null) {
   if (!isConfigured()) return null;
   try {
-    const id = generateId();
     const [clanId, groupId] = await Promise.all([
       resolveLinkId('clan', clan),
       resolveLinkId('group', role),
     ]);
+
+    // A player can hold only one (steamId, 'main') row — the unique key
+    // `WhitelistEntry_steamId_server_key`. If one already exists (commonly a stale/expired
+    // entry), update it in place: a blind INSERT throws ER_DUP_ENTRY and the whitelist add
+    // silently fails. Match on ALL entries (not just active) so expired rows are caught too.
+    const existing = await query(
+      'SELECT id FROM WhitelistEntry WHERE steamId = ? AND server = \'main\' LIMIT 1',
+      [steamId],
+      'website'
+    );
+
+    if (existing.length > 0) {
+      const entryId = existing[0].id;
+      await query(
+        'UPDATE WhitelistEntry SET name = ?, clan = ?, clanId = ?, role = ?, groupId = ?, addedBy = ?, expiresAt = ? WHERE id = ?',
+        [name, clan, clanId, role, groupId, addedBy, expiresAt, entryId],
+        'website'
+      );
+      await logWhitelistActivity('whitelist.update', entryId, { discordId: addedBy, system: 'bot' }, {
+        steamId, server: 'main', name, clan, role, expiresAt: toIso(expiresAt),
+      });
+      return { id: entryId, steamId, server: 'main', name, clan, role, addedBy, expiresAt };
+    }
+
+    const id = generateId();
     await query(
       'INSERT INTO WhitelistEntry (id, steamId, server, name, clan, clanId, role, groupId, addedBy, expiresAt, createdAt) VALUES (?, ?, \'main\', ?, ?, ?, ?, ?, ?, ?, NOW())',
       [id, steamId, name, clan, clanId, role, groupId, addedBy, expiresAt],
