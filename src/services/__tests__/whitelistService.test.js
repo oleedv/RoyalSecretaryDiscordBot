@@ -16,7 +16,7 @@ mock.module('../../logger.js', () => ({
   default: { child: () => ({ warn() {}, info() {}, error() {} }) },
 }));
 
-const { createEntry } = await import('../whitelistService.js');
+const { createEntry, createSlEntry } = await import('../whitelistService.js');
 
 // route each query by its SQL: link-id lookups + existing-entry check vs writes
 function route(existingRows) {
@@ -53,5 +53,28 @@ describe('createEntry', () => {
     const sqls = calls.map((c) => c[0]);
     expect(sqls.some((s) => s.startsWith('UPDATE WhitelistEntry'))).toBe(true);
     expect(sqls.some((s) => s.startsWith('INSERT INTO WhitelistEntry'))).toBe(false);
+  });
+});
+
+describe('createSlEntry', () => {
+  test('revives an existing (incl. expired) main row instead of a duplicate INSERT', async () => {
+    // Regression: eligibility's findEntries() hides expired rows, so an expired player is judged
+    // first_grant and createSlEntry blind-INSERTed -> ER_DUP_ENTRY on the expired row every run.
+    queryImpl = route([{ id: 'expired-id' }]);
+    const res = await createSlEntry('76561198819769429', 'user1', 'Lind', 'clan1', 'sl-reward-system', 'first_grant', 30);
+
+    expect(res).toEqual(expect.objectContaining({ id: 'expired-id' }));
+    const sqls = calls.map((c) => c[0]);
+    expect(sqls.some((s) => s.trim().startsWith('UPDATE WhitelistEntry'))).toBe(true);
+    expect(sqls.some((s) => s.includes('INSERT INTO WhitelistEntry'))).toBe(false);
+  });
+
+  test('INSERTs when the player has no existing main row', async () => {
+    queryImpl = route([]);
+    const res = await createSlEntry('76561190000000009', 'user2', 'New', 'clan1', 'sl-reward-system', 'first_grant', 30);
+
+    expect(res).not.toBeNull();
+    const sqls = calls.map((c) => c[0]);
+    expect(sqls.some((s) => s.includes('INSERT INTO WhitelistEntry'))).toBe(true);
   });
 });
