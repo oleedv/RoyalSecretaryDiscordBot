@@ -1,9 +1,17 @@
-import { query, getPool } from '../database/connection.js';
+import { query, getPool, transaction } from '../database/connection.js';
 import { generateId } from '../utils/id.js';
 import { logWhitelistActivity } from './whitelistAudit.js';
+import { reportError } from './admin/errorAlertService.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'whitelist' });
+
+// A whitelist write failed. These are reward/permission mutations, so surface them
+// through the alert channel (not just a local warn) — a silently-dropped grant is
+// invisible otherwise. Fire-and-forget; the caller still returns its null/0 sentinel.
+function alertWriteFailure(err, fn, ctx) {
+  reportError(err, { source: `whitelist:${fn}`, severity: 'error', ...ctx }).catch(() => {});
+}
 
 const toIso = (d) => (d ? new Date(d).toISOString() : null);
 
@@ -81,6 +89,7 @@ export async function createEntry(steamId, name, clan, role, addedBy, expiresAt 
     });
     return { id, steamId, server: 'main', name, clan, role, addedBy, expiresAt };
   } catch (err) {
+    alertWriteFailure(err, 'createEntry', { steamId });
     log.warn({ err, steamId }, 'Failed to create whitelist entry');
     return null;
   }
@@ -106,6 +115,7 @@ export async function expireEntry(id) {
     await query('UPDATE WhitelistEntry SET expiresAt = NOW() WHERE id = ?', [id], 'website');
     return true;
   } catch (err) {
+    alertWriteFailure(err, 'expireEntry', { id });
     log.warn({ err, id }, 'Failed to expire whitelist entry');
     return null;
   }
@@ -116,14 +126,25 @@ export async function expireByRole(steamId, role, actor = null) {
   try {
     const entries = await findEntries(steamId);
     const matching = entries.filter((e) => e.role === role);
+    if (matching.length === 0) return 0;
+
+    // All matching rows expire together — a mid-loop failure rolls the whole set back
+    // rather than leaving some entries expired and others still active.
+    await transaction(async (conn) => {
+      for (const entry of matching) {
+        await conn.query('UPDATE WhitelistEntry SET expiresAt = NOW() WHERE id = ?', [entry.id]);
+      }
+    }, 'website');
+
+    // Audit after commit (best-effort; never blocks or reverts the committed change).
     for (const entry of matching) {
-      await expireEntry(entry.id);
       await logWhitelistActivity('whitelist.update', entry.id, actor, {
         steamId, role, changes: { expiresAt: { to: 'expired' } },
       });
     }
     return matching.length;
   } catch (err) {
+    alertWriteFailure(err, 'expireByRole', { steamId, role });
     log.warn({ err, steamId, role }, 'Failed to expire whitelist entries by role');
     return null;
   }
@@ -172,6 +193,7 @@ export async function upsertSeederEntry(steamId, name, expiresAt) {
     });
     return { id, steamId, role: 'Seeder', expiresAt };
   } catch (err) {
+    alertWriteFailure(err, 'upsertSeederEntry', { steamId });
     log.warn({ err, steamId }, 'Failed to upsert seeder whitelist entry');
     return null;
   }
@@ -182,21 +204,29 @@ export async function updateRole(steamId, fromRole, toRole, { clearExpiry = fals
   try {
     const entries = await findEntries(steamId);
     const matching = entries.filter((e) => e.role === fromRole);
+    if (matching.length === 0) return 0;
     const toGroupId = await resolveLinkId('group', toRole);
-    for (const entry of matching) {
-      if (clearExpiry) {
-        await query(
-          'UPDATE WhitelistEntry SET role = ?, groupId = ?, expiresAt = NULL WHERE id = ?',
-          [toRole, toGroupId, entry.id],
-          'website'
-        );
-      } else {
-        await query(
-          'UPDATE WhitelistEntry SET role = ?, groupId = ? WHERE id = ?',
-          [toRole, toGroupId, entry.id],
-          'website'
-        );
+
+    // All matching rows change role together — a mid-loop failure rolls the whole set
+    // back rather than leaving a partially-applied rename.
+    await transaction(async (conn) => {
+      for (const entry of matching) {
+        if (clearExpiry) {
+          await conn.query(
+            'UPDATE WhitelistEntry SET role = ?, groupId = ?, expiresAt = NULL WHERE id = ?',
+            [toRole, toGroupId, entry.id]
+          );
+        } else {
+          await conn.query(
+            'UPDATE WhitelistEntry SET role = ?, groupId = ? WHERE id = ?',
+            [toRole, toGroupId, entry.id]
+          );
+        }
       }
+    }, 'website');
+
+    // Audit after commit (best-effort; never blocks or reverts the committed change).
+    for (const entry of matching) {
       await logWhitelistActivity('whitelist.update', entry.id, actor, {
         steamId,
         changes: {
@@ -207,6 +237,7 @@ export async function updateRole(steamId, fromRole, toRole, { clearExpiry = fals
     }
     return matching.length;
   } catch (err) {
+    alertWriteFailure(err, 'updateRole', { steamId, fromRole, toRole });
     log.warn({ err, steamId, fromRole, toRole }, 'Failed to update whitelist role');
     return null;
   }
@@ -259,6 +290,7 @@ export async function createSlEntry(steamId, userId, name, clanId, addedBy, reas
     });
     return { id, steamId, name, clanId, userId, days };
   } catch (err) {
+    alertWriteFailure(err, 'createSlEntry', { steamId });
     log.warn({ err, steamId }, 'Failed to create SL whitelist entry');
     return null;
   }
@@ -277,6 +309,7 @@ export async function extendEntryByDays(id, days) {
     });
     return true;
   } catch (err) {
+    alertWriteFailure(err, 'extendEntryByDays', { id });
     log.warn({ err, id }, 'Failed to extend whitelist entry');
     return null;
   }
@@ -287,18 +320,25 @@ export async function updateExpiryByRole(steamId, role, expiresAt, actor = null)
   try {
     const entries = await findEntries(steamId);
     const matching = entries.filter((e) => e.role === role);
+    if (matching.length === 0) return 0;
+
+    // All matching rows get the new expiry together — a mid-loop failure rolls the whole
+    // set back rather than leaving mixed expiries.
+    await transaction(async (conn) => {
+      for (const entry of matching) {
+        await conn.query('UPDATE WhitelistEntry SET expiresAt = ? WHERE id = ?', [expiresAt, entry.id]);
+      }
+    }, 'website');
+
+    // Audit after commit (best-effort; never blocks or reverts the committed change).
     for (const entry of matching) {
-      await query(
-        'UPDATE WhitelistEntry SET expiresAt = ? WHERE id = ?',
-        [expiresAt, entry.id],
-        'website'
-      );
       await logWhitelistActivity('whitelist.update', entry.id, actor, {
         steamId, role, changes: { expiresAt: { to: toIso(expiresAt) } },
       });
     }
     return matching.length;
   } catch (err) {
+    alertWriteFailure(err, 'updateExpiryByRole', { steamId, role });
     log.warn({ err, steamId, role }, 'Failed to update whitelist expiry by role');
     return null;
   }

@@ -1,0 +1,36 @@
+name: Security Audit
+
+# Dependency vulnerability scan. Runs independently of the deploy workflows so a
+# freshly-disclosed advisory surfaces as a red check without blocking a hotfix deploy.
+on:
+  push:
+    branches: [main, production]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1' # weekly, Monday 06:00 UTC — catch advisories filed since the last push
+
+jobs:
+  audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install (frozen lockfile)
+        run: bun install --frozen-lockfile
+
+      # Always surface the complete advisory report (never fails the job) so new
+      # findings are visible on every run.
+      - name: Audit dependencies (full report)
+        run: bun audit || true
+
+      # Hard gate. Set to `critical` for now: the current high advisories are all
+      # transitive (undici/ws/lodash/form-data under discord.js, socket.io-client,
+      # @anthropic-ai/sdk) and clear only via a major-version bump of those parents.
+      # Tighten to `--audit-level=high` once that upgrade lands.
+      - name: Fail on critical advisories
+        run: bun audit --audit-level=critical

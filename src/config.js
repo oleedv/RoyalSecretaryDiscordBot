@@ -23,9 +23,14 @@ const config = Object.freeze({
     port: parseInt(process.env.DB_PORT || '3306', 10),
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
-    // Opt-in TLS for the MariaDB connection (set DB_SSL=true). Self-signed server cert,
-    // so validation is relaxed in connection.js. Off by default (internal docker network).
+    // Opt-in TLS for the MariaDB connection (set DB_SSL=true). Off by default (internal
+    // docker network). Provide DB_SSL_CA (path to the server's CA PEM) to validate the
+    // server certificate — without it TLS encrypts but does NOT authenticate the server
+    // (MITM possible), and connection.js warns. DB_SSL_REJECT_UNAUTHORIZED=false is an
+    // escape hatch to disable validation even when a CA is present.
     ssl: process.env.DB_SSL === 'true',
+    sslCa: process.env.DB_SSL_CA || null,
+    sslRejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false',
     databases: {
       secretary: process.env.DB_NAME,
       squadjs: 'SquadJS',
