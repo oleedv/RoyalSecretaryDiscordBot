@@ -1,4 +1,5 @@
 import { createPool } from 'mariadb';
+import { readFileSync } from 'node:fs';
 import config from '../config.js';
 import logger from '../logger.js';
 import { reportError } from '../services/admin/errorAlertService.js';
@@ -8,14 +9,33 @@ const log = logger.child({ module: 'database' });
 const pools = {};
 const OPTIONAL_POOLS = new Set(['website']);
 
-function createPoolForDb(name, database) {
+// Resolve the mariadb `ssl` option from config. Three states:
+//   DB_SSL unset/false      -> undefined (plaintext, the internal-docker default)
+//   DB_SSL=true + DB_SSL_CA  -> validated TLS (server cert checked against the pinned CA)
+//   DB_SSL=true, no CA       -> encrypted but UNVALIDATED (warns; active MITM still possible)
+// A CA path that is set but unreadable throws (fail closed) rather than silently
+// downgrading to an unvalidated connection.
+function buildSslOption() {
+  if (!config.database.ssl) return undefined;
+
+  const caPath = config.database.sslCa;
+  if (caPath) {
+    const ca = readFileSync(caPath, 'utf8');
+    return { ca, rejectUnauthorized: config.database.sslRejectUnauthorized };
+  }
+
+  log.warn('DB_SSL is on but DB_SSL_CA is not set - the DB connection is encrypted but the server certificate is NOT validated (MITM possible). Set DB_SSL_CA to a CA PEM path to enable validation.');
+  return { rejectUnauthorized: false };
+}
+
+function createPoolForDb(name, database, ssl) {
   const pool = createPool({
     host: config.database.host,
     port: config.database.port,
     user: config.database.user,
     password: config.database.password,
     database,
-    ssl: config.database.ssl ? { rejectUnauthorized: false } : undefined,
+    ssl,
     connectionLimit: 10,
     idleTimeout: 60000,
     acquireTimeout: 10000,
@@ -34,10 +54,11 @@ function createPoolForDb(name, database) {
 }
 
 export function createPools() {
+  const ssl = buildSslOption(); // throws on a set-but-unreadable DB_SSL_CA -> boot fails loudly
   const { databases } = config.database;
   for (const [name, database] of Object.entries(databases)) {
     if (!database) { log.warn(`Skipping pool "${name}" - no database name configured`); continue; }
-    createPoolForDb(name, database);
+    createPoolForDb(name, database, ssl);
   }
 }
 

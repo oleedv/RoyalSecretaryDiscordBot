@@ -169,8 +169,11 @@ async function thankWhitelistedSeeder(data, cfg, client) {
   const channel = await client.channels.fetch(channelId).catch(() => null);
   if (!channel) return;
 
-  await channel.send({ embeds: [embed] });
+  // Record the thanks BEFORE posting so a failed/duplicate post can't re-thank next event
+  // (mirrors the scheduler's set-marker-before-post at-most-once pattern). Worst case on a
+  // post failure is a missed cosmetic thanks that day, not a spam loop.
   await recordThanked(data.steamID, data.playerName, today);
+  await channel.send({ embeds: [embed] });
 }
 
 export async function processCompletedSession(data, client) {

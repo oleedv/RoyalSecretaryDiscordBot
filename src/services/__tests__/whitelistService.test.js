@@ -9,14 +9,26 @@ mock.module('../../database/connection.js', () => ({
     return queryImpl(...args);
   },
   getPool: () => ({}), // website pool "configured"
+  // Run the callback with a conn whose query routes through the same impl, so
+  // transactional writes are observable in `calls` just like pooled ones.
+  transaction: (fn) => fn({
+    query: (...args) => {
+      calls.push(args);
+      return queryImpl(...args);
+    },
+  }),
 }));
 mock.module('../../utils/id.js', () => ({ generateId: () => 'generated-id' }));
 mock.module('../whitelistAudit.js', () => ({ logWhitelistActivity: () => Promise.resolve() }));
+const reportErrorCalls = [];
+mock.module('../admin/errorAlertService.js', () => ({
+  reportError: (...args) => { reportErrorCalls.push(args); return Promise.resolve(); },
+}));
 mock.module('../../logger.js', () => ({
   default: { child: () => ({ warn() {}, info() {}, error() {} }) },
 }));
 
-const { createEntry, createSlEntry } = await import('../whitelistService.js');
+const { createEntry, createSlEntry, expireByRole } = await import('../whitelistService.js');
 
 // route each query by its SQL: link-id lookups + existing-entry check vs writes
 function route(existingRows) {
@@ -29,6 +41,7 @@ function route(existingRows) {
 
 beforeEach(() => {
   calls.length = 0;
+  reportErrorCalls.length = 0;
   queryImpl = () => Promise.resolve([]);
 });
 
@@ -76,5 +89,63 @@ describe('createSlEntry', () => {
     expect(res).not.toBeNull();
     const sqls = calls.map((c) => c[0]);
     expect(sqls.some((s) => s.includes('INSERT INTO WhitelistEntry'))).toBe(true);
+  });
+});
+
+describe('write-failure alerting (M2)', () => {
+  test('createEntry alerts via reportError and returns null when the write throws', async () => {
+    queryImpl = (sql) => {
+      if (sql.startsWith('INSERT') || sql.startsWith('UPDATE')) {
+        return Promise.reject(new Error('ER_LOCK_DEADLOCK'));
+      }
+      return Promise.resolve([]); // no existing row + link lookups
+    };
+
+    const res = await createEntry('76561198000000002', 'Bob', 'RB', 'Prospect', 'actor');
+
+    expect(res).toBeNull();
+    expect(reportErrorCalls.length).toBe(1);
+    expect(reportErrorCalls[0][1]).toEqual(
+      expect.objectContaining({ source: 'whitelist:createEntry', severity: 'error' })
+    );
+  });
+});
+
+describe('expireByRole transactional loop (M3)', () => {
+  test('expires every matching row and reports the count', async () => {
+    queryImpl = (sql) => {
+      if (sql.startsWith('SELECT * FROM WhitelistEntry WHERE steamId')) {
+        return Promise.resolve([
+          { id: 'a', role: 'Seeder' },
+          { id: 'b', role: 'Seeder' },
+          { id: 'c', role: 'Member' }, // different role — must be left untouched
+        ]);
+      }
+      return Promise.resolve({ affectedRows: 1 });
+    };
+
+    const n = await expireByRole('76561198000000003', 'Seeder');
+
+    expect(n).toBe(2);
+    const expiries = calls.filter((c) => String(c[0]).startsWith('UPDATE WhitelistEntry SET expiresAt = NOW()'));
+    expect(expiries.length).toBe(2);
+    expect(reportErrorCalls.length).toBe(0);
+  });
+
+  test('rolls up to null + alerts when a row update throws mid-loop', async () => {
+    queryImpl = (sql) => {
+      if (sql.startsWith('SELECT * FROM WhitelistEntry WHERE steamId')) {
+        return Promise.resolve([{ id: 'a', role: 'Seeder' }]);
+      }
+      if (String(sql).startsWith('UPDATE')) return Promise.reject(new Error('ER_LOCK_WAIT_TIMEOUT'));
+      return Promise.resolve([]);
+    };
+
+    const res = await expireByRole('76561198000000004', 'Seeder');
+
+    expect(res).toBeNull();
+    expect(reportErrorCalls[0][1]).toEqual(
+      expect.objectContaining({ source: 'whitelist:expireByRole', severity: 'error' })
+    );
   });
 });
