@@ -201,6 +201,45 @@ export function buildAcceptedAnnouncementEmbed(member, prospect) {
   return embed;
 }
 
+// Posted to the prospect lounge when a prospect passes their interview and the
+// prospect period starts (acceptProspect). Recreates the legacy Python welcome:
+// a warm, minimal embed with the prospect's avatar and pointers to the key
+// prospect channels. `channels` is injectable for testing; defaults to config.
+export function buildProspectWelcomeEmbed(member, prospect, channels = config.prospects) {
+  const {
+    prospectInfoChannelId,
+    prospectIntroChannelId,
+    prospectAwayChannelId,
+    feedbackChannelId,
+  } = channels;
+
+  const embed = createEmbed('Prospect')
+    .setTitle('Welcome to the Prospect Lounge')
+    .setDescription(
+      `<@${prospect.user_id}> passed their interview - the prospect period has now started. Welcome aboard.`
+    )
+    .setColor(0x57f287);
+
+  if (member) {
+    embed.setThumbnail(member.user.displayAvatarURL());
+  }
+
+  if (prospectInfoChannelId) {
+    embed.addFields({ name: 'Get Started', value: `Read up in <#${prospectInfoChannelId}>`, inline: true });
+  }
+  if (prospectIntroChannelId) {
+    embed.addFields({ name: 'Introduce Yourself', value: `Tell us a bit about you in <#${prospectIntroChannelId}>`, inline: true });
+  }
+  if (prospectAwayChannelId) {
+    embed.addFields({ name: 'Going Away?', value: `Let us know in <#${prospectAwayChannelId}> if you'll be less active`, inline: true });
+  }
+  if (feedbackChannelId) {
+    embed.addFields({ name: 'Feedback', value: `Share how it's going in <#${feedbackChannelId}>`, inline: true });
+  }
+
+  return embed;
+}
+
 export function buildVoteEmbed(prospect, stats = null) {
   const { periodEnd } = getProspectDates(prospect);
   const extra = prospect.extra_days || 0;

@@ -43,6 +43,10 @@ export default {
     meetTheMembersChannelId: '458279712213565440',
     goingAwayChannelId: '1237155781531402270',
     feedbackChannelId: '1237151891214041149',
+    prospectLoungeChannelId: '',                          // set to a dev channel to test the prospect-lounge welcome
+    prospectInfoChannelId: '',
+    prospectIntroChannelId: '',
+    prospectAwayChannelId: '',
     voteEmojis: {
       yes: '1472142752538955807',
       no: '1472142752538955807',
