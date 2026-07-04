@@ -133,13 +133,35 @@ export async function readPersistedRotation() {
   };
 }
 
+// Persist the current rotation and return its updated_at as unix seconds. The
+// embed's "Updated" line uses this so it reflects when the rotation LINES last
+// changed, not when the embed was last re-rendered. updated_at is advanced
+// explicitly here (not left to the column's ON UPDATE CURRENT_TIMESTAMP) so it is
+// keyed solely on cleaned_text: bumped to now when the lines differ, otherwise kept.
+// This means re-posts with identical lines (NEW_GAME, boot restore, /commands) and
+// mode/source-only changes do NOT move the timestamp.
+//
+// Assignment order matters: `updated_at` must be assigned BEFORE `cleaned_text` in
+// the ON DUPLICATE KEY UPDATE list so the `cleaned_text = VALUES(cleaned_text)`
+// comparison reads the OLD stored value. (MariaDB evaluates the list left-to-right;
+// a column referenced after it was reassigned yields the new value.) Verified against
+// MariaDB 12.2. Returns { updatedAt: null } if the timestamp can't be read.
 export async function upsertPersistedRotation({ cleanedText, mode, source }) {
   await query(
     `INSERT INTO layer_rotation_current (id, cleaned_text, mode, source)
      VALUES (1, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE cleaned_text = VALUES(cleaned_text), mode = VALUES(mode), source = VALUES(source)`,
+     ON DUPLICATE KEY UPDATE
+       updated_at = IF(cleaned_text = VALUES(cleaned_text), updated_at, CURRENT_TIMESTAMP),
+       cleaned_text = VALUES(cleaned_text),
+       mode = VALUES(mode),
+       source = VALUES(source)`,
     [cleanedText, mode, source]
   );
+  const rows = await query(
+    'SELECT UNIX_TIMESTAMP(updated_at) AS updated_at FROM layer_rotation_current WHERE id = 1 LIMIT 1'
+  );
+  const ts = rows?.[0]?.updated_at;
+  return { updatedAt: ts != null ? Number(ts) : null };
 }
 
 export async function readPersistedErrorHash() {
@@ -151,11 +173,15 @@ export async function readPersistedErrorHash() {
   return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
+// `updated_at = updated_at` keeps the rotation's load time from being bumped by an
+// error-hash write. Without it, changing last_error_hash is a real row change that
+// fires ON UPDATE CURRENT_TIMESTAMP, so a later re-post of the unchanged rotation
+// would show the error time as "Updated" instead of the true load time.
 export async function writePersistedErrorHash(hash) {
   await query(
     `INSERT INTO layer_rotation_current (id, cleaned_text, mode, source, last_error_hash)
      VALUES (1, '', 'Unknown', 'sftp', ?)
-     ON DUPLICATE KEY UPDATE last_error_hash = VALUES(last_error_hash)`,
+     ON DUPLICATE KEY UPDATE last_error_hash = VALUES(last_error_hash), updated_at = updated_at`,
     [hash]
   );
 }

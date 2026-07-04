@@ -116,8 +116,24 @@ export async function replaceLiveEmbed(client, { mode: embedMode, lines, source 
     log.error({ channelId: settings.channelId }, 'Cannot fetch prod channel for embed post');
     return false;
   }
+  // Persist before rendering so the embed's "Updated" line reflects when the rotation
+  // content last actually changed (the DB updated_at). The upsert is a no-op for
+  // unchanged content, so re-posts driven by NEW_GAME / boot restore / commands keep
+  // the original load time instead of resetting to "now".
+  let updatedAt = null;
+  try {
+    const res = await upsertPersistedRotation({
+      cleanedText: lines.join('\n'),
+      mode: embedMode || 'Unknown',
+      source,
+    });
+    updatedAt = res?.updatedAt ?? null;
+  } catch (err) {
+    log.warn({ err }, 'Failed to upsert persisted rotation');
+  }
+
   const { currentLayer, matchStartTime, lastMaps } = await readLiveLayerState(embedMode);
-  const embed = buildSuccessEmbed({ mode: embedMode, lines, currentLayer, matchStartTime, lastMaps });
+  const embed = buildSuccessEmbed({ mode: embedMode, lines, currentLayer, matchStartTime, lastMaps, updatedAt });
   const sent = await channel.send({ embeds: [embed] }).catch((err) => {
     log.error({ err }, 'Failed to send success embed');
     return null;
@@ -129,16 +145,7 @@ export async function replaceLiveEmbed(client, { mode: embedMode, lines, source 
     const old = await channel.messages.fetch(previousId).catch(() => null);
     if (old) await old.delete().catch(() => {});
   }
-  try {
-    await upsertPersistedRotation({
-      cleanedText: lines.join('\n'),
-      mode: embedMode || 'Unknown',
-      source,
-    });
-  } catch (err) {
-    log.warn({ err }, 'Failed to upsert persisted rotation');
-  }
-  log.info({ mode: embedMode, layers: lines.length, source }, 'Posted updated rotation embed');
+  log.info({ mode: embedMode, layers: lines.length, source, updatedAt }, 'Posted updated rotation embed');
   return true;
 }
 

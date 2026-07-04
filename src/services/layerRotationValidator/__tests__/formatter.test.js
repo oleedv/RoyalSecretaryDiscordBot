@@ -201,6 +201,28 @@ describe('buildSuccessEmbed - vote mode (last 3 maps)', () => {
   });
 });
 
+describe('buildSuccessEmbed - Updated timestamp + title', () => {
+  const lines = ['Sumari_Seed_v1 USA MEI'];
+
+  test('title reads "Royal Battalion - Map Rotation"', () => {
+    const embed = buildSuccessEmbed({ mode: 'LayerList', lines });
+    expect(embed.data.title).toBe('Royal Battalion - Map Rotation');
+  });
+
+  test('uses the provided updatedAt (rotation load time) in the Updated line', () => {
+    // updatedAt is the DB updated_at (unix seconds) for when the rotation content last
+    // changed, NOT the embed render time. Re-posts driven by NEW_GAME / boot / commands
+    // must keep this original load time instead of resetting to "now".
+    const d = buildSuccessEmbed({ mode: 'LayerList', lines, updatedAt: 1700000000 }).data.description;
+    expect(d).toContain('Updated <t:1700000000:R>');
+  });
+
+  test('falls back to render time when updatedAt is not provided (back-compat)', () => {
+    const d = buildSuccessEmbed({ mode: 'LayerList', lines }).data.description;
+    expect(d).toMatch(/Updated <t:\d+:R>/);
+  });
+});
+
 describe('formatLastMaps', () => {
   test('renders underscore layer tokens as readable labels, most-recent first', () => {
     expect(formatLastMaps(['Manicouagan_RAAS_v2', 'Gorodok_RAAS_v2'])).toBe(

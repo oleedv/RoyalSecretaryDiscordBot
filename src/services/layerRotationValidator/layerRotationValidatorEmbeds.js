@@ -134,8 +134,12 @@ function modeLabel(mode) {
   return mode;
 }
 
-export function buildSuccessEmbed({ mode, lines, currentLayer = null, matchStartTime = null, lastMaps = [] }) {
-  const unix = Math.floor(Date.now() / 1000);
+export function buildSuccessEmbed({ mode, lines, currentLayer = null, matchStartTime = null, lastMaps = [], updatedAt = null }) {
+  // "Updated" is the time the rotation content was last loaded (the DB updated_at,
+  // in unix seconds), NOT the embed render time. Re-posts triggered by NEW_GAME, boot
+  // restore, mode refresh, or /commands must keep the original load time. Fall back to
+  // now only when the caller can't supply it (e.g. a DB read failure).
+  const unix = updatedAt != null ? updatedAt : Math.floor(Date.now() / 1000);
 
   // Live block (between the Updated line and the body) only when we know the
   // current layer. The Started line is independently optional.
@@ -160,7 +164,7 @@ export function buildSuccessEmbed({ mode, lines, currentLayer = null, matchStart
     body;
   return new EmbedBuilder()
     .setColor(COLOR_OK)
-    .setTitle('Royal Battalion - Layer Rotation')
+    .setTitle('Royal Battalion - Map Rotation')
     .setDescription(description)
     .setFooter({ text: FOOTER })
     .setTimestamp();
