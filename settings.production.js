@@ -47,6 +47,10 @@ export default {
     meetTheMembersChannelId: '458279712213565440',       // Meet the members channel
     goingAwayChannelId: '1237155781531402270',            // Going away channel
     feedbackChannelId: '1237151891214041149',             // Prospect feedback channel
+    prospectLoungeChannelId: '1237128127268913275',       // Prospect lounge - welcome embed posted here on accept
+    prospectInfoChannelId: '1237127788771934238',         // Prospect "get started" / info channel
+    prospectIntroChannelId: '1237128979845087353',        // Prospect introduce-yourself channel
+    prospectAwayChannelId: '1237128704484835419',         // Prospect going-away / on-hold channel
     voteEmojis: {
       yes: '1477315341469089926',                        // YES emoji ID
       no: '1477315341469089926',                         // NO emoji ID

@@ -3,7 +3,7 @@ import { ChannelType, EmbedBuilder } from 'discord.js';
 import { createEmbed } from '../../utils/embed.js';
 import { buildPrivateChannelPermissions } from '../../utils/permissions.js';
 import { findBotMessageByCustomId } from '../../utils/messageSearch.js';
-import { buildProspectInfoEmbed, buildForumIntroEmbed, buildProspectComponents, buildProspectAcceptedComponents, buildAcceptedAnnouncementEmbed, parseAiSections, buildProspectAiEmbed, buildProspectAiTabRow, AI_DEFAULT_SECTION } from './prospectEmbeds.js';
+import { buildProspectInfoEmbed, buildForumIntroEmbed, buildProspectComponents, buildProspectAcceptedComponents, buildAcceptedAnnouncementEmbed, buildProspectWelcomeEmbed, parseAiSections, buildProspectAiEmbed, buildProspectAiTabRow, AI_DEFAULT_SECTION } from './prospectEmbeds.js';
 import * as bm from '../battlemetricsService.js';
 import * as whitelistService from '../whitelistService.js';
 import { fetchCblData } from '../cblService.js';
@@ -743,7 +743,7 @@ export async function unclaimProspect(prospect, actorId, guild, reason = null) {
 }
 
 export async function acceptProspect(prospect, acceptedById, guild) {
-  const { forumChannelId, periodDays, prospectRoleId, purgedRoleId } = config.prospects;
+  const { forumChannelId, periodDays, prospectRoleId, purgedRoleId, prospectLoungeChannelId } = config.prospects;
 
   const member = await guild.members.fetch(prospect.user_id).catch(() => null);
 
@@ -867,6 +867,30 @@ export async function acceptProspect(prospect, acceptedById, guild) {
       .setDescription("Great news! You've passed the interview and have been **accepted** as a prospect in **Royal Battalion**! Your prospect period has now started.")
       .setColor(0x57f287);
     await user.send({ embeds: [dmEmbed] }).catch(() => null);
+  }
+
+  // Welcome the new prospect in the prospect lounge (recreates the legacy Python
+  // /prospect add lounge post). Guarded on config + fetch; failures are logged but
+  // never break the accept flow. Runs after the double-accept reservation above,
+  // so it fires exactly once per acceptance.
+  if (prospectLoungeChannelId) {
+    const loungeChannel = await guild.channels.fetch(prospectLoungeChannelId).catch(() => null);
+    if (loungeChannel) {
+      const welcomeEmbed = buildProspectWelcomeEmbed(member, prospect);
+      const welcomeMsg = await loungeChannel.send({
+        content: `<@${prospect.user_id}>`,
+        embeds: [welcomeEmbed],
+        allowedMentions: { users: [prospect.user_id] },
+      }).catch((err) => {
+        log.error({ err, prospectId: prospect.id }, 'Failed to post prospect welcome to lounge');
+        return null;
+      });
+      if (welcomeMsg) {
+        await welcomeMsg.react('👋').catch((err) =>
+          log.warn({ err, prospectId: prospect.id }, 'Failed to add wave reaction to prospect welcome')
+        );
+      }
+    }
   }
 
   log.info({ prospectId: prospect.id, acceptedBy: acceptedById, forumThreadId }, 'Prospect accepted, forum thread created');
