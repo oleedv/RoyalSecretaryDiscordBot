@@ -20,6 +20,12 @@ import {
 
 const log = logger.child({ module: 'birthdayScheduler' });
 
+// In-process guard: `${postDate}:${discordId}` for members already posted this
+// process. birthday_post_log is the cross-restart source of truth; this Set
+// additionally caps a send-succeeded-but-recordPosted-failed window so a persistent
+// write fault can't re-ping the member role every tick.
+const postedThisProcess = new Set();
+
 // Reuse the shared ~60s cadence knob (settings.{env}.js seeding.schedulerCheckMs).
 const CHECK_MS = config.seeding?.schedulerCheckMs || 60000;
 
@@ -63,7 +69,9 @@ async function checkBirthdays(client) {
 
   const targets = birthdayTargets(now, tz);
   const members = await getEligibleBirthdayMembers(targets);
-  const remaining = members.filter((m) => !posted.has(String(m.discordId)));
+  const remaining = members.filter(
+    (m) => !posted.has(String(m.discordId)) && !postedThisProcess.has(`${postDate}:${m.discordId}`),
+  );
   if (remaining.length === 0) return;
 
   // Resolve the guild from the configured channel (one fetch yields both).
@@ -106,6 +114,10 @@ async function checkBirthdays(client) {
         embeds: [embed],
         allowedMentions: { users: [String(row.discordId)], roles: allowedRoles },
       });
+
+      // Mark in-process BEFORE the DB write so a recordPosted failure cannot cause a
+      // re-post (and re-ping) on the next tick within this process.
+      postedThisProcess.add(`${postDate}:${row.discordId}`);
 
       // Record only after a successful send: safe against double-posts AND a
       // mid-batch restart (a crash after N sends resumes with the remaining members).
