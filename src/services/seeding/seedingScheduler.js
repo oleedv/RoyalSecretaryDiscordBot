@@ -341,13 +341,16 @@ async function updateSeedingState(client) {
   stateUpdateInProgress = true;
   try {
     const cfg = await getSeedingConfig();
-    if (!cfg?.enabled) return;
+    if (!cfg) return;
 
     setAnnouncerServerId(cfg.announcer_server_id);
     const state = getServerStateById(cfg.announcer_server_id);
     const session = await getActiveSession();
 
-    // Surface live status for the website regardless of resolution outcome.
+    // Surface live status for the website on every tick — regardless of whether the
+    // announcer is enabled or the socket resolves. The website's live card must reflect
+    // real server state even while seeding is disabled, so this write precedes the
+    // enabled guard below.
     await writeLiveStatus({
       serverResolvedOk: !!state,
       socketConnected: !!state?.connected,
@@ -355,6 +358,9 @@ async function updateSeedingState(client) {
       currentLayer: state?.connected ? state.currentLayer : null,
       activeSessionId: session?.id ?? null,
     });
+
+    // Announcer side effects (daily call, re-seed, completion) only run when enabled.
+    if (!cfg.enabled) return;
 
     // Unavailable (unresolved id or socket down): never act on stale/absent data.
     if (!state || !state.connected) return;

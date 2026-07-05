@@ -298,7 +298,8 @@ export async function writeLiveStatus({ serverResolvedOk, socketConnected, curre
        socket_connected = VALUES(socket_connected),
        current_population = VALUES(current_population),
        current_layer = VALUES(current_layer),
-       active_session_id = VALUES(active_session_id)`,
+       active_session_id = VALUES(active_session_id),
+       updated_at = CURRENT_TIMESTAMP()`,
     [
       serverResolvedOk ? 1 : 0,
       socketConnected ? 1 : 0,
