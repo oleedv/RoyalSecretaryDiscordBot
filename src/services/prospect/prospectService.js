@@ -997,8 +997,10 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
     }
 
     if (outcome === 'accepted') {
-      whitelistService.updateRole(prospect.steam_id, 'Prospect', 'Member', { clearExpiry: true, actor: { discordId: closedById } })
-        .catch((err) => log.warn({ err }, 'Failed to update whitelist role to member'));
+      // Role-agnostic promotion: converts whatever single whitelist entry the player currently
+      // holds (Prospect, a leftover Seeder, expired, or none) into a permanent Member entry.
+      whitelistService.promoteToMember(prospect.steam_id, prospect.alias, { discordId: closedById })
+        .catch((err) => log.warn({ err }, 'Failed to promote whitelist entry to member'));
     } else {
       whitelistService.expireByRole(prospect.steam_id, 'Prospect', { discordId: closedById })
         .catch((err) => log.warn({ err }, 'Failed to expire prospect whitelist entry'));

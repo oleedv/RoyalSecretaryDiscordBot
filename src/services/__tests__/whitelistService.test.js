@@ -28,7 +28,7 @@ mock.module('../../logger.js', () => ({
   default: { child: () => ({ warn() {}, info() {}, error() {} }) },
 }));
 
-const { createEntry, createSlEntry, expireByRole, upsertSeederEntry } = await import('../whitelistService.js');
+const { createEntry, createSlEntry, expireByRole, upsertSeederEntry, promoteToMember } = await import('../whitelistService.js');
 
 // route each query by its SQL: link-id lookups + existing-entry check vs writes
 function route(existingRows) {
@@ -125,6 +125,47 @@ describe('upsertSeederEntry stamps the "Monthly seeders" clan', () => {
     expect(String(update[0])).toContain('clan = ?, clanId = ?');
     expect(update[1]).toContain('Monthly seeders');
     expect(update[1]).toContain('clan-monthly-seeders');
+  });
+});
+
+describe('promoteToMember is role-agnostic + idempotent', () => {
+  // Regression: an accepted prospect who still held a *Seeder* (or expired/other) whitelist
+  // row was promoted via updateRole('Prospect'->'Member'), which matched 0 rows and silently
+  // left the stale Seeder group in place. Promotion must convert whatever single (steamId,'main')
+  // row exists — Seeder, expired Prospect, Whitelist, anything — into a permanent Member entry.
+  function memberRoute(existingRows) {
+    return (sql) => {
+      if (sql.startsWith('INSERT') || sql.startsWith('UPDATE')) return Promise.resolve({ affectedRows: 1 });
+      if (sql.includes('WhitelistEntry WHERE steamId')) return Promise.resolve(existingRows);
+      if (sql.includes('FROM Clan WHERE tag')) return Promise.resolve([{ id: 'clan-rb' }]);
+      if (sql.includes('FROM AdminGroup WHERE name')) return Promise.resolve([{ id: 'group-member' }]);
+      return Promise.resolve([]);
+    };
+  }
+
+  test('converts an existing Seeder row to a permanent Member entry (not just role="Prospect")', async () => {
+    queryImpl = memberRoute([{ id: 'seeder-id', role: 'Seeder' }]);
+    const res = await promoteToMember('76561198000000020', 'Recruit', { discordId: 'staff-1' });
+
+    expect(res).toEqual(expect.objectContaining({ id: 'seeder-id', role: 'Member' }));
+    const update = calls.find((c) => String(c[0]).startsWith('UPDATE WhitelistEntry'));
+    expect(update).toBeDefined();
+    expect(String(update[0])).toContain("role = 'Member'");
+    expect(String(update[0])).toContain('expiresAt = NULL');
+    // Role-agnostic: it keys on the row id, never filters on the current role being 'Prospect'.
+    expect(String(update[0])).not.toContain("role = 'Prospect'");
+    expect(calls.some((c) => String(c[0]).startsWith('INSERT INTO WhitelistEntry'))).toBe(false);
+  });
+
+  test('INSERTs a fresh permanent Member entry when the player has no existing row', async () => {
+    queryImpl = memberRoute([]);
+    const res = await promoteToMember('76561198000000021', 'FreshBlood', { discordId: 'staff-1' });
+
+    expect(res).toEqual(expect.objectContaining({ role: 'Member' }));
+    const insert = calls.find((c) => String(c[0]).startsWith('INSERT INTO WhitelistEntry'));
+    expect(insert).toBeDefined();
+    expect(String(insert[0])).toContain("'Member'");
+    expect(calls.some((c) => String(c[0]).startsWith('UPDATE WhitelistEntry'))).toBe(false);
   });
 });
 
