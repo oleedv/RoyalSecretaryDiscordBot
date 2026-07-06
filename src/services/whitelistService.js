@@ -211,46 +211,58 @@ export async function upsertSeederEntry(steamId, name, expiresAt) {
   }
 }
 
-export async function updateRole(steamId, fromRole, toRole, { clearExpiry = false, actor = null } = {}) {
+// Promote a player to a permanent Member whitelist entry. Deliberately ROLE-AGNOSTIC and
+// idempotent: a player holds exactly one (steamId,'main') row (the unique key), so whatever
+// they currently carry — an active or expired 'Prospect', a leftover 'Seeder', an SL 'Whitelist',
+// or no row at all — is converted into a single permanent Member entry (clan RB, groupId Member,
+// expiresAt NULL). The previous role-filtered updateRole('Prospect'->'Member') silently no-oped
+// whenever the row wasn't an active 'Prospect', which left stale groups (e.g. a lingering Seeder
+// entry that continued seeding kept alive) in place after acceptance — the bug this fixes.
+export async function promoteToMember(steamId, name, actor = null) {
   if (!isConfigured()) return null;
   try {
-    const entries = await findEntries(steamId);
-    const matching = entries.filter((e) => e.role === fromRole);
-    if (matching.length === 0) return 0;
-    const toGroupId = await resolveLinkId('group', toRole);
+    const [clanId, groupId] = await Promise.all([
+      resolveLinkId('clan', 'RB'),
+      resolveLinkId('group', 'Member'),
+    ]);
+    const actorId = actor?.discordId ?? null;
 
-    // All matching rows change role together — a mid-loop failure rolls the whole set
-    // back rather than leaving a partially-applied rename.
-    await transaction(async (conn) => {
-      for (const entry of matching) {
-        if (clearExpiry) {
-          await conn.query(
-            'UPDATE WhitelistEntry SET role = ?, groupId = ?, expiresAt = NULL WHERE id = ?',
-            [toRole, toGroupId, entry.id]
-          );
-        } else {
-          await conn.query(
-            'UPDATE WhitelistEntry SET role = ?, groupId = ? WHERE id = ?',
-            [toRole, toGroupId, entry.id]
-          );
-        }
-      }
-    }, 'website');
+    const existing = await query(
+      "SELECT id, role FROM WhitelistEntry WHERE steamId = ? AND server = 'main' LIMIT 1",
+      [steamId],
+      'website'
+    );
 
-    // Audit after commit (best-effort; never blocks or reverts the committed change).
-    for (const entry of matching) {
-      await logWhitelistActivity('whitelist.update', entry.id, actor, {
-        steamId,
-        changes: {
-          role: { from: fromRole, to: toRole },
-          ...(clearExpiry ? { expiresAt: { to: null } } : {}),
-        },
+    if (existing.length > 0) {
+      const entryId = existing[0].id;
+      const fromRole = existing[0].role;
+      // Key on the row id, never on the current role — the whole point is to overwrite whatever
+      // is there. COALESCE keeps the prior addedBy when no actor is supplied.
+      await query(
+        "UPDATE WhitelistEntry SET name = ?, clan = 'RB', clanId = ?, role = 'Member', groupId = ?, addedBy = COALESCE(?, addedBy), expiresAt = NULL WHERE id = ?",
+        [name, clanId, groupId, actorId, entryId],
+        'website'
+      );
+      await logWhitelistActivity('whitelist.update', entryId, actor, {
+        steamId, name, role: 'Member', clan: 'RB',
+        changes: { role: { from: fromRole, to: 'Member' }, expiresAt: { to: null } },
       });
+      return { id: entryId, steamId, role: 'Member', fromRole };
     }
-    return matching.length;
+
+    const id = generateId();
+    await query(
+      "INSERT INTO WhitelistEntry (id, steamId, server, name, clan, clanId, role, groupId, addedBy, expiresAt, createdAt) VALUES (?, ?, 'main', ?, 'RB', ?, 'Member', ?, ?, NULL, NOW())",
+      [id, steamId, name, clanId, groupId, actorId],
+      'website'
+    );
+    await logWhitelistActivity('whitelist.add', id, actor, {
+      steamId, server: 'main', name, clan: 'RB', role: 'Member',
+    });
+    return { id, steamId, role: 'Member', fromRole: null };
   } catch (err) {
-    alertWriteFailure(err, 'updateRole', { steamId, fromRole, toRole });
-    log.warn({ err, steamId, fromRole, toRole }, 'Failed to update whitelist role');
+    alertWriteFailure(err, 'promoteToMember', { steamId });
+    log.warn({ err, steamId }, 'Failed to promote whitelist entry to Member');
     return null;
   }
 }

@@ -7,6 +7,7 @@ import { startScheduler } from '../services/prospect/prospectScheduler.js';
 import { backfillMissingAiEvaluations } from '../services/prospect/prospectService.js';
 import { connect as connectSquadJS } from '../services/seeding/seedingSocket.js';
 import { startScheduler as startSeedingScheduler } from '../services/seeding/seedingScheduler.js';
+import { startScheduler as startBirthdayScheduler } from '../services/birthday/birthdayScheduler.js';
 import { startHeartbeat } from '../services/admin/statusHeartbeat.js';
 import { startScheduler as startSeedTrackerScheduler } from '../services/seedTracker/seedTrackerScheduler.js';
 import { startScheduler as startSlRewardScheduler } from '../services/sl-reward/grantCron.js';
@@ -47,6 +48,7 @@ export default {
     await safeInit('prospectAiBackfill', () => backfillMissingAiEvaluations(client));
     await safeInit('squadJSSocket', () => connectSquadJS(client));
     await safeInit('seedingScheduler', () => startSeedingScheduler(client));
+    await safeInit('birthdayScheduler', () => startBirthdayScheduler(client));
     await safeInit('seedTrackerScheduler', () => startSeedTrackerScheduler(client));
     await safeInit('slRewardScheduler', () => startSlRewardScheduler(client));
     await safeInit('slLeaderboardScheduler', () => startSlLeaderboardScheduler(client));

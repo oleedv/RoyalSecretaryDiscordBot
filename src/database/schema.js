@@ -661,5 +661,18 @@ export async function initSchema() {
     )
   `);
 
+  // ── Birthday announcer idempotency ──
+  // One post per member per day. user_id holds the Discord user id; post_date is
+  // 'YYYY-MM-DD' in the configured timezone. Inserted only after a successful send,
+  // so a mid-batch restart resumes with the remaining members and never re-posts.
+  await query(`
+    CREATE TABLE IF NOT EXISTS birthday_post_log (
+      user_id   VARCHAR(20) NOT NULL,
+      post_date DATE        NOT NULL,
+      posted_at TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, post_date)
+    )
+  `);
+
   log.info('Database schema initialized');
 }
