@@ -6,6 +6,12 @@ import logger from '../logger.js';
 
 const log = logger.child({ module: 'whitelist' });
 
+// Seeder-reward whitelists are grouped under the "Monthly seeders" clan so the panel/reports
+// attribute them like any other clan. We stamp the TAG (not the raw id) and resolve the id at
+// runtime via resolveLinkId — clan ids differ per environment, so a literal id would break
+// staging/dev. If an env lacks the clan, clanId stays null and the string still displays.
+const SEEDER_CLAN_TAG = 'Monthly seeders';
+
 // A whitelist write failed. These are reward/permission mutations, so surface them
 // through the alert channel (not just a local warn) — a silently-dropped grant is
 // invisible otherwise. Fire-and-forget; the caller still returns its null/0 sentinel.
@@ -167,14 +173,17 @@ export async function upsertSeederEntry(steamId, name, expiresAt) {
 
       // Find an existing Seeder entry to update, or use the first entry
       const seederEntry = existing.find(e => e.role === 'Seeder') || existing[0];
-      const seederGroupId = await resolveLinkId('group', 'Seeder');
+      const [seederGroupId, seederClanId] = await Promise.all([
+        resolveLinkId('group', 'Seeder'),
+        resolveLinkId('clan', SEEDER_CLAN_TAG),
+      ]);
       await query(
-        'UPDATE WhitelistEntry SET role = ?, groupId = ?, name = ?, expiresAt = ?, addedBy = ? WHERE id = ?',
-        ['Seeder', seederGroupId, name, expiresAt, 'SeedTracker', seederEntry.id],
+        'UPDATE WhitelistEntry SET role = ?, groupId = ?, clan = ?, clanId = ?, name = ?, expiresAt = ?, addedBy = ? WHERE id = ?',
+        ['Seeder', seederGroupId, SEEDER_CLAN_TAG, seederClanId, name, expiresAt, 'SeedTracker', seederEntry.id],
         'website'
       );
       await logWhitelistActivity('whitelist.update', seederEntry.id, { system: 'seedTracker' }, {
-        steamId, name, role: 'Seeder', source: 'seed-tracker',
+        steamId, name, role: 'Seeder', clan: SEEDER_CLAN_TAG, source: 'seed-tracker',
         changes: { expiresAt: { to: toIso(expiresAt) } },
       });
       return { id: seederEntry.id, steamId, role: 'Seeder', expiresAt };
@@ -182,14 +191,17 @@ export async function upsertSeederEntry(steamId, name, expiresAt) {
 
     // Create new entry
     const id = generateId();
-    const seederGroupId = await resolveLinkId('group', 'Seeder');
+    const [seederGroupId, seederClanId] = await Promise.all([
+      resolveLinkId('group', 'Seeder'),
+      resolveLinkId('clan', SEEDER_CLAN_TAG),
+    ]);
     await query(
-      "INSERT INTO WhitelistEntry (id, steamId, server, name, role, groupId, addedBy, expiresAt, createdAt) VALUES (?, ?, 'main', ?, 'Seeder', ?, 'SeedTracker', ?, NOW())",
-      [id, steamId, name, seederGroupId, expiresAt],
+      "INSERT INTO WhitelistEntry (id, steamId, server, name, clan, clanId, role, groupId, addedBy, expiresAt, createdAt) VALUES (?, ?, 'main', ?, ?, ?, 'Seeder', ?, 'SeedTracker', ?, NOW())",
+      [id, steamId, name, SEEDER_CLAN_TAG, seederClanId, seederGroupId, expiresAt],
       'website'
     );
     await logWhitelistActivity('whitelist.add', id, { system: 'seedTracker' }, {
-      steamId, server: 'main', name, role: 'Seeder', source: 'seed-tracker', expiresAt: toIso(expiresAt),
+      steamId, server: 'main', name, clan: SEEDER_CLAN_TAG, role: 'Seeder', source: 'seed-tracker', expiresAt: toIso(expiresAt),
     });
     return { id, steamId, role: 'Seeder', expiresAt };
   } catch (err) {
