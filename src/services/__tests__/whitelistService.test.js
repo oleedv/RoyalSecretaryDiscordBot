@@ -28,7 +28,7 @@ mock.module('../../logger.js', () => ({
   default: { child: () => ({ warn() {}, info() {}, error() {} }) },
 }));
 
-const { createEntry, createSlEntry, expireByRole } = await import('../whitelistService.js');
+const { createEntry, createSlEntry, expireByRole, upsertSeederEntry } = await import('../whitelistService.js');
 
 // route each query by its SQL: link-id lookups + existing-entry check vs writes
 function route(existingRows) {
@@ -89,6 +89,42 @@ describe('createSlEntry', () => {
     expect(res).not.toBeNull();
     const sqls = calls.map((c) => c[0]);
     expect(sqls.some((s) => s.includes('INSERT INTO WhitelistEntry'))).toBe(true);
+  });
+});
+
+describe('upsertSeederEntry stamps the "Monthly seeders" clan', () => {
+  // Route link lookups to concrete ids so we can assert clanId is resolved+written,
+  // not just the fallback string. Clan tag lookup -> the Monthly seeders clan id.
+  function seederRoute(existingRows) {
+    return (sql) => {
+      if (sql.startsWith('INSERT') || sql.startsWith('UPDATE')) return Promise.resolve({ affectedRows: 1 });
+      if (sql.includes('WhitelistEntry WHERE steamId')) return Promise.resolve(existingRows);
+      if (sql.includes('FROM Clan WHERE tag')) return Promise.resolve([{ id: 'clan-monthly-seeders' }]);
+      if (sql.includes('FROM AdminGroup WHERE name')) return Promise.resolve([{ id: 'group-seeder' }]);
+      return Promise.resolve([]);
+    };
+  }
+
+  test('INSERT path sets clan + resolved clanId for a first-time grant', async () => {
+    queryImpl = seederRoute([]); // no existing (steamId,'main') row
+    await upsertSeederEntry('76561198000000010', 'Seedy', new Date('2026-08-01T00:00:00Z'));
+
+    const insert = calls.find((c) => String(c[0]).startsWith('INSERT INTO WhitelistEntry'));
+    expect(insert).toBeDefined();
+    expect(String(insert[0])).toContain('clan, clanId');
+    expect(insert[1]).toContain('Monthly seeders');
+    expect(insert[1]).toContain('clan-monthly-seeders');
+  });
+
+  test('UPDATE path sets clan + resolved clanId when renewing an existing entry', async () => {
+    queryImpl = seederRoute([{ id: 'existing-seeder', role: 'Seeder', expiresAt: null }]);
+    await upsertSeederEntry('76561198000000011', 'Seedy', new Date('2026-08-01T00:00:00Z'));
+
+    const update = calls.find((c) => String(c[0]).startsWith('UPDATE WhitelistEntry'));
+    expect(update).toBeDefined();
+    expect(String(update[0])).toContain('clan = ?, clanId = ?');
+    expect(update[1]).toContain('Monthly seeders');
+    expect(update[1]).toContain('clan-monthly-seeders');
   });
 });
 
