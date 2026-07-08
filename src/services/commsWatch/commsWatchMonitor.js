@@ -1,7 +1,7 @@
 import config from '../../config.js';
 import logger from '../../logger.js';
 import { createScheduler } from '../../utils/scheduler.js';
-import { getServerStateByName } from '../seeding/seedingSocket.js';
+import { getServerStateById } from '../seeding/seedingSocket.js';
 import { reportError } from '../admin/errorAlertService.js';
 import { evaluateComms } from './commsWatchState.js';
 import {
@@ -17,7 +17,11 @@ function cfg() {
   const c = config.commsWatch || {};
   return {
     enabled: c.enabled ?? false,
-    serverName: c.serverName || 'Main',
+    // Resolve the monitored server by its canonical squadjs_servers.id (the 4th field of
+    // SQUADJS_SERVERS), exactly like the seeding announcer — connection NAMES are
+    // env-specific labels ("production"/"staging"), the serverId is stable (1 = Main).
+    serverId: c.serverId ?? 1,
+    serverLabel: c.serverLabel || 'Main', // friendly name for embeds/logs
     tickMs: c.tickMs || 60000,
     boardRefreshMs: c.boardRefreshMs || 120000,
     graceMs: c.blipGraceMs ?? 60000,
@@ -74,7 +78,7 @@ export async function runMonitorTick(client) {
   const c = cfg();
   if (!c.enabled) return;
 
-  const state = getServerStateByName(c.serverName);
+  const state = getServerStateById(c.serverId);
   if (!state || !state.connected) return; // never act on stale/absent data
 
   const players = Array.isArray(state.players) ? state.players : [];
@@ -109,13 +113,13 @@ export async function runMonitorTick(client) {
   await deleteStatesNotIn(seen);
 
   for (const a of alerts) {
-    await postProspectAlert(client, a, c.serverName).catch((err) => log.warn({ err, discordId: a.discordId }, 'postProspectAlert failed'));
+    await postProspectAlert(client, a, c.serverLabel).catch((err) => log.warn({ err, discordId: a.discordId }, 'postProspectAlert failed'));
   }
 
   await refreshBoard(client, violators, c, now).catch((err) => log.warn({ err }, 'refreshBoard failed'));
 }
 
-async function postProspectAlert(client, a, serverName) {
+async function postProspectAlert(client, a, serverLabel) {
   const channel = await client.channels.fetch(a.prospectChannelId).catch(() => null);
   if (!channel) { log.warn({ discordId: a.discordId, channelId: a.prospectChannelId }, 'prospect channel not found'); return; }
   const mentorRoleId = config.prospects?.mentorRoleId || null;
@@ -124,7 +128,7 @@ async function postProspectAlert(client, a, serverName) {
   if (a.prospectMentorId) { content = `<@${a.prospectMentorId}>`; allowedMentions = { users: [a.prospectMentorId] }; }
   else if (mentorRoleId) { content = `<@&${mentorRoleId}>`; allowedMentions = { roles: [mentorRoleId] }; }
   else { content = undefined; allowedMentions = { parse: [] }; }
-  const embed = buildProspectAlertEmbed({ userId: a.discordId, alias: a.alias }, a.offCommsSince, a.offCommsMs, serverName);
+  const embed = buildProspectAlertEmbed({ userId: a.discordId, alias: a.alias }, a.offCommsSince, a.offCommsMs, serverLabel);
   await channel.send({ content, embeds: [embed], allowedMentions });
   log.info({ discordId: a.discordId, offCommsMs: a.offCommsMs }, 'Posted prospect comms alert');
 }
@@ -150,7 +154,7 @@ export async function refreshBoard(client, violators, c, now) {
   const message = await channel.messages.fetch(pointer.messageId).catch(() => null);
   if (!message) { await clearBoardPointer(); lastMembershipSig = null; return; }
 
-  await message.edit({ embeds: [buildBoardEmbed(violators, c.serverName, now)] });
+  await message.edit({ embeds: [buildBoardEmbed(violators, c.serverLabel, now)] });
   lastBoardEditAt = now;
   lastMembershipSig = membershipSig;
   lastRenderSig = sig;
@@ -168,7 +172,7 @@ export async function buildCurrentBoardEmbed() {
       violators.push({ discordId: s.discordId, name: s.name, kind: s.kind, offCommsMs: now - s.offCommsSince });
     }
   }
-  return buildBoardEmbed(violators, c.serverName, now);
+  return buildBoardEmbed(violators, c.serverLabel, now);
 }
 
 const scheduler = createScheduler({
@@ -187,7 +191,7 @@ const scheduler = createScheduler({
 export function startScheduler(client) {
   const c = cfg();
   if (!c.enabled) { log.info('Comms watch disabled; scheduler not started'); return; }
-  log.info({ serverName: c.serverName, tickMs: c.tickMs, thresholdMs: c.thresholdMs }, 'Starting comms watch scheduler');
+  log.info({ serverId: c.serverId, serverLabel: c.serverLabel, tickMs: c.tickMs, thresholdMs: c.thresholdMs }, 'Starting comms watch scheduler');
   scheduler.start(client);
 }
 export function stopScheduler() { scheduler.stop(); }

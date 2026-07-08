@@ -444,6 +444,11 @@ export async function clearBoardPointer() { return setBotState(BOARD_KEY, null);
 
 ### Task 4: Monitor (scheduler tick + board refresh)
 
+> **Correction (verified on the live box):** there is no SquadJS connection named `Main`.
+> The Main server is `squadjs_servers.id` **1** (prod `announcer_server_id=1`). Resolve it via
+> `getServerStateById(cfg.serverId)` (default `serverId: 1`, `serverLabel: 'Main'`), the same
+> mechanism the seeding announcer uses — NOT `getServerStateByName`.
+
 **Files:**
 - Create: `src/services/commsWatch/commsWatchMonitor.js`
 
@@ -715,7 +720,8 @@ import { startScheduler as startCommsWatchScheduler } from '../services/commsWat
 ```js
   commsWatch: {
     enabled: true,
-    serverName: 'Main',       // SQUADJS_SERVERS connection name to monitor
+    serverId: 1,              // squadjs_servers.id (1 = Main ENG, 2 = Battle)
+    serverLabel: 'Main',      // friendly name shown in embeds
     tickMs: 60000,
     boardRefreshMs: 120000,   // ~2 min board refresh for duration ticks
     blipGraceMs: 60000,       // tolerate voice blips shorter than this

@@ -99,7 +99,8 @@ export default {
   },
   commsWatch: {
     enabled: true,
-    serverName: 'Main',       // SQUADJS_SERVERS connection name to monitor
+    serverId: 1,              // squadjs_servers.id (1 = Main ENG server, 2 = Battle)
+    serverLabel: 'Main',      // friendly name shown in the board/alert embeds
     tickMs: 60000,
     boardRefreshMs: 120000,   // ~2 min board refresh for duration ticks
     blipGraceMs: 60000,       // tolerate voice blips shorter than this

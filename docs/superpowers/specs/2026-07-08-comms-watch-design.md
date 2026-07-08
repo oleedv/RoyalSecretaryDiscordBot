@@ -27,7 +27,7 @@ Two consumers of one data pipeline:
 | What is "on Discord" | Connected to **any voice channel except the guild AFK channel**. Mute/deafen ignored. |
 | Tracked group | **Members** (WhitelistEntry `role='Member'`, active) **+ Prospects** (`prospects.status='open'`). |
 | Board content | **Only violators** (in-game, not on voice). Each row: mention + in-game name + off-comms duration + `[Member]`/`[Prospect]`. |
-| Servers | **Main only**, config-driven (`serverName`, defaults `Main`) so Battle can be flipped on later. |
+| Servers | **Main only** = `squadjs_servers.id` 1, config-driven (`serverId`, resolved via `getServerStateById` like the seeding announcer) so Battle (id 2) can be flipped on later. |
 | Panel model | **Single canonical persistent panel**; re-running the command moves it. Channel+message id stored in `bot_state`. Survives restart. |
 | Command permission | **Staff only** (`config.prospects.roles`, via `requireRole`). |
 | Blip grace | Brief voice in/out (< ~60 s) does not flip state or reset the timer. |
@@ -46,7 +46,7 @@ One shared monitor scheduler tick (~60 s, `createScheduler`) drives everything:
 tick(client):
   cfg = config.commsWatch (enabled? serverName, graceMs, thresholdMs, boardRefreshMs, afkChannelId)
   if !enabled: return
-  roster = seedingSocket.getServerStateByName(cfg.serverName)
+  roster = seedingSocket.getServerStateById(cfg.serverId)   # 1 = Main (as seeding announcer does)
   if roster unavailable/disconnected: return        # never act on stale/absent data
   tracked = classify(roster.players)                # members + open prospects, resolved to discordId
   voiceSet = non-AFK voice member ids from guild.voiceStates.cache
@@ -158,7 +158,8 @@ Posted to `prospects.channel_id`:
 ```js
 commsWatch: {
   enabled: true,
-  serverName: 'Main',      // SQUADJS_SERVERS connection name to monitor
+  serverId: 1,             // squadjs_servers.id (1 = Main ENG, 2 = Battle)
+  serverLabel: 'Main',     // friendly name shown in embeds
   tickMs: 60000,           // monitor cadence
   boardRefreshMs: 120000,  // max board edit interval for duration ticks (~2 min)
   blipGraceMs: 60000,      // tolerate voice blips shorter than this
