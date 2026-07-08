@@ -674,5 +674,26 @@ export async function initSchema() {
     )
   `);
 
+  // ── Comms watch (in-game players not on Discord voice) ──
+  // Per-identity debounced comms state. Times are epoch ms (BIGINT) so they round-trip
+  // straight into the pure state machine. Rows are pruned when a person leaves the game.
+  await query(`
+    CREATE TABLE IF NOT EXISTS comms_watch_state (
+      discord_id          VARCHAR(20) NOT NULL PRIMARY KEY,
+      steam_id            VARCHAR(20) NULL,
+      name                VARCHAR(100) NULL,
+      kind                ENUM('member','prospect') NOT NULL,
+      prospect_channel_id VARCHAR(20) NULL,
+      prospect_mentor_id  VARCHAR(20) NULL,
+      in_game_since       BIGINT NULL,
+      observed_in_voice   TINYINT(1) NULL,
+      voice_changed_at    BIGINT NULL,
+      comms_ok            TINYINT(1) NULL,
+      off_comms_since     BIGINT NULL,
+      alerted             TINYINT(1) NOT NULL DEFAULT 0,
+      updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+
   log.info('Database schema initialized');
 }

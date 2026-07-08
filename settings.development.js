@@ -81,6 +81,16 @@ export default {
     grantIntervalMs: 1800000,
     leaderboardIntervalMs: 10800000,
   },
+  commsWatch: {
+    enabled: true,
+    serverId: 1,              // squadjs_servers.id (1 = Main ENG server, 2 = Battle)
+    serverLabel: 'Main',      // friendly name shown in the board/alert embeds
+    tickMs: 60000,
+    boardRefreshMs: 120000,   // ~2 min board refresh for duration ticks
+    blipGraceMs: 60000,       // tolerate voice blips shorter than this
+    prospectThresholdMs: 900000, // 15 min continuous off-comms before alerting
+    afkChannelId: null,       // null => use guild.afkChannelId
+  },
   purged: {
     roleId: '1491082532236820742',                         // Purged member role
     channelId: '1491095974771167423',                      // Purged members info channel

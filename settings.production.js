@@ -97,6 +97,16 @@ export default {
     channelId: '1476956161566572705',                    // Server status channel
     updateIntervalMs: 60000,
   },
+  commsWatch: {
+    enabled: true,
+    serverId: 1,              // squadjs_servers.id (1 = Main ENG server, 2 = Battle)
+    serverLabel: 'Main',      // friendly name shown in the board/alert embeds
+    tickMs: 60000,
+    boardRefreshMs: 120000,   // ~2 min board refresh for duration ticks
+    blipGraceMs: 60000,       // tolerate voice blips shorter than this
+    prospectThresholdMs: 900000, // 15 min continuous off-comms before alerting
+    afkChannelId: null,       // null => use guild.afkChannelId
+  },
   configGuardian: {
     channelId: '1490634013503656006',                      // Config Guardian alerts channel
   },
