@@ -74,6 +74,36 @@ describe('evaluateComms - alerting', () => {
   });
 });
 
+describe('evaluateComms - exempt (prospect while server is on a Seed layer)', () => {
+  const exemptOff = { inGame: true, inVoice: false, exempt: true };
+
+  test('exempt short-circuits: never off-comms, never alerts, stays re-armed', () => {
+    let s = step({}, exemptOff, 0);
+    s = step(s, exemptOff, 60000);
+    s = step(s, exemptOff, 900000); // well past threshold, but exempt the whole time
+    expect(s.isOffComms).toBe(false);
+    expect(s.shouldAlert).toBe(false);
+    expect(s.offCommsSince).toBe(null);
+    expect(s.alerted).toBe(false);
+  });
+
+  test('lifting the exemption starts a FRESH grace+threshold window (no immediate alert)', () => {
+    // Off voice through a long seeding period (exempt), then the server goes live.
+    let s = step({}, exemptOff, 0);
+    s = step(s, exemptOff, 900000); // 15m exempt, still off voice
+    // Server switches to a live layer at t=900000 -> exemption lifts here.
+    const live0 = step(s, inGameOff, 900000);
+    expect(live0.isOffComms).toBe(false); // within the fresh grace
+    const live1 = step(live0, inGameOff, 960000); // +60s -> grace elapsed
+    expect(live1.isOffComms).toBe(true);
+    expect(live1.offCommsSince).toBe(900000); // anchored to the transition, NOT to 0
+    expect(live1.shouldAlert).toBe(false); // only 1m of live off-comms
+    // Alert fires a full 15m AFTER the server went live, not before.
+    const live15 = step(live1, inGameOff, 900000 + 900000);
+    expect(live15.shouldAlert).toBe(true);
+  });
+});
+
 describe('classifyKind', () => {
   const sets = { prospectSteamIds: new Set(['P']), memberSteamIds: new Set(['M', 'P']) };
   test('prospect takes priority', () => expect(classifyKind('P', sets)).toBe('prospect'));

@@ -25,6 +25,19 @@ export function evaluateComms(prev, obs, now, { graceMs, thresholdMs }) {
     };
   }
 
+  // Exempt (a prospect while the server is on a Seed layer): the off-comms rules don't apply
+  // — being in-game without Discord voice is allowed while seeding. Soft-reset the episode and
+  // the voice debounce every tick so that when the exemption lifts (server goes live), a fresh
+  // grace + threshold window starts from that transition rather than counting the seed time.
+  // inGameSince is preserved (they are still in the same session).
+  if (obs.exempt) {
+    return {
+      observedInVoice: null, voiceChangedAt: null, commsOk: null,
+      offCommsSince: null, inGameSince: prev.inGameSince ?? now, alerted: false,
+      isOffComms: false, offCommsMs: 0, shouldAlert: false,
+    };
+  }
+
   const inGameSince = prev.inGameSince ?? now;
 
   // Voice-presence debounce: reset the stability clock whenever the observation changes
