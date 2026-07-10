@@ -30,13 +30,13 @@ describe('buildBoardEmbed', () => {
 });
 
 describe('buildProspectAlertEmbed', () => {
-  test('mentions the prospect and includes since + duration', () => {
-    const e = buildProspectAlertEmbed({ userId: '99', alias: 'Zed' }, 0, 900000, 'Main').toJSON();
+  test('new title, mentions prospect + server, and carries no duration fields', () => {
+    const e = buildProspectAlertEmbed({ userId: '99', alias: 'Zed' }, 'Main').toJSON();
+    expect(e.title).toBe('Prospect not on Discord while in-game');
     expect(e.description).toContain('<@99>');
     expect(e.description).toContain('Zed');
     expect(e.description).toContain('Main');
-    const names = e.fields.map((f) => f.name);
-    expect(names).toContain('Since');
-    expect(names).toContain('Duration');
+    expect(e.description).not.toMatch(/\d+m\b/); // no "15m" duration noise
+    expect(e.fields ?? []).toHaveLength(0); // Since/Duration removed
   });
 });

@@ -1,7 +1,7 @@
 import config from '../../config.js';
 import logger from '../../logger.js';
 import { createScheduler } from '../../utils/scheduler.js';
-import { getServerStateById } from '../seeding/seedingSocket.js';
+import { getServerStateById, extractGameMode } from '../seeding/seedingSocket.js';
 import { reportError } from '../admin/errorAlertService.js';
 import { evaluateComms } from './commsWatchState.js';
 import {
@@ -84,6 +84,11 @@ export async function runMonitorTick(client) {
   const players = Array.isArray(state.players) ? state.players : [];
   const now = Date.now();
 
+  // Prospects are allowed to play without Discord voice while the server is seeding, so a Seed
+  // layer exempts them from the off-comms alert (members are unaffected). extractGameMode
+  // normalises both the underscore and spaced-A2S layer formats.
+  const isSeeding = (extractGameMode(state.currentLayer) || '').toLowerCase() === 'seed';
+
   const tracked = await classifyRoster(players);
   const voiceSet = await getVoiceSet(client, c.afkChannelId);
   const prevStates = await loadAllStates();
@@ -95,7 +100,8 @@ export async function runMonitorTick(client) {
   for (const t of tracked) {
     seen.push(t.discordId);
     const prev = prevStates.get(t.discordId) || {};
-    const obs = { inGame: true, inVoice: voiceSet.has(t.discordId) };
+    const exempt = t.kind === 'prospect' && isSeeding;
+    const obs = { inGame: true, inVoice: voiceSet.has(t.discordId), exempt };
     const next = evaluateComms(prev, obs, now, { graceMs: c.graceMs, thresholdMs: c.thresholdMs });
 
     await upsertState({
@@ -107,7 +113,7 @@ export async function runMonitorTick(client) {
     }).catch((err) => log.warn({ err, discordId: t.discordId }, 'upsertState failed'));
 
     if (next.isOffComms) violators.push({ discordId: t.discordId, name: t.name, kind: t.kind, offCommsMs: next.offCommsMs });
-    if (next.shouldAlert && t.kind === 'prospect') alerts.push({ ...t, offCommsSince: next.offCommsSince, offCommsMs: next.offCommsMs });
+    if (next.shouldAlert && t.kind === 'prospect') alerts.push(t);
   }
 
   await deleteStatesNotIn(seen);
@@ -128,7 +134,7 @@ async function postProspectAlert(client, a, serverLabel) {
   if (a.prospectMentorId) { content = `<@${a.prospectMentorId}>`; allowedMentions = { users: [a.prospectMentorId] }; }
   else if (mentorRoleId) { content = `<@&${mentorRoleId}>`; allowedMentions = { roles: [mentorRoleId] }; }
   else { content = undefined; allowedMentions = { parse: [] }; }
-  const embed = buildProspectAlertEmbed({ userId: a.discordId, alias: a.alias }, a.offCommsSince, a.offCommsMs, serverLabel);
+  const embed = buildProspectAlertEmbed({ userId: a.discordId, alias: a.alias }, serverLabel);
   await channel.send({ content, embeds: [embed], allowedMentions });
   log.info({ discordId: a.discordId, offCommsMs: a.offCommsMs }, 'Posted prospect comms alert');
 }

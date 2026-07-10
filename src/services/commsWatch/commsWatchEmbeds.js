@@ -20,18 +20,15 @@ export function buildBoardEmbed(violators, serverName, now) {
   return embed.setColor(0xfee75c).setDescription(`${lines.join('\n')}\n\n${updated}`);
 }
 
-// Prospect alert posted into the prospect's private channel. Carries the required
-// "when" (Since) and "how long" (Duration); the mentor ping lives in message content.
-export function buildProspectAlertEmbed({ userId, alias }, offCommsSince, offCommsMs, serverName) {
+// Prospect alert posted into the prospect's staff ticket. Fires once when the prospect has
+// been in-game past the off-comms threshold; the mentor ping lives in the message content.
+// The threshold makes any duration/"since" line redundant (it's always ~the threshold), so
+// the embed stays a single plain sentence.
+export function buildProspectAlertEmbed({ userId, alias }, serverName) {
   return createEmbed('Prospect')
-    .setTitle('Prospect off comms while in-game')
+    .setTitle('Prospect not on Discord while in-game')
     .setColor(0xed4245)
     .setDescription(
-      `<@${userId}>${alias ? ` (**${alias}**)` : ''} has been playing on **${serverName}** for ` +
-        `**${formatDuration(offCommsMs)}** without joining Discord voice.`,
-    )
-    .addFields(
-      { name: 'Since', value: `<t:${Math.floor(offCommsSince / 1000)}:t>`, inline: true },
-      { name: 'Duration', value: formatDuration(offCommsMs), inline: true },
+      `<@${userId}>${alias ? ` (**${alias}**)` : ''} is playing on **${serverName}** but hasn't joined Discord voice.`,
     );
 }
