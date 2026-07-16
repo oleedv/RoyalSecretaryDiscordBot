@@ -11,7 +11,7 @@ import {
 import logger from '../../logger.js';
 import { getSeedingConfig } from '../seeding/seedingService.js';
 import { getTodayDate } from '../seeding/seedingScheduler.js';
-import { decideSeederAction, shouldThankToday } from './seederRewardLogic.js';
+import { decideSeederAction, shouldThankToday, shouldRunForPeriod } from './seederRewardLogic.js';
 import { getAvatarUrl } from '../steamService.js';
 
 const log = logger.child({ module: 'seedTrackerService' });
@@ -232,6 +232,18 @@ export async function processCompletedSession(data, client) {
     // progression
     const channelId = cfg.progression_channel_id;
     if (!channelId) return;
+
+    // At most one progression post per player per day — a player who rejoins
+    // several times a day would otherwise spam the channel with near-identical
+    // embeds. Record the marker BEFORE posting (at-most-once, like the thank-you
+    // gate): worst case on a send failure is a missed cosmetic post, not a loop.
+    const today = getTodayDate(cfg.timezone || 'UTC');
+    const lastPosted = await getLastPostDate(data.steamID, 'progression');
+    if (!shouldRunForPeriod(lastPosted, today)) {
+      log.debug({ steamId: data.steamID }, 'Progression already posted today, skipping');
+      return;
+    }
+
     const [streak, avatarUrl, discordId] = await Promise.all([
       getSeedStreak(data.steamID, serverId),
       getAvatarUrl(data.steamID),
@@ -250,6 +262,7 @@ export async function processCompletedSession(data, client) {
       seedAgainBy,
       discordId,
     });
+    await recordPost(data.steamID, data.playerName, 'progression', today);
     const channel = await client.channels.fetch(channelId).catch(() => null);
     if (channel) await channel.send({ embeds: [embed] });
   } catch (err) {
@@ -313,6 +326,17 @@ export async function processMilestone(data, client) {
     const channelId = cfg.progression_channel_id;
     if (!channelId) return;
 
+    // At most one milestone post per player per day (see processCompletedSession).
+    if (data.steamID) {
+      const today = getTodayDate(cfg.timezone || 'UTC');
+      const lastPosted = await getLastPostDate(data.steamID, 'milestone');
+      if (!shouldRunForPeriod(lastPosted, today)) {
+        log.debug({ steamId: data.steamID }, 'Milestone already posted today, skipping');
+        return;
+      }
+      await recordPost(data.steamID, data.playerName, 'milestone', today);
+    }
+
     const embed = buildMilestoneEmbed(data.playerName, data.milestone, data.uniqueDays);
     const channel = await client.channels.fetch(channelId).catch(() => null);
     if (channel) await channel.send({ embeds: [embed] });
@@ -341,5 +365,28 @@ export async function recordThanked(steamId, name, dateStr) {
      VALUES (?, ?, ?)
      ON DUPLICATE KEY UPDATE player_name = VALUES(player_name), last_thanked_date = VALUES(last_thanked_date)`,
     [steamId, name, dateStr]
+  );
+}
+
+export async function getLastPostDate(steamId, postType) {
+  try {
+    const rows = await query(
+      `SELECT DATE_FORMAT(last_posted_date, '%Y-%m-%d') AS lastPostedDate
+       FROM seed_post_log WHERE steam_id = ? AND post_type = ? LIMIT 1`,
+      [steamId, postType]
+    );
+    return rows[0]?.lastPostedDate || null;
+  } catch (err) {
+    log.warn({ err, steamId, postType }, 'Failed to read seed_post_log');
+    return null;
+  }
+}
+
+export async function recordPost(steamId, name, postType, dateStr) {
+  await query(
+    `INSERT INTO seed_post_log (steam_id, post_type, player_name, last_posted_date)
+     VALUES (?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE player_name = VALUES(player_name), last_posted_date = VALUES(last_posted_date)`,
+    [steamId, postType, name, dateStr]
   );
 }

@@ -322,6 +322,21 @@ export async function initSchema() {
     )
   `);
 
+  // Once-per-day markers for the Seed Progress / milestone posts, keyed by
+  // (player, post_type). Stops a player who rejoins several times in a day from
+  // spamming the progression channel with near-identical embeds. Separate per
+  // type so a progression post doesn't suppress a same-day milestone.
+  await query(`
+    CREATE TABLE IF NOT EXISTS seed_post_log (
+      steam_id VARCHAR(20) NOT NULL,
+      post_type VARCHAR(16) NOT NULL,
+      player_name VARCHAR(255) NULL,
+      last_posted_date DATE NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (steam_id, post_type)
+    )
+  `);
+
   // Backfill role_ids from the legacy single role_id (only when role_ids is still null)
   await query(`UPDATE seeding_config SET role_ids = JSON_ARRAY(role_id) WHERE role_ids IS NULL AND role_id IS NOT NULL AND role_id <> ''`);
 
