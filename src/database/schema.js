@@ -624,7 +624,7 @@ export async function initSchema() {
       min_hours       DECIMAL(5,2) DEFAULT 5.00,
       hours_weight    DECIMAL(4,2) DEFAULT 1.00,
       seed_weight     DECIMAL(4,2) DEFAULT 2.00,
-      vote_weight     INT DEFAULT 1,
+      vote_weight     INT DEFAULT 5,
       votes_per_voter INT DEFAULT 2,
       entry_channel_id  VARCHAR(20),
       entry_message_id  VARCHAR(20),
