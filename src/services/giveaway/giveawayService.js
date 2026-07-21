@@ -15,7 +15,7 @@ export async function createGiveaway({
   minHours = 5.0,
   hoursWeight = 1.0,
   seedWeight = 2.0,
-  voteWeight = 1,
+  voteWeight = 5,
   votesPerVoter = 2,
 }) {
   const result = await query(
