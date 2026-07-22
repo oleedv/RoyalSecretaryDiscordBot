@@ -1,10 +1,10 @@
 import { getServerStateById, extractGameMode, setAnnouncerServerId } from './seedingSocket.js';
 import {
   getSeedingConfig, getActiveSession, startSession, completeSession,
-  resetSession, updateSessionPeak, updateSessionCallMessage,
+  updateSessionPeak, updateSessionCallMessage,
   expireOldSessions, getSeedingStats, trackMessage,
   clearTrackedMessages, setLastDailyCallDate, setPanelMessageId,
-  setLastResetDate, writeLiveStatus, getLastSessionStartedAt,
+  setLastResetDate, writeLiveStatus,
 } from './seedingService.js';
 import { decideSeedingAction } from './seedingLogic.js';
 import {
@@ -359,42 +359,21 @@ async function updateSeedingState(client) {
       activeSessionId: session?.id ?? null,
     });
 
-    // Announcer side effects (daily call, re-seed, completion) only run when enabled.
+    // Announcer side effects (complete / update active call) only run when enabled.
     if (!cfg.enabled) return;
 
     // Unavailable (unresolved id or socket down): never act on stale/absent data.
     if (!state || !state.connected) return;
 
-    // Keep the persisted peak current before deciding (peak only grows).
+    // Keep the persisted peak current before deciding (peak only grows; stats only).
     if (session) await updateSessionPeak(session.id, state.playerCount);
 
-    const tz = cfg.timezone || 'UTC';
-    const dailyTime = normalizeTime(cfg.daily_time || '16:00');
-    const currentTime = getCurrentTime(tz);
-    const today = getTodayDate(tz);
-    const lastCallDate = cfg.last_daily_call_date
-      ? new Date(cfg.last_daily_call_date).toISOString().slice(0, 10)
-      : null;
-
-    // Cooldown reference (only needed when deciding whether to re-seed).
-    const reseedCooldownMinutes = config.seeding?.reseedCooldownMinutes ?? 60;
-    let minutesSinceLastCall = Infinity;
-    if (!session) {
-      const lastStart = await getLastSessionStartedAt();
-      minutesSinceLastCall = lastStart ? (Date.now() - lastStart.getTime()) / 60000 : Infinity;
-    }
-
+    // Monitor never creates sessions — only completes or updates an active one.
+    // That makes complete → re-seed → complete spam impossible.
     const { action } = decideSeedingAction({
       hasActiveSession: !!session,
       playerCount: state.playerCount,
-      peakPlayers: session ? Math.max(session.peak_players, state.playerCount) : 0,
       seedThreshold: cfg.seed_threshold,
-      resetThreshold: cfg.reset_threshold,
-      callPostedToday: lastCallDate === today,
-      pastDailyTime: currentTime >= dailyTime,
-      inResetWindow: isInResetWindow(currentTime, dailyTime),
-      minutesSinceLastCall,
-      reseedCooldownMinutes,
     });
 
     switch (action) {
@@ -406,16 +385,8 @@ async function updateSeedingState(client) {
         await postCompletionMessage(client, cfg, session, state, duration);
         break;
       }
-      case 'reset':
-        // resetSession logs; the next collapse can re-seed once past the cooldown.
-        await resetSession(session.id);
-        break;
       case 'update':
         await updateCallMessage(client, cfg, session, state);
-        break;
-      case 'reseed':
-        log.info('No active session in seeding window - re-seeding (collapse detected)');
-        await postSeedingCall(client, cfg);
         break;
       default:
         break;
@@ -440,11 +411,17 @@ function buildSeedingPing(roleIds, headline) {
 
 // ── Message posting ──
 
-export async function postSeedingCall(client, cfg) {
+/**
+ * Post a new SEEDING HAS BEGUN message and start a session.
+ * Only called from the daily clock or staff send-now (never the monitor).
+ * When stampDailyCallDate is true (send-now), also set last_daily_call_date so the
+ * clock cannot post a second automatic BEGUN the same day.
+ */
+export async function postSeedingCall(client, cfg, { stampDailyCallDate = false } = {}) {
   const channel = await client.channels.fetch(cfg.channel_id).catch(() => null);
   if (!channel) {
     log.error({ channelId: cfg.channel_id }, 'Seeding channel not found');
-    return;
+    return null;
   }
 
   const state = getServerStateById(cfg.announcer_server_id);
@@ -478,7 +455,84 @@ export async function postSeedingCall(client, cfg) {
   await updateSessionCallMessage(session.id, msg.id);
   await trackMessage(msg.id, cfg.channel_id, 'call', session.id);
 
+  if (stampDailyCallDate) {
+    const tz = cfg.timezone || 'UTC';
+    await setLastDailyCallDate(getTodayDate(tz));
+  }
+
   log.info({ messageId: msg.id, sessionId: session.id }, 'Seeding call posted');
+  return { messageId: msg.id, sessionId: session.id };
+}
+
+/**
+ * Staff send-now / recovery: refresh the active call embed, or re-post it if the
+ * Discord message was deleted. Never starts a second concurrent session.
+ */
+export async function refreshActiveCall(client, cfg, session) {
+  const state = getServerStateById(cfg.announcer_server_id);
+  if (!state || !state.connected) {
+    // Still try to re-post a static call if the message is gone; population shows unavailable.
+    if (session.call_message_id) {
+      const channel = await client.channels.fetch(cfg.channel_id).catch(() => null);
+      if (channel) {
+        const existing = await channel.messages.fetch(session.call_message_id).catch(() => null);
+        if (existing) {
+          log.info({ sessionId: session.id }, 'Active call refresh skipped (socket unavailable)');
+          return { action: 'skipped_unavailable' };
+        }
+      }
+    }
+    await repostCallForSession(client, cfg, session);
+    return { action: 'reposted' };
+  }
+
+  if (session.call_message_id) {
+    const channel = await client.channels.fetch(cfg.channel_id).catch(() => null);
+    if (channel) {
+      const existing = await channel.messages.fetch(session.call_message_id).catch(() => null);
+      if (existing) {
+        await updateCallMessage(client, cfg, session, state);
+        return { action: 'updated' };
+      }
+    }
+  }
+
+  await repostCallForSession(client, cfg, session, state);
+  return { action: 'reposted' };
+}
+
+async function repostCallForSession(client, cfg, session, state = null) {
+  const channel = await client.channels.fetch(cfg.channel_id).catch(() => null);
+  if (!channel) {
+    log.error({ channelId: cfg.channel_id }, 'Seeding channel not found for call re-post');
+    return;
+  }
+
+  const available = !!state && !!state.connected;
+  const playerCount = available ? state.playerCount : null;
+  const currentLayer = available ? state.currentLayer : (session.layer_name || null);
+  const currentLayerObj = available ? state.currentLayerObj : null;
+
+  const stats = await getSeedingStats();
+  const gameMode = extractGameMode(currentLayer);
+  const thumbnailUrl = getLayerImageUrl(currentLayerObj, currentLayer);
+
+  const embed = buildSeedingCallEmbed({
+    layerName: currentLayer,
+    playerCount,
+    threshold: cfg.seed_threshold,
+    thumbnailUrl,
+    avgSeedTime: stats.avgMinutes,
+    avgSeedTrend: stats.trend,
+    gameMode,
+    fastestSeed: stats.fastest,
+  });
+
+  const { content, allowedMentions } = buildSeedingPing(cfg.role_ids, '**SEEDING HAS BEGUN**');
+  const msg = await channel.send({ content, embeds: [embed], allowedMentions });
+  await updateSessionCallMessage(session.id, msg.id);
+  await trackMessage(msg.id, cfg.channel_id, 'call', session.id);
+  log.info({ messageId: msg.id, sessionId: session.id }, 'Seeding call re-posted for active session');
 }
 
 async function postCompletionMessage(client, cfg, session, state, duration) {
@@ -509,7 +563,7 @@ function callEmbedSignature(embedData) {
   return `${embedData.description || ''}\x1e${fields}`;
 }
 
-async function updateCallMessage(client, cfg, session, state) {
+export async function updateCallMessage(client, cfg, session, state) {
   if (!session.call_message_id || !cfg.channel_id) return;
 
   try {

@@ -70,7 +70,7 @@ export default {
     // First-insert defaults for the seeding_config DB row. All live config (servers,
     // channels, role list, thresholds, tracker rules) is edited on the website /seeding page.
     defaultThreshold: 40,
-    defaultResetThreshold: 20,
+    defaultResetThreshold: 20,                            // unused by announcer; DB column retained
     defaultTime: '16:00',
     defaultTimezone: 'UTC',
     defaultRequiredSeedDays: 10,
@@ -78,7 +78,6 @@ export default {
     defaultWhitelistDurationDays: 30,
     defaultMaxExtensionDays: 60,
     schedulerCheckMs: 60000,
-    reseedCooldownMinutes: 60,                            // min minutes between seeding calls (re-seed spam backstop)
   },
   slReward: {
     leaderboardChannelId: '1516397123007021087',          // SL rolling-7d leaderboard embed

@@ -65,7 +65,7 @@ export default {
     defaultWhitelistDurationDays: 30,
     defaultMaxExtensionDays: 60,
     schedulerCheckMs: 60000,
-    reseedCooldownMinutes: 60,                            // min minutes between seeding calls (re-seed spam backstop)
+
   },
   slReward: {
     // Inert in development: no channels, dry-run on.
