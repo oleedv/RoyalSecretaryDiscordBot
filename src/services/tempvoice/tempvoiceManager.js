@@ -18,7 +18,12 @@ const rateLimits = new Map(); // userId -> { count, resetAt }
 const RATE_LIMIT_WINDOW = 10_000;
 const RATE_LIMIT_MAX = 5;
 
-let cleanupInterval = null;
+const EMPTY_SWEEP_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+const INACTIVE_CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+const DEFAULT_MAX_CHANNELS = 1;
+
+let emptySweepInterval = null;
+let inactiveCleanupInterval = null;
 let cachedConfig = null;
 
 // ── Config ──
@@ -30,6 +35,11 @@ export async function loadConfig() {
 
 export function getConfigCached() {
   return cachedConfig;
+}
+
+function getMaxChannelsPerUser() {
+  const n = Number(cachedConfig?.max_channels_per_user);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_MAX_CHANNELS;
 }
 
 // ── Rate limiting ──
@@ -77,7 +87,137 @@ export function getActiveChannelCount() {
   return activeChannels.size;
 }
 
+function capDeletedChannels() {
+  while (deletedChannels.size > 1000) {
+    const first = deletedChannels.values().next().value;
+    deletedChannels.delete(first);
+  }
+}
+
+/**
+ * Delete a tracked temp channel.
+ * Discord is deleted first; DB/memory are only cleared after success (or if Discord is already gone).
+ * On Discord delete failure, tracking is kept so a later sweep can retry.
+ *
+ * @returns {Promise<boolean>} true if untracked (and Discord gone or was already gone)
+ */
+async function deleteTrackedChannel(channelId, guild, opts = {}) {
+  const {
+    reason = 'Temp channel deleted',
+    logReason = 'Deleted',
+    actorId = null,
+    skipDiscord = false,
+    skipLog = false,
+  } = opts;
+
+  if (deletedChannels.has(channelId)) return false;
+
+  const data = activeChannels.get(channelId);
+  let row = null;
+  if (!data) {
+    // May still be in DB only (recovery / sweep edge).
+    row = await db.getTempChannel(channelId);
+    if (!row) return false;
+  }
+
+  deletedChannels.add(channelId);
+
+  const ownerId = data?.ownerId || row?.owner_id || null;
+  let name = data?.channelName || 'Unknown';
+
+  try {
+    if (!skipDiscord && guild) {
+      const channel = await guild.channels.fetch(channelId).catch(() => null);
+      if (channel) {
+        name = channel.name;
+        try {
+          await channel.delete(reason);
+        } catch (err) {
+          // Keep tracking so empty-sweep / leave events can retry.
+          deletedChannels.delete(channelId);
+          log.error({ err, channelId }, 'Failed to delete Discord temp channel; keeping tracking');
+          return false;
+        }
+      }
+    }
+
+    // Discord is gone (deleted by us, already missing, or skipDiscord after external delete).
+    activeChannels.delete(channelId);
+    await db.deleteTempChannel(channelId);
+
+    log.info({ channelId, channelName: name, ownerId, reason: logReason }, 'Temp channel deleted');
+
+    if (!skipLog && guild) {
+      await logEvent(guild, {
+        title: 'Channel Deleted',
+        actorId: actorId || ownerId,
+        channel: { name },
+        fields: [
+          { name: 'Owner', value: ownerId ? `<@${ownerId}>` : 'Unknown', inline: true },
+          { name: 'Reason', value: logReason, inline: true },
+        ],
+        kind: 'destroy',
+      });
+    }
+
+    capDeletedChannels();
+    return true;
+  } catch (err) {
+    deletedChannels.delete(channelId);
+    log.error({ err, channelId }, 'Failed to finalize temp channel delete');
+    return false;
+  }
+}
+
 // ── Channel creation ──
+
+/**
+ * Reconcile channels owned by a user: drop missing, delete empty, return live ones.
+ * Used before create so quota / rejoin behaves correctly.
+ */
+async function reconcileOwnedChannels(userId, guild) {
+  const owned = await db.getTempChannelsByOwner(userId);
+  const live = [];
+
+  for (const row of owned) {
+    const channel = await guild.channels.fetch(row.channel_id).catch(() => null);
+    if (!channel) {
+      activeChannels.delete(row.channel_id);
+      await db.deleteTempChannel(row.channel_id);
+      continue;
+    }
+
+    if (channel.members.size === 0) {
+      // Ensure memory has enough metadata for logging if present
+      if (!activeChannels.has(row.channel_id)) {
+        activeChannels.set(row.channel_id, {
+          ownerId: row.owner_id,
+          guildId: row.guild_id,
+          panelMessageId: row.panel_message_id,
+          channelName: channel.name,
+        });
+      }
+      await deleteTrackedChannel(row.channel_id, guild, {
+        reason: 'Empty owned channel on rejoin',
+        logReason: 'Empty on rejoin',
+      });
+      continue;
+    }
+
+    if (!activeChannels.has(row.channel_id)) {
+      activeChannels.set(row.channel_id, {
+        ownerId: row.owner_id,
+        guildId: row.guild_id,
+        panelMessageId: row.panel_message_id,
+        channelName: channel.name,
+      });
+    }
+
+    live.push(channel);
+  }
+
+  return live;
+}
 
 export async function handleJoinTrigger(member, guild) {
   const config = cachedConfig;
@@ -88,12 +228,17 @@ export async function handleJoinTrigger(member, guild) {
   if (creationLocks.has(userId)) return;
   creationLocks.add(userId);
 
+  let createdChannel = null;
+
   try {
-    // Check quota
-    const maxChannels = config.max_channels_per_user || 3;
-    const owned = await db.getTempChannelsByOwner(userId);
-    if (owned.length >= maxChannels) {
-      log.info({ userId, count: owned.length }, 'User hit temp channel quota');
+    // Reconcile existing ownership: clean empties, rejoin if at quota
+    const liveOwned = await reconcileOwnedChannels(userId, guild);
+    const maxChannels = getMaxChannelsPerUser();
+
+    if (liveOwned.length >= maxChannels) {
+      const target = liveOwned[0];
+      await member.voice.setChannel(target).catch(() => null);
+      log.info({ userId, channelId: target.id, count: liveOwned.length }, 'Moved user to existing temp channel (quota)');
       return;
     }
 
@@ -149,7 +294,7 @@ export async function handleJoinTrigger(member, guild) {
       everyoneAllow.push(PermissionFlagsBits.UseVAD);
     }
 
-    const newChannel = await guild.channels.create({
+    createdChannel = await guild.channels.create({
       name: channelName,
       type: ChannelType.GuildVoice,
       parent: config.category_id,
@@ -184,34 +329,56 @@ export async function handleJoinTrigger(member, guild) {
     });
 
     // Apply preset bitrate/region/limit (best-effort, may fail if boost tier changed)
-    if (preset?.bitrate) await newChannel.setBitrate(preset.bitrate).catch(() => null);
-    if (preset?.region) await newChannel.setRTCRegion(preset.region === 'auto' ? null : preset.region).catch(() => null);
-    if (preset?.user_limit) await newChannel.setUserLimit(preset.user_limit).catch(() => null);
+    if (preset?.bitrate) await createdChannel.setBitrate(preset.bitrate).catch(() => null);
+    if (preset?.region) await createdChannel.setRTCRegion(preset.region === 'auto' ? null : preset.region).catch(() => null);
+    if (preset?.user_limit) await createdChannel.setUserLimit(preset.user_limit).catch(() => null);
 
     // Move user into the new channel
-    await member.voice.setChannel(newChannel).catch(() => null);
+    await member.voice.setChannel(createdChannel).catch(() => null);
+
+    // Occupancy check: if nobody made it in, delete immediately (no tracking).
+    const occupied = await guild.channels.fetch(createdChannel.id).catch(() => null);
+    if (!occupied || occupied.members.size === 0) {
+      log.info({ userId, channelId: createdChannel.id }, 'Temp channel empty after create; rolling back');
+      await createdChannel.delete('Empty after create').catch((err) => {
+        log.error({ err, channelId: createdChannel.id }, 'Failed to delete empty-after-create channel');
+      });
+      createdChannel = null;
+      return;
+    }
 
     // Send control panel to voice channel text chat
-    const panelMessage = await newChannel.send(buildControlPanelMessage());
+    const panelMessage = await createdChannel.send(buildControlPanelMessage());
 
-    // Persist
-    await db.createTempChannel(newChannel.id, userId, guild.id, panelMessage.id);
-    activeChannels.set(newChannel.id, {
+    // Persist only after Discord side is fully set up
+    const channelId = createdChannel.id;
+    await db.createTempChannel(channelId, userId, guild.id, panelMessage.id);
+    activeChannels.set(channelId, {
       ownerId: userId,
       guildId: guild.id,
       panelMessageId: panelMessage.id,
       channelName,
     });
+    // Tracked successfully -- do not Discord-rollback on later log failures.
+    createdChannel = null;
 
-    log.info({ userId, channelId: newChannel.id, channelName }, 'Temp channel created');
+    log.info({ userId, channelId, channelName }, 'Temp channel created');
     await logEvent(guild, {
       title: 'Channel Created',
       actor: member.user,
-      channel: { id: newChannel.id, name: channelName },
+      channel: { id: channelId, name: channelName },
       kind: 'create',
     });
   } catch (err) {
     log.error({ err, userId }, 'Failed to create temp channel');
+    if (createdChannel) {
+      const orphanId = createdChannel.id;
+      activeChannels.delete(orphanId);
+      await db.deleteTempChannel(orphanId).catch(() => null);
+      await createdChannel.delete('Temp channel create failed').catch((delErr) => {
+        log.error({ err: delErr, channelId: orphanId }, 'Failed to rollback Discord channel after create error');
+      });
+    }
   } finally {
     creationLocks.delete(userId);
   }
@@ -223,76 +390,20 @@ export async function handleChannelEmpty(channelId, guild) {
   if (!activeChannels.has(channelId)) return;
   if (deletedChannels.has(channelId)) return;
 
-  deletedChannels.add(channelId);
-
-  try {
-    const data = activeChannels.get(channelId);
-    const channel = await guild.channels.fetch(channelId).catch(() => null);
-    const name = channel?.name || data?.channelName || 'Unknown';
-    const ownerId = data?.ownerId;
-
-    // Untrack BEFORE deleting so the CHANNEL_DELETE gateway event doesn't
-    // re-enter handleManualChannelDelete and log a duplicate event.
-    activeChannels.delete(channelId);
-    await db.deleteTempChannel(channelId);
-
-    if (channel) {
-      await channel.delete('Temp channel empty').catch(() => null);
-    }
-
-    log.info({ channelId, channelName: name, ownerId }, 'Temp channel deleted (empty)');
-    if (data) {
-      await logEvent(guild, {
-        title: 'Channel Deleted',
-        actorId: ownerId,
-        channel: { name },
-        fields: [
-          { name: 'Owner', value: `<@${ownerId}>`, inline: true },
-          { name: 'Reason', value: 'Channel empty', inline: true },
-        ],
-        kind: 'destroy',
-      });
-    }
-  } catch (err) {
-    log.error({ err, channelId }, 'Failed to delete empty temp channel');
-  }
-
-  // Cap deletedChannels set at 1000
-  if (deletedChannels.size > 1000) {
-    const first = deletedChannels.values().next().value;
-    deletedChannels.delete(first);
-  }
+  await deleteTrackedChannel(channelId, guild, {
+    reason: 'Temp channel empty',
+    logReason: 'Channel empty',
+  });
 }
 
 export async function deleteChannelByInteraction(channelId, guild, deletedByUserId) {
   if (!activeChannels.has(channelId)) return;
-  deletedChannels.add(channelId);
 
   const data = activeChannels.get(channelId);
-  const name = data?.channelName || 'Unknown';
-  const ownerId = data?.ownerId;
-  activeChannels.delete(channelId);
-  await db.deleteTempChannel(channelId);
-
-  try {
-    const channel = await guild.channels.fetch(channelId).catch(() => null);
-    if (channel) {
-      await channel.delete('Deleted by owner');
-    }
-  } catch (err) {
-    log.error({ err, channelId }, 'Failed to delete temp channel via interaction');
-  }
-
-  const actorId = deletedByUserId || ownerId;
-  await logEvent(guild, {
-    title: 'Channel Deleted',
-    actorId,
-    channel: { name },
-    fields: [
-      { name: 'Owner', value: `<@${ownerId}>`, inline: true },
-      { name: 'Reason', value: 'Deleted by owner', inline: true },
-    ],
-    kind: 'destroy',
+  await deleteTrackedChannel(channelId, guild, {
+    reason: 'Deleted by owner',
+    logReason: 'Deleted by owner',
+    actorId: deletedByUserId || data?.ownerId,
   });
 }
 
@@ -301,30 +412,25 @@ export async function handleManualChannelDelete(channelId, guild) {
   // Internal delete already in flight -- skip to avoid duplicate logs.
   if (deletedChannels.has(channelId)) return;
 
-  const data = activeChannels.get(channelId);
-  const ownerId = data?.ownerId;
-  const name = data?.channelName || 'Unknown';
-
-  deletedChannels.add(channelId);
-  activeChannels.delete(channelId);
-  await db.deleteTempChannel(channelId);
-
-  log.info({ channelId, channelName: name, ownerId }, 'Temp channel deleted (manual)');
-  if (guild) {
-    await logEvent(guild, {
-      title: 'Channel Deleted',
-      actorId: ownerId,
-      channel: { name },
-      fields: [
-        { name: 'Owner', value: `<@${ownerId}>`, inline: true },
-        { name: 'Reason', value: 'Deleted externally', inline: true },
-      ],
-      kind: 'destroy',
-    });
-  }
+  // Discord channel already gone; only untrack.
+  await deleteTrackedChannel(channelId, guild, {
+    reason: 'Deleted externally',
+    logReason: 'Deleted externally',
+    skipDiscord: true,
+  });
 }
 
 // ── Ownership ──
+
+async function ownerWouldExceedQuota(newOwnerId, excludeChannelId, guild) {
+  // Drop empty/missing owned channels so they do not block transfer/claim.
+  if (guild) await reconcileOwnedChannels(newOwnerId, guild);
+
+  const maxChannels = getMaxChannelsPerUser();
+  const owned = await db.getTempChannelsByOwner(newOwnerId);
+  const others = owned.filter((r) => r.channel_id !== excludeChannelId);
+  return others.length >= maxChannels;
+}
 
 export async function transferOwnership(channelId, newOwnerId, guild) {
   const data = activeChannels.get(channelId);
@@ -333,6 +439,11 @@ export async function transferOwnership(channelId, newOwnerId, guild) {
   const oldOwnerId = data.ownerId;
 
   try {
+    if (await ownerWouldExceedQuota(newOwnerId, channelId, guild)) {
+      log.info({ channelId, newOwnerId }, 'Transfer blocked: new owner at channel quota');
+      return false;
+    }
+
     const channel = await guild.channels.fetch(channelId).catch(() => null);
     if (!channel) return false;
 
@@ -386,6 +497,10 @@ export async function claimChannel(channelId, claimerId, guild) {
 
     if (channel.members.has(data.ownerId)) {
       return { success: false, reason: 'The current owner is still in the channel.' };
+    }
+
+    if (await ownerWouldExceedQuota(claimerId, channelId, guild)) {
+      return { success: false, reason: 'You already own the maximum number of temp channels.' };
     }
 
     const transferred = await transferOwnership(channelId, claimerId, guild);
@@ -518,11 +633,20 @@ export async function initFromDb(client) {
         continue;
       }
 
-      // Channel exists but is empty -- delete it
+      // Channel exists but is empty -- delete Discord first, then untrack
       if (channel.members.size === 0) {
-        await channel.delete('Cleanup: empty on recovery').catch(() => null);
-        await db.deleteTempChannel(row.channel_id);
-        cleaned++;
+        activeChannels.set(row.channel_id, {
+          ownerId: row.owner_id,
+          guildId: row.guild_id,
+          panelMessageId: row.panel_message_id,
+          channelName: channel.name,
+        });
+        const ok = await deleteTrackedChannel(row.channel_id, guild, {
+          reason: 'Cleanup: empty on recovery',
+          logReason: 'Empty on recovery',
+          skipLog: true,
+        });
+        if (ok) cleaned++;
         continue;
       }
 
@@ -542,68 +666,233 @@ export async function initFromDb(client) {
   log.info({ recovered, cleaned }, 'Temp channel recovery complete');
 }
 
-// ── Auto-cleanup scheduler ──
+// ── Auto-cleanup / empty sweep / orphan scan ──
 
-export function startCleanupScheduler(client) {
-  if (cleanupInterval) return;
+/**
+ * Frequent safety net: every tracked channel that is missing or empty is cleaned.
+ * Also scans the configured category for empty untracked voice channels (orphans).
+ */
+async function runEmptySweep(client) {
+  let cleaned = 0;
 
-  const tick = async () => {
+  // 1) Tracked / DB-backed channels
+  const rows = await db.getAllTempChannels();
+  const seen = new Set();
+
+  for (const row of rows) {
+    seen.add(row.channel_id);
     try {
-      const inactive = await db.getInactiveChannels(24);
-      if (!inactive.length) return;
-
-      let cleaned = 0;
-      for (const row of inactive) {
-        try {
-          const guild = await client.guilds.fetch(row.guild_id).catch(() => null);
-          if (!guild) {
-            await db.deleteTempChannel(row.channel_id);
-            activeChannels.delete(row.channel_id);
-            cleaned++;
-            continue;
-          }
-
-          const channel = await guild.channels.fetch(row.channel_id).catch(() => null);
-          if (!channel) {
-            await db.deleteTempChannel(row.channel_id);
-            activeChannels.delete(row.channel_id);
-            cleaned++;
-            continue;
-          }
-
-          if (channel.members.size === 0) {
-            // Mark deleted BEFORE channel.delete so the gateway event
-            // doesn't fall through to handleManualChannelDelete and log
-            // an external-delete entry for an auto-cleanup.
-            deletedChannels.add(row.channel_id);
-            activeChannels.delete(row.channel_id);
-            await db.deleteTempChannel(row.channel_id);
-            await channel.delete('Auto-cleanup: inactive 24h+').catch(() => null);
-            cleaned++;
-          }
-        } catch (err) {
-          log.error({ err, channelId: row.channel_id }, 'Cleanup error for channel');
-        }
+      const guild = await client.guilds.fetch(row.guild_id).catch(() => null);
+      if (!guild) {
+        activeChannels.delete(row.channel_id);
+        await db.deleteTempChannel(row.channel_id);
+        cleaned++;
+        continue;
       }
 
-      if (cleaned > 0) log.info({ cleaned }, 'Auto-cleanup complete');
+      const channel = await guild.channels.fetch(row.channel_id).catch(() => null);
+      if (!channel) {
+        activeChannels.delete(row.channel_id);
+        await db.deleteTempChannel(row.channel_id);
+        cleaned++;
+        continue;
+      }
+
+      if (channel.members.size === 0) {
+        if (!activeChannels.has(row.channel_id)) {
+          activeChannels.set(row.channel_id, {
+            ownerId: row.owner_id,
+            guildId: row.guild_id,
+            panelMessageId: row.panel_message_id,
+            channelName: channel.name,
+          });
+        }
+        const ok = await deleteTrackedChannel(row.channel_id, guild, {
+          reason: 'Empty sweep',
+          logReason: 'Empty (sweep)',
+        });
+        if (ok) cleaned++;
+      } else if (!activeChannels.has(row.channel_id)) {
+        // DB row exists but memory missed it -- re-attach
+        activeChannels.set(row.channel_id, {
+          ownerId: row.owner_id,
+          guildId: row.guild_id,
+          panelMessageId: row.panel_message_id,
+          channelName: channel.name,
+        });
+      }
     } catch (err) {
-      log.error({ err }, 'Auto-cleanup scheduler error');
+      log.error({ err, channelId: row.channel_id }, 'Empty sweep error for tracked channel');
+    }
+  }
+
+  // Memory-only entries with no DB row (should be rare)
+  for (const [channelId, data] of [...activeChannels.entries()]) {
+    if (seen.has(channelId)) continue;
+    try {
+      const guild = await client.guilds.fetch(data.guildId).catch(() => null);
+      if (!guild) {
+        activeChannels.delete(channelId);
+        cleaned++;
+        continue;
+      }
+      const channel = await guild.channels.fetch(channelId).catch(() => null);
+      if (!channel || channel.members.size === 0) {
+        const ok = await deleteTrackedChannel(channelId, guild, {
+          reason: 'Empty sweep (memory-only)',
+          logReason: 'Empty (sweep)',
+        });
+        if (ok || !channel) {
+          activeChannels.delete(channelId);
+          cleaned++;
+        }
+      }
+    } catch (err) {
+      log.error({ err, channelId }, 'Empty sweep error for memory-only channel');
+    }
+  }
+
+  // 2) Orphan scan: empty voice channels in temp category that are not tracked
+  const config = cachedConfig;
+  if (config?.category_id && config?.trigger_channel_id) {
+    try {
+      // Prefer guilds that own tracked channels; also walk all guilds for category match
+      for (const guild of client.guilds.cache.values()) {
+        const category = await guild.channels.fetch(config.category_id).catch(() => null);
+        if (!category) continue;
+
+        const children = guild.channels.cache.filter(
+          (ch) => ch.parentId === config.category_id && ch.type === ChannelType.GuildVoice,
+        );
+
+        for (const channel of children.values()) {
+          if (channel.id === config.trigger_channel_id) continue;
+          if (activeChannels.has(channel.id)) continue;
+          if (seen.has(channel.id)) continue;
+
+          // Re-fetch members
+          const fresh = await guild.channels.fetch(channel.id).catch(() => null);
+          if (!fresh) continue;
+          if (fresh.members.size > 0) {
+            log.warn({ channelId: fresh.id, channelName: fresh.name }, 'Untracked non-empty voice channel in temp category');
+            continue;
+          }
+
+          try {
+            await fresh.delete('Orphan empty temp voice channel');
+            cleaned++;
+            log.info({ channelId: fresh.id, channelName: fresh.name }, 'Deleted orphan empty temp voice channel');
+            await logEvent(guild, {
+              title: 'Channel Deleted',
+              channel: { name: fresh.name },
+              fields: [
+                { name: 'Reason', value: 'Orphan empty (sweep)', inline: true },
+              ],
+              kind: 'destroy',
+            });
+          } catch (err) {
+            log.error({ err, channelId: fresh.id }, 'Failed to delete orphan temp channel');
+          }
+        }
+      }
+    } catch (err) {
+      log.error({ err }, 'Orphan scan error');
+    }
+  }
+
+  if (cleaned > 0) log.info({ cleaned }, 'Empty/orphan sweep complete');
+  return cleaned;
+}
+
+async function runInactiveCleanup(client) {
+  const inactive = await db.getInactiveChannels(24);
+  if (!inactive.length) return 0;
+
+  let cleaned = 0;
+  for (const row of inactive) {
+    try {
+      const guild = await client.guilds.fetch(row.guild_id).catch(() => null);
+      if (!guild) {
+        activeChannels.delete(row.channel_id);
+        await db.deleteTempChannel(row.channel_id);
+        cleaned++;
+        continue;
+      }
+
+      const channel = await guild.channels.fetch(row.channel_id).catch(() => null);
+      if (!channel) {
+        activeChannels.delete(row.channel_id);
+        await db.deleteTempChannel(row.channel_id);
+        cleaned++;
+        continue;
+      }
+
+      if (channel.members.size === 0) {
+        if (!activeChannels.has(row.channel_id)) {
+          activeChannels.set(row.channel_id, {
+            ownerId: row.owner_id,
+            guildId: row.guild_id,
+            panelMessageId: row.panel_message_id,
+            channelName: channel.name,
+          });
+        }
+        const ok = await deleteTrackedChannel(row.channel_id, guild, {
+          reason: 'Auto-cleanup: inactive 24h+',
+          logReason: 'Inactive 24h+ (empty)',
+        });
+        if (ok) cleaned++;
+      }
+    } catch (err) {
+      log.error({ err, channelId: row.channel_id }, 'Cleanup error for channel');
+    }
+  }
+
+  if (cleaned > 0) log.info({ cleaned }, 'Inactive auto-cleanup complete');
+  return cleaned;
+}
+
+export function startCleanupScheduler(client) {
+  if (emptySweepInterval || inactiveCleanupInterval) return;
+
+  const emptyTick = async () => {
+    try {
+      await runEmptySweep(client);
+    } catch (err) {
+      log.error({ err }, 'Empty sweep scheduler error');
+      reportError(err, { source: 'scheduler:tempvoice:empty-sweep' }).catch(() => {});
+    }
+  };
+
+  const inactiveTick = async () => {
+    try {
+      await runInactiveCleanup(client);
+    } catch (err) {
+      log.error({ err }, 'Inactive cleanup scheduler error');
       reportError(err, { source: 'scheduler:tempvoice:cleanup' }).catch(() => {});
     }
   };
 
-  // First run after 30s, then hourly
-  setTimeout(tick, 30_000);
-  cleanupInterval = setInterval(tick, 60 * 60 * 1000);
-  cleanupInterval.unref();
-  log.info('RB Voice cleanup scheduler started');
+  // Empty sweep: first run after 30s, then every 2 minutes
+  setTimeout(emptyTick, 30_000);
+  emptySweepInterval = setInterval(emptyTick, EMPTY_SWEEP_INTERVAL_MS);
+  emptySweepInterval.unref();
+
+  // Inactive backup: first run after 5m, then hourly
+  setTimeout(inactiveTick, 5 * 60_000);
+  inactiveCleanupInterval = setInterval(inactiveTick, INACTIVE_CLEANUP_INTERVAL_MS);
+  inactiveCleanupInterval.unref();
+
+  log.info('RB Voice cleanup scheduler started (empty sweep 2m, inactive 1h)');
 }
 
 export function stopCleanupScheduler() {
-  if (cleanupInterval) {
-    clearInterval(cleanupInterval);
-    cleanupInterval = null;
+  if (emptySweepInterval) {
+    clearInterval(emptySweepInterval);
+    emptySweepInterval = null;
+  }
+  if (inactiveCleanupInterval) {
+    clearInterval(inactiveCleanupInterval);
+    inactiveCleanupInterval = null;
   }
 }
 
