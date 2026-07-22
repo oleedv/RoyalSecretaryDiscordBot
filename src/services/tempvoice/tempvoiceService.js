@@ -35,6 +35,17 @@ export async function setDefaultAllowVad(value) {
   );
 }
 
+export async function setMaxChannelsPerUser(max) {
+  const n = Math.max(1, Math.min(10, Math.floor(Number(max)) || 1));
+  await query(
+    `INSERT INTO temp_voice_config (id, max_channels_per_user)
+     VALUES (1, ?)
+     ON DUPLICATE KEY UPDATE max_channels_per_user = VALUES(max_channels_per_user)`,
+    [n],
+  );
+  return n;
+}
+
 // ── Temp channels CRUD ──
 
 export async function createTempChannel(channelId, ownerId, guildId, panelMessageId) {

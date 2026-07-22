@@ -601,7 +601,10 @@ export async function handleTransfer(interaction) {
     if (success) {
       await collected.update({ content: `Ownership transferred to <@${targetId}>.`, components: [] });
     } else {
-      await collected.update({ content: 'Failed to transfer ownership.', components: [] });
+      await collected.update({
+        content: 'Failed to transfer ownership. The target may already own the maximum number of temp channels, or the channel is gone.',
+        components: [],
+      });
     }
   } catch {
     await interaction.editReply({ content: 'Selection timed out.', components: [] }).catch(() => null);

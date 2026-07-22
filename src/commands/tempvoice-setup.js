@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from 'discord.js';
-import { saveConfig, setDefaultAllowVad, getConfig } from '../services/tempvoice/tempvoiceService.js';
+import { saveConfig, setDefaultAllowVad, setMaxChannelsPerUser, getConfig } from '../services/tempvoice/tempvoiceService.js';
 import { loadConfig } from '../services/tempvoice/tempvoiceManager.js';
 import { successEmbed, errorEmbed } from '../utils/embed.js';
 
@@ -32,6 +32,13 @@ export default {
       opt
         .setName('voice-activation')
         .setDescription('Allow voice activation on new channels (default: true)'),
+    )
+    .addIntegerOption((opt) =>
+      opt
+        .setName('max-per-user')
+        .setDescription('Max temp channels per user (default: 1)')
+        .setMinValue(1)
+        .setMaxValue(10),
     ),
 
   async execute(interaction) {
@@ -39,20 +46,24 @@ export default {
     const category = interaction.options.getChannel('category');
     const logChannel = interaction.options.getChannel('log-channel');
     const voiceActivation = interaction.options.getBoolean('voice-activation');
+    const maxPerUser = interaction.options.getInteger('max-per-user');
 
     try {
       await saveConfig(trigger.id, category.id, logChannel?.id || null);
       if (voiceActivation !== null) await setDefaultAllowVad(voiceActivation);
+      if (maxPerUser !== null) await setMaxChannelsPerUser(maxPerUser);
       await loadConfig(); // Refresh cached config
 
       const config = await getConfig();
       const vadOn = (config.default_allow_vad ?? 1) ? 'enabled' : 'disabled';
+      const max = config.max_channels_per_user ?? 1;
 
       const lines = [
         `**Trigger channel:** ${trigger}`,
         `**Category:** ${category}`,
         logChannel ? `**Log channel:** ${logChannel}` : '**Log channel:** None',
         `**Voice activation default:** ${vadOn}`,
+        `**Max channels per user:** ${max}`,
       ];
 
       await interaction.reply({

@@ -506,13 +506,16 @@ export async function initSchema() {
       trigger_channel_id VARCHAR(20),
       category_id VARCHAR(20),
       log_channel_id VARCHAR(20),
-      max_channels_per_user INT DEFAULT 3,
+      max_channels_per_user INT DEFAULT 1,
       default_allow_vad TINYINT(1) NOT NULL DEFAULT 1,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       CHECK (id = 1)
     )
   `);
   await query(`ALTER TABLE temp_voice_config ADD COLUMN IF NOT EXISTS default_allow_vad TINYINT(1) NOT NULL DEFAULT 1`);
+  // One channel per user by default (was 3); keep explicit admin overrides >= 1.
+  await query(`ALTER TABLE temp_voice_config MODIFY max_channels_per_user INT DEFAULT 1`);
+  await query(`UPDATE temp_voice_config SET max_channels_per_user = 1 WHERE id = 1 AND (max_channels_per_user IS NULL OR max_channels_per_user = 3)`);
 
   await query(`
     CREATE TABLE IF NOT EXISTS temp_channels (
@@ -522,11 +525,13 @@ export async function initSchema() {
       guild_id VARCHAR(20) NOT NULL,
       panel_message_id VARCHAR(20),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_tc_owner (owner_id),
       INDEX idx_tc_guild (guild_id)
     )
   `);
+  // last_activity must only move via explicit touchActivity(), not every row UPDATE.
+  await query(`ALTER TABLE temp_channels MODIFY last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
 
   await query(`
     CREATE TABLE IF NOT EXISTS temp_voice_presets (
