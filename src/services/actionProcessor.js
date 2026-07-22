@@ -154,11 +154,21 @@ async function handleForceCloseTicket(ticketId, guild) {
 }
 
 async function handleSendSeedingCall(client) {
-  const { postSeedingCall } = await import('./seeding/seedingScheduler.js')
-  const { getSeedingConfig } = await import('./seeding/seedingService.js')
+  const { postSeedingCall, refreshActiveCall } = await import('./seeding/seedingScheduler.js')
+  const { getSeedingConfig, getActiveSession } = await import('./seeding/seedingService.js')
   const cfg = await getSeedingConfig()
   if (!cfg?.enabled || !cfg.channel_id) throw new Error('Seeding not enabled or channel not configured')
-  await postSeedingCall(client, cfg)
+
+  // Never create a second concurrent session. Active → refresh/re-post call only.
+  const session = await getActiveSession()
+  if (session) {
+    await refreshActiveCall(client, cfg, session)
+    return
+  }
+
+  // Staff override: new BEGUN + session; stamp last_daily_call_date so the clock
+  // cannot post a second automatic BEGUN the same day.
+  await postSeedingCall(client, cfg, { stampDailyCallDate: true })
 }
 
 async function handleSendSeedingRapport(payload, client) {

@@ -4,9 +4,17 @@ import logger from '../logger.js';
 
 const log = logger.child({ module: 'seedingButtons' });
 
-async function updateButtonCount(interaction, roleId) {
+function roleIdsFromConfig(cfg) {
+  if (Array.isArray(cfg?.role_ids) && cfg.role_ids.length > 0) {
+    return cfg.role_ids.map(String).filter(Boolean);
+  }
+  if (cfg?.role_id) return [String(cfg.role_id)];
+  return [];
+}
+
+async function updateButtonCount(interaction, primaryRoleId) {
   try {
-    const role = await interaction.guild.roles.fetch(roleId);
+    const role = await interaction.guild.roles.fetch(primaryRoleId);
     const count = role?.members?.size ?? null;
     const components = buildSeederRoleComponents(count);
     await interaction.message.edit({ components });
@@ -17,40 +25,44 @@ async function updateButtonCount(interaction, roleId) {
 
 export async function handleJoin(interaction) {
   const cfg = await getSeedingConfig();
-  if (!cfg?.role_id) {
+  const roleIds = roleIdsFromConfig(cfg);
+  if (roleIds.length === 0) {
     return interaction.reply({ content: 'Seeder role is not configured.', flags: ['Ephemeral'] });
   }
 
   const member = interaction.member;
-  if (member.roles.cache.has(cfg.role_id)) {
+  const missing = roleIds.filter((id) => !member.roles.cache.has(id));
+  if (missing.length === 0) {
     return interaction.reply({ content: 'You already have the seeder role.', flags: ['Ephemeral'] });
   }
 
-  await member.roles.add(cfg.role_id);
+  await member.roles.add(missing);
   await interaction.reply({
     content: 'You have joined the seeders! You will be pinged when seeding is needed.',
     flags: ['Ephemeral'],
   });
-  await updateButtonCount(interaction, cfg.role_id);
-  log.info({ userId: interaction.user.id }, 'User joined seeders');
+  await updateButtonCount(interaction, roleIds[0]);
+  log.info({ userId: interaction.user.id, roleIds: missing }, 'User joined seeders');
 }
 
 export async function handleLeave(interaction) {
   const cfg = await getSeedingConfig();
-  if (!cfg?.role_id) {
+  const roleIds = roleIdsFromConfig(cfg);
+  if (roleIds.length === 0) {
     return interaction.reply({ content: 'Seeder role is not configured.', flags: ['Ephemeral'] });
   }
 
   const member = interaction.member;
-  if (!member.roles.cache.has(cfg.role_id)) {
+  const present = roleIds.filter((id) => member.roles.cache.has(id));
+  if (present.length === 0) {
     return interaction.reply({ content: 'You do not have the seeder role.', flags: ['Ephemeral'] });
   }
 
-  await member.roles.remove(cfg.role_id);
+  await member.roles.remove(present);
   await interaction.reply({
     content: 'You have left the seeders.',
     flags: ['Ephemeral'],
   });
-  await updateButtonCount(interaction, cfg.role_id);
-  log.info({ userId: interaction.user.id }, 'User left seeders');
+  await updateButtonCount(interaction, roleIds[0]);
+  log.info({ userId: interaction.user.id, roleIds: present }, 'User left seeders');
 }
