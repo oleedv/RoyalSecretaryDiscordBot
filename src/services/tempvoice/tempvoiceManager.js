@@ -666,16 +666,20 @@ export async function initFromDb(client) {
   log.info({ recovered, cleaned }, 'Temp channel recovery complete');
 }
 
-// ── Auto-cleanup / empty sweep / orphan scan ──
+// ── Auto-cleanup / empty sweep ──
 
 /**
- * Frequent safety net: every tracked channel that is missing or empty is cleaned.
- * Also scans the configured category for empty untracked voice channels (orphans).
+ * Frequent safety net: every *tracked* channel that is missing or empty is cleaned.
+ *
+ * IMPORTANT: never delete voice channels that are not in temp_channels / activeChannels.
+ * Permanent/manual channels often live in the same category as the trigger; treating
+ * "empty + untracked" as an orphan was deleting normal community channels (v2.34.2 bug).
+ * Failed creates already roll back the Discord channel in handleJoinTrigger.
  */
 async function runEmptySweep(client) {
   let cleaned = 0;
 
-  // 1) Tracked / DB-backed channels
+  // Tracked / DB-backed channels only
   const rows = await db.getAllTempChannels();
   const seen = new Set();
 
@@ -726,7 +730,7 @@ async function runEmptySweep(client) {
     }
   }
 
-  // Memory-only entries with no DB row (should be rare)
+  // Memory-only entries with no DB row (should be rare; still only ids we previously tracked)
   for (const [channelId, data] of [...activeChannels.entries()]) {
     if (seen.has(channelId)) continue;
     try {
@@ -752,55 +756,7 @@ async function runEmptySweep(client) {
     }
   }
 
-  // 2) Orphan scan: empty voice channels in temp category that are not tracked
-  const config = cachedConfig;
-  if (config?.category_id && config?.trigger_channel_id) {
-    try {
-      // Prefer guilds that own tracked channels; also walk all guilds for category match
-      for (const guild of client.guilds.cache.values()) {
-        const category = await guild.channels.fetch(config.category_id).catch(() => null);
-        if (!category) continue;
-
-        const children = guild.channels.cache.filter(
-          (ch) => ch.parentId === config.category_id && ch.type === ChannelType.GuildVoice,
-        );
-
-        for (const channel of children.values()) {
-          if (channel.id === config.trigger_channel_id) continue;
-          if (activeChannels.has(channel.id)) continue;
-          if (seen.has(channel.id)) continue;
-
-          // Re-fetch members
-          const fresh = await guild.channels.fetch(channel.id).catch(() => null);
-          if (!fresh) continue;
-          if (fresh.members.size > 0) {
-            log.warn({ channelId: fresh.id, channelName: fresh.name }, 'Untracked non-empty voice channel in temp category');
-            continue;
-          }
-
-          try {
-            await fresh.delete('Orphan empty temp voice channel');
-            cleaned++;
-            log.info({ channelId: fresh.id, channelName: fresh.name }, 'Deleted orphan empty temp voice channel');
-            await logEvent(guild, {
-              title: 'Channel Deleted',
-              channel: { name: fresh.name },
-              fields: [
-                { name: 'Reason', value: 'Orphan empty (sweep)', inline: true },
-              ],
-              kind: 'destroy',
-            });
-          } catch (err) {
-            log.error({ err, channelId: fresh.id }, 'Failed to delete orphan temp channel');
-          }
-        }
-      }
-    } catch (err) {
-      log.error({ err }, 'Orphan scan error');
-    }
-  }
-
-  if (cleaned > 0) log.info({ cleaned }, 'Empty/orphan sweep complete');
+  if (cleaned > 0) log.info({ cleaned }, 'Empty sweep complete');
   return cleaned;
 }
 
@@ -882,7 +838,7 @@ export function startCleanupScheduler(client) {
   inactiveCleanupInterval = setInterval(inactiveTick, INACTIVE_CLEANUP_INTERVAL_MS);
   inactiveCleanupInterval.unref();
 
-  log.info('RB Voice cleanup scheduler started (empty sweep 2m, inactive 1h)');
+  log.info('RB Voice cleanup scheduler started (empty sweep 2m tracked-only, inactive 1h)');
 }
 
 export function stopCleanupScheduler() {
