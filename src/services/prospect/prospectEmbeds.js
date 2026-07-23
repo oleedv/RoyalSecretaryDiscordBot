@@ -24,7 +24,7 @@ export function buildProspectInfoEmbed(member, prospect, forumUrl, bmPlayerId = 
       { name: 'Date of Birth', value: prospect.date_of_birth, inline: true },
       { name: 'Hours in Squad', value: String(prospect.squad_hours), inline: true },
       { name: 'Previous Clan', value: prospect.prev_clan, inline: true },
-      { name: 'About yourself', value: prospect.about_yourself || '—' },
+      { name: 'About yourself', value: prospect.about_yourself || '-' },
       { name: 'Why RB?', value: prospect.why_rb },
       { name: 'Active Hours (UTC)', value: prospect.active_hours, inline: true },
       { name: 'Competitive Interest', value: prospect.competitive, inline: true },
@@ -76,7 +76,7 @@ export function buildForumIntroEmbed(member, prospect) {
       { name: 'Country', value: prospect.nationality, inline: true },
       { name: 'Hours in Squad', value: String(prospect.squad_hours), inline: true },
       { name: 'Previous Clan', value: prospect.prev_clan, inline: true },
-      { name: 'About yourself', value: prospect.about_yourself || '—' },
+      { name: 'About yourself', value: prospect.about_yourself || '-' },
       { name: 'Why RB?', value: prospect.why_rb },
       { name: 'Active Hours (UTC)', value: prospect.active_hours, inline: true },
       { name: 'Competitive Interest', value: prospect.competitive, inline: true },
@@ -277,9 +277,9 @@ export function buildVoteEmbed(prospect, stats = null) {
   if (hasGameData && (playtime || combat)) {
     const periodStart = new Date(prospect.period_started_at || prospect.created_at);
     const periodDaysElapsed = Math.max(1, Math.ceil((Date.now() - periodStart.getTime()) / 86400000));
-    const gameplayHours = playtime ? `${playtime.playtimeHours}h` : '—';
-    const seedingHours = playtime ? `${playtime.seedHours}h` : '—';
-    const daysActive = combat ? `${combat.daysActive}/${periodDaysElapsed} days` : '—';
+    const gameplayHours = playtime ? `${playtime.playtimeHours}h` : '-';
+    const seedingHours = playtime ? `${playtime.seedHours}h` : '-';
+    const daysActive = combat ? `${combat.daysActive}/${periodDaysElapsed} days` : '-';
     embed.addFields({
       name: 'Server Time',
       value: `Gameplay: **${gameplayHours}**\nSeeding: **${seedingHours}**\nActive: **${daysActive}**`,
@@ -288,8 +288,8 @@ export function buildVoteEmbed(prospect, stats = null) {
   }
 
   if (voice || messages) {
-    const voiceHours = voice ? `${Math.round((voice.totalSeconds / 3600) * 10) / 10}h` : '—';
-    const messageCount = messages ? messages.totalMessages : '—';
+    const voiceHours = voice ? `${Math.round((voice.totalSeconds / 3600) * 10) / 10}h` : '-';
+    const messageCount = messages ? messages.totalMessages : '-';
     embed.addFields({
       name: 'Discord',
       value: `Voice: **${voiceHours}**\nMessages: **${messageCount}**`,
@@ -362,7 +362,7 @@ export function buildProspectAiEmbed(section, sections) {
   const truncated = body.length > 4096 ? body.slice(0, 4093) + '...' : body;
 
   return createEmbed('Prospect')
-    .setTitle(`AI Assessment — ${label}`)
+    .setTitle(`AI Assessment: ${label}`)
     .setDescription(truncated)
     .setColor(0x5865f2);
 }

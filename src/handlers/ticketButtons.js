@@ -212,7 +212,7 @@ export async function handleDonate(interaction) {
     await interaction.editReply({ embeds: [infoEmbed(`Donation info sent to <@${ticket.user_id}> via DM and posted here.`)] });
   } else {
     await interaction.channel.send({
-      content: `<@${ticket.user_id}> (couldn't DM you — please see below)`,
+      content: `<@${ticket.user_id}> (couldn't DM you; please see below)`,
       embeds: [embed],
     });
     await interaction.editReply({ embeds: [infoEmbed(`Couldn't DM <@${ticket.user_id}>; posted in channel instead.`)] });

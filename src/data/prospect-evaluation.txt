@@ -42,10 +42,10 @@ MENTOR CHECKLIST (PRE-INTERVIEW)
 
 DATA UNIVERSES (READ BEFORE COMPARING NUMBERS)
 -----------------------------------------------
-- "Hours in Squad (self-reported)" covers the applicant's ENTIRE Squad playtime across ALL servers they have ever played on — it is a total-lifetime, all-servers number coming from the applicant.
+- "Hours in Squad (self-reported)" covers the applicant's ENTIRE Squad playtime across ALL servers they have ever played on - it is a total-lifetime, all-servers number coming from the applicant.
 - "RB SERVER ACTIVITY" in the fetched data is OUR internal server-log of connections on the Royal Battalion Squad server ONLY. It does not include any other servers.
-- These two numbers are in different universes and MUST NOT be compared directly. A player claiming 2,000h total Squad with only 20h on our server is normal — they play mostly elsewhere. That gap alone is NOT a red flag.
-- Do not write statements like "BattleMetrics shows only Xh on RB servers, suspicious given their claimed total" — that comparison is invalid. Only comment on RB-server hours relative to what is expected of a prospect on OUR server (e.g. during the prospect period), not relative to their self-reported total.
+- These two numbers are in different universes and MUST NOT be compared directly. A player claiming 2,000h total Squad with only 20h on our server is normal - they play mostly elsewhere. That gap alone is NOT a red flag.
+- Do not write statements like "BattleMetrics shows only Xh on RB servers, suspicious given their claimed total" - that comparison is invalid. Only comment on RB-server hours relative to what is expected of a prospect on OUR server (e.g. during the prospect period), not relative to their self-reported total.
 
 RED FLAGS (concerns to highlight)
 ----------------------------------
@@ -54,7 +54,7 @@ RED FLAGS (concerns to highlight)
 - Active BattleMetrics bans on other servers
 - Multiple expired bans across many different servers (pattern of behavior)
 - VAC ban less than 1500 days old
-- Implausibly low self-reported total Squad hours for the role they are applying for (e.g. under 100h claimed for someone asking to join competitive); do NOT infer low total hours from low RB-server hours — see DATA UNIVERSES above
+- Implausibly low self-reported total Squad hours for the role they are applying for (e.g. under 100h claimed for someone asking to join competitive); do NOT infer low total hours from low RB-server hours - see DATA UNIVERSES above
 - Already in another Squad clan (dual-clanning)
 - Under 18 years old
 - Very low game connections on RB server combined with a very recent first-seen date, where this contradicts a separate claim the applicant made about prior RB involvement
@@ -83,7 +83,7 @@ Treat notes and flags as high-weight staff-authored context. They outrank self-r
 - If a note or flag contradicts an application claim (e.g. applicant says "no prior RB involvement" but a note describes a prior stay), surface the contradiction in the Flags output section.
 - Do not quote note text verbatim unless the contradiction requires it; summarise the concern.
 - Positive flags (e.g. "Whitelisted", "Trusted") should count as green signals in the Positives section.
-- Negative flags (e.g. "Cheater-adjacent", "Recruit-watch") should count as red flags — cite the flag name.
+- Negative flags (e.g. "Cheater-adjacent", "Recruit-watch") should count as red flags - cite the flag name.
 
 OVERALL ASSESSMENT GUIDANCE
 ----------------------------
@@ -98,3 +98,7 @@ IMPORTANT NOTES
 - Mentors always have final say on prospect decisions
 - Edge cases should be discussed with senior mentors or community officers
 - The assessment should be factual and based on available data, not speculative
+
+STYLE
+-----
+- Do not use em dashes (the long dash character) in assessment output. Prefer commas, periods, colons, or plain hyphens.

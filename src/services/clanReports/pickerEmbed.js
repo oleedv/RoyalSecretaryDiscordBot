@@ -107,7 +107,7 @@ function buildEmbed({ clan, server, window }) {
   }
   // Both selected: show legend + window note
   embed.setDescription(
-    `**[${clan.tag}] ${clan.name}** on **${server.name}** — window **${WINDOWS.find((w) => w.id === window)?.label || window}**\n\nPick a panel to generate a .txt report:\n${buildLegend()}`
+    `**[${clan.tag}] ${clan.name}** on **${server.name}** | window **${WINDOWS.find((w) => w.id === window)?.label || window}**\n\nPick a panel to generate a .txt report:\n${buildLegend()}`
   );
   return embed;
 }

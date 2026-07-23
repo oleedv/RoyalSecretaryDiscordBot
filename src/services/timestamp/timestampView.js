@@ -32,7 +32,7 @@ export function renderCode(unix, style) {
 export function buildPreviewText(unix) {
   const lines = STYLES.map(({ style, label }) => {
     const code = renderCode(unix, style);
-    return `**${label}** — ${code}  ·  \`${code}\``;
+    return `**${label}**: ${code}  ·  \`${code}\``;
   });
   return lines.join('\n');
 }

@@ -141,7 +141,7 @@ export function buildExpiryWarningEmbed({ name, steamId, avatarUrl = null, expir
     .setColor(COLOR_WARNING)
     .setTitle('Whitelist Expiring Soon')
     .setDescription(
-      `${nameLabel(name, discordId)}, your seed whitelist is expiring soon — seed again to keep it!\n\`${track}\`\n**${done} / ${required} days**`
+      `${nameLabel(name, discordId)}, your seed whitelist is expiring soon. Seed again to keep it!\n\`${track}\`\n**${done} / ${required} days**`
     );
 
   if (avatarUrl) embed.setThumbnail(avatarUrl);

@@ -1,17 +1,17 @@
-# Royal Battalion — Squad Server Rules & Admin Guidelines
+# Royal Battalion: Squad Server Rules & Admin Guidelines
 
 ---
 
 ## SECTION 1: GENERAL RULES
 
-1. **Respect** — No bullying, discrimination, or derogatory language toward anyone.
-2. **No spam** — No screaming, sound effects, or music in voice/text chat.
+1. **Respect**: No bullying, discrimination, or derogatory language toward anyone.
+2. **No spam**: No screaming, sound effects, or music in voice/text chat.
 3. **Advertising**
    - 3.1 No advertising without staff permission.
    - 3.2 Streamers may promote only their own channel.
    - 3.3 Streamers must use in-game overlays or a 5-minute delay to protect the server and prevent stream sniping.
-4. **Recruiting** — Only Royal Battalion may recruit on the server.
-5. **Balancing** — Clans must help balance teams when asked by an Admin. All players must actively participate, even if a team-change request was denied.
+4. **Recruiting**: Only Royal Battalion may recruit on the server.
+5. **Balancing**: Clans must help balance teams when asked by an Admin. All players must actively participate, even if a team-change request was denied.
 
 ---
 
@@ -19,14 +19,14 @@
 
 > By playing on this server you accept these rules. Ignorance does not grant immunity.
 
-1. **Admin discretion** — All rules are enforced at Admin discretion. Do what Admins ask.
-2. **No intentional teamkilling** — Includes revenge TKs and "self-defence" TKs.
+1. **Admin discretion**: All rules are enforced at Admin discretion. Do what Admins ask.
+2. **No intentional teamkilling**: Includes revenge TKs and "self-defence" TKs.
 3. **Fair play**
    - 3.1 No third-party software or game exploits.
    - 3.2 No ghosting (sharing info with the enemy team).
-5. **Squads required** — All players must be in a squad; create one if none are available.
-6. **Player names** — Must use Latin characters and be readable.
-7. **No drama** — Stop arguments in chat if an Admin tells you to.
+5. **Squads required**: All players must be in a squad; create one if none are available.
+6. **Player names**: Must use Latin characters and be readable.
+7. **No drama**: Stop arguments in chat if an Admin tells you to.
 
 > Issues with Admin decisions can be reported via the **RB Support Bot**.
 
@@ -34,8 +34,8 @@
 
 ## SECTION 3: MAIN CAMPING RULES
 
-1. **Main camping is prohibited** — Do not position assets, vehicles, infantry, or mines to target enemies moving in/out of their main.
-   - **Rule of thumb:** Do not engage enemies between their main and their first capture point, or within 450 m of their main — whichever distance is greater.
+1. **Main camping is prohibited**: Do not position assets, vehicles, infantry, or mines to target enemies moving in/out of their main.
+   - **Rule of thumb:** Do not engage enemies between their main and their first capture point, or within 450 m of their main, whichever distance is greater.
    - 1.1 If objectives/FOBs are within the main-camp boundary, or enemies are fighting from that boundary, main-camp rules do not apply.
    - 1.2 Passing close to enemy main while flanking is allowed, as long as you do not engage.
    - 1.3 Admins have final word. Move if told to move.
@@ -65,15 +65,15 @@
    - 1.1 Cannot claim more vehicles than exist on the layer.
    - 1.2 You claim only one vehicle. Track your respawn timer.
    - 1.3 You may use an unclaimed vehicle only if no other squad has claimed it.
-2. **Crewman requirement** — Vehicles requiring the Crewman role must be 2-manned with Crewman kits at all times.
-3. **Naming clarity** — Generic names (Armour, TANK, IFV, APC) are invalid if ambiguous. If multiple vehicles of the same type exist, spell out the specific name.
+2. **Crewman requirement**: Vehicles requiring the Crewman role must be 2-manned with Crewman kits at all times.
+3. **Naming clarity**: Generic names (Armour, TANK, IFV, APC) are invalid if ambiguous. If multiple vehicles of the same type exist, spell out the specific name.
 4. **Activity**
    - 4.1 AFK / unused / undermanned vehicles lose their claim.
-   - 4.2 If the claiming squad is away from main, the claim isn't voided instantly — communicate.
+   - 4.2 If the claiming squad is away from main, the claim isn't voided instantly; communicate.
 5. **No heli ramming.**
-6. **Heli squads** — Max 3 players.
-7. **Vehicle squad size** — Limited to the vehicle's capacity. Scout/light vehicle squads (BRDM, RWS, Techies) may have up to 9.
-8. **No console squad creation** — Offenders receive squad-creation time limits.
+6. **Heli squads**: Max 3 players.
+7. **Vehicle squad size**: Limited to the vehicle's capacity. Scout/light vehicle squads (BRDM, RWS, Techies) may have up to 9.
+8. **No console squad creation**: Offenders receive squad-creation time limits.
 
 ---
 
@@ -100,18 +100,18 @@
 
 ## SECTION 8: VALID VEHICLE CLAIM NAMES
 
-### 8A — Helicopters
+### 8A: Helicopters
 
 - **Single variant / no ambiguity:** "HELI" is acceptable.
 - **Loach (WPMC):**
   - Attack → "Loach CAS" or "CAS"
   - Scout → "Loach Scout"
 
-### 8B — Mobile Spawn Vehicle (WPMC)
+### 8B: Mobile Spawn Vehicle (WPMC)
 
 - "MSV" or "MOBILE SPAWN VEHICLE"
 
-### 8C — Light Vehicle Squads (Claimable Open/Closed Top)
+### 8C: Light Vehicle Squads (Claimable Open/Closed Top)
 
 **Generic acceptable names:**
 - ATGM VIC, TOW VIC, KORNET VIC
@@ -126,13 +126,13 @@
 
 **RWS specifics:** PMV RWS · Tigr RWS · Kozak RWS · LPPV RWS · CSK RWS · Cobra MG3 RWS · Cobra M2 RWS · TAPV
 
-**Technical — UB-32:** Technical UB-32 · Armored Technical UB-32 · Armored Modern Technical UB-32
+**Technical (UB-32):** Technical UB-32 · Armored Technical UB-32 · Armored Modern Technical UB-32
 
-**Technical — SPG9:** Technical SPG9 · Modern Technical SPG9 · Armored Technical SPG9 · Armored Modern Technical SPG9
+**Technical (SPG9):** Technical SPG9 · Modern Technical SPG9 · Armored Technical SPG9 · Armored Modern Technical SPG9
 
-**Technical — Other:** Technical Mortar · Technical BMP-1 (no Crewman kit required)
+**Technical (Other):** Technical Mortar · Technical BMP-1 (no Crewman kit required)
 
-### 8D — Faction-Specific Vehicle Claim Names
+### 8D: Faction-Specific Vehicle Claim Names
 
 > Rule: Use the generic name only when no ambiguity exists; otherwise **specify the variant**.
 
@@ -156,43 +156,43 @@
 
 ## SECTION 9: ADMIN GUIDELINES (INTERNAL)
 
-### 9A — Tickets & Sharing Information with Players
+### 9A: Tickets & Sharing Information with Players
 
 - **Never share internal details** with players. This includes: evidence from the evidence vault, internal deliberations on punishments.
 - If a player asks for evidence, respond: *"We do not share internal details, including evidence. You may report us to OWI, and we will let them review our evidence."*
-- If a player reports someone, respond: *"Thanks, we'll review the evidence and handle the player appropriately."* — Do not specify the punishment, even if evidence is insufficient.
+- If a player reports someone, respond: *"Thanks, we'll review the evidence and handle the player appropriately."* Do not specify the punishment, even if evidence is insufficient.
 - **Ping @Whitelist Officer** in the evidence chat whenever you ban/warn a player from a whitelisted clan.
 
-### 9B — Global Chat / Broadcasts
+### 9B: Global Chat / Broadcasts
 
 - Almost never use global chat broadcasts.
-- **Only exception:** Calling for RB or external clan members to balance next round — and only after discussion in in-game Admin chat. When in doubt, ask first.
+- **Only exception:** Calling for RB or external clan members to balance next round, and only after discussion in in-game Admin chat. When in doubt, ask first.
 
-### 9C — Changing Layers / Ending Matches
+### 9C: Changing Layers / Ending Matches
 
-- **Emergency use only** — meaning only when a layer is broken (e.g. vehicles not spawning).
+- **Emergency use only** (meaning only when a layer is broken, e.g. vehicles not spawning).
 - Process: Ping a second admin in 🔱︱server-admins → if both agree, ping an @Admin Officer for the final call.
 - **Do NOT** skip layers because players say it's boring, or because "it fits better," or to test buttons.
 - **Do NOT** change layers during weekend rotations.
 - **Exception:** During seeding, press End Match when 65+ players are reached to transition to the next layer.
 
-### 9D — Community Ban List (CBL)
+### 9D: Community Ban List (CBL)
 
-- **Never delete expired bans** — they feed into CBL risk-rating calculations.
+- **Never delete expired bans**; they feed into CBL risk-rating calculations.
 - **Do delete:** duplicate entries and bans that were issued and lifted the same calendar day (regardless of offence). Ping @Admin Officer for deletions.
 - Review every CBL-related ticket carefully; the ban list may contain duplicates or same-day bans.
 
-### 9E — Ticket Conduct Reminders (Admin Officer Notice)
+### 9E: Ticket Conduct Reminders (Admin Officer Notice)
 
 1. **Neutral and respectful tone.** If you cannot remain neutral, leave the ticket and tag a senior admin or Admin Officer. Do not return insults or sass.
 2. **Do not over-share.** You may tell a player *why* they were banned, but never show evidence or admin deliberations. Third parties cannot request info about another player's ban.
 
-### 9F — General Admin Procedures
+### 9F: General Admin Procedures
 
 - For any issues or concerns, contact an **Admin Officer**.
 - **Replay software is mandatory.** Always have replay enabled (NVidia/AMD drivers both support this). Even a 5-minute replay buffer is sufficient for evidence and ticket coverage. No exceptions.
 
-### 9G — Warnings
+### 9G: Warnings
 
 - Warnings must be **clear and understandable** to the player.
 - Issue warnings through **BattleMetrics**.
@@ -200,15 +200,15 @@
 - **Flag** the player as warned.
 - If the player argues or needs further explanation, direct them to the **Support Bot**.
 
-### 9H — Kicks
+### 9H: Kicks
 
 - Kicks must include a **clear reason** visible to the player.
-- Evidence is **suggested but not required** — it may be useful for later appeals or escalations.
+- Evidence is **suggested but not required**; it may be useful for later appeals or escalations.
 - **Flag** the player as kicked, with additional flags matching the rule broken.
-- **Consider warning first** — especially for new players unfamiliar with how the game works. Helping them is preferable to punishing them.
+- **Consider warning first**, especially for new players unfamiliar with how the game works. Helping them is preferable to punishing them.
 - If they argue upon return, direct them to the **Support Bot**.
 
-### 9I — Bans
+### 9I: Bans
 
 - Bans are a **last resort** and **must** be supported with evidence (preferably video and screenshots) to avoid "he said, she said" situations.
 - **Before banning:**
@@ -216,18 +216,18 @@
   2. Check Admin Guidelines for the correct ban duration.
   3. After issuing the ban, share evidence in the appropriate **Evidence Vault** topic.
 
-### 9J — Admin Tickets (Handling Process)
+### 9J: Admin Tickets (Handling Process)
 
 - Leave tickets to the **Admin directly involved** in the situation.
-- If you want to discuss a ticket internally, **open a thread** — do not clutter the ticket itself.
+- If you want to discuss a ticket internally, **open a thread**. Do not clutter the ticket itself.
 - If you believe a ticket was mishandled, contact an **Admin Officer** for review.
 - You are **never required** to share evidence with the person appealing.
 
-### 9K — Admin Code of Conduct
+### 9K: Admin Code of Conduct
 
 > By being an Admin on this server, you agree to follow this Code of Conduct. Violations may result in Admin powers being revoked. @Founder and the head of Admin Staff reserve the right to update this at any time.
 
-1. **Be fair and friendly.** Admins are ambassadors of the server and clan. No jokes, sarcasm, trolling, or memes when handling complaints or in 🆕︱server-feedback — that section is public-facing and must stay clean.
+1. **Be fair and friendly.** Admins are ambassadors of the server and clan. No jokes, sarcasm, trolling, or memes when handling complaints or in 🆕︱server-feedback; that section is public-facing and must stay clean.
 2. **Co-operate with other admins** at all times; ask for help when needed.
 3. **On-duty requirements:** When performing admin duties, you must be in the Admin Discord VC and in a locked squad named "Admin" to monitor the command channel.
 4. **Enforce rules** using the escalation ladder: Warn → Kick → Ban.
@@ -236,10 +236,10 @@
    - Bans/incidents are handled by the Admin who dealt with the situation.
    - If that Admin is unavailable, politely inform the player they will be contacted when the Admin is available.
    - Major incidents should be escalated to @Founder, @RB Managers, or @RB Server Admin.
-   - 6.1 Keep RB Admin Bot ticket channels **professional and clean** — no sarcastic or snarky comments. Ticket content may be forwarded to OWI's Hosting Discord in serious cases.
+   - 6.1 Keep RB Admin Bot ticket channels **professional and clean**; no sarcastic or snarky comments. Ticket content may be forwarded to OWI's Hosting Discord in serious cases.
 7. **De-escalation:** If a situation turns hostile, stay calm. Do not become defensive, aggressive, or resort to jokes/sarcasm. Ask another Admin to mediate, or escalate to @Founder / @RB Managers / @RB Server Admin.
 8. **In-game arguments:** De-escalate any arguments that break out in Global Chat.
 9. **Do NOT abuse your powers.**
-10. **No DM bypassing:** Do not Direct Message admin information about incidents — all admin activity must be recorded in 🔱︱server-admins with screenshots so other admins can see it.
+10. **No DM bypassing:** Do not Direct Message admin information about incidents; all admin activity must be recorded in 🔱︱server-admins with screenshots so other admins can see it.
 
-> Reference: OWI Server Administration Policies — https://forums.joinsquad.com/discussion/22/server-administration-policies#latest
+> Reference: OWI Server Administration Policies: https://forums.joinsquad.com/discussion/22/server-administration-policies#latest

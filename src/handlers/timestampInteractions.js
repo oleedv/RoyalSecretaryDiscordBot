@@ -17,7 +17,7 @@ export async function handleStyleSelect(interaction) {
   const parsed = parseStyleSelectCustomId(interaction.customId);
   const style = interaction.values?.[0];
   if (!parsed || !isValidStyle(style)) {
-    return interaction.reply({ embeds: [errorEmbed('That timestamp expired — run `/timestamp` again.')], flags: ['Ephemeral'] });
+    return interaction.reply({ embeds: [errorEmbed('That timestamp expired. Run `/timestamp` again.')], flags: ['Ephemeral'] });
   }
 
   const content =
@@ -29,7 +29,7 @@ export async function handleStyleSelect(interaction) {
 export async function handlePostButton(interaction) {
   const parsed = parsePostCustomId(interaction.customId);
   if (!parsed) {
-    return interaction.reply({ embeds: [errorEmbed('That timestamp expired — run `/timestamp` again.')], flags: ['Ephemeral'] });
+    return interaction.reply({ embeds: [errorEmbed('That timestamp expired. Run `/timestamp` again.')], flags: ['Ephemeral'] });
   }
 
   const code = renderCode(parsed.unix, parsed.style);
