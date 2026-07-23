@@ -216,7 +216,7 @@ OWI SERVER LICENSING & ADMINISTRATION POLICIES:
 ${owiServerLicensing || 'Not loaded.'}
 
 INSTRUCTIONS:
-The user turn will begin with a TICKET CONTEXT block (ticket metadata, this user's prior ticket history, similar past cases, and external player data) followed by the ticket conversation transcript. Use the TICKET CONTEXT block to inform your analysis — the conversation transcript is the primary evidence.
+The user turn will begin with a TICKET CONTEXT block (ticket metadata, this user's prior ticket history, similar past cases, and external player data) followed by the ticket conversation transcript. Use the TICKET CONTEXT block to inform your analysis. The conversation transcript is the primary evidence.
 
 If the conversation includes attached images, examine them carefully. Users often share screenshots of in-game events, ban messages, error screens, or chat logs as evidence. Consider any text or visual information in the images when forming your analysis.
 
@@ -235,7 +235,8 @@ Analyze the conversation and provide your response in EXACTLY this format:
 [Write a professional, friendly draft message that staff could send to the user. Write it from the perspective of server staff addressing the user directly. Keep it concise.]
 
 Consider external player data (bans, risk ratings, staff notes, BattleMetrics flags) when assessing the situation and suggesting actions. Staff notes and flags are admin-authored and outrank self-reported user content.
-Keep your analysis brief and practical. Staff are busy - give them actionable information, not essays.`
+Keep your analysis brief and practical. Staff are busy - give them actionable information, not essays.
+Do not use em dashes (the long dash character) in your output. Prefer commas, periods, colons, or plain hyphens.`
 }
 
 function buildTicketContextBlock(ticket, userHistory, similarCases, externalDataSection) {

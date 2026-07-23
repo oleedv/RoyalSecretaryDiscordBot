@@ -41,7 +41,7 @@ IMPORTANT GUARDRAILS - false positives waste staff time:
 - Squad chat is in-game text. Players are often blunt, salty, use profanity, and trash-talk. Generic profanity ("fuck", "shit", "this map sucks") is NOT a violation by itself.
 - Mil-sim roleplay language is NOT a threat: "kill them all", "wipe them out", "enemy spotted", "frag him", "nuke them" are normal Squad communication.
 - Banter between teammates ("you're trash at this", "git gud") is NOT abuse unless clearly hostile and targeted.
-- Squad-leader commands and tactical callouts are normal — do not flag.
+- Squad-leader commands and tactical callouts are normal; do not flag.
 - Disagreement with a teammate is NOT drama unless sustained or directed at admin authority.
 - A single mild insult in heat-of-the-moment is more likely "possible" than "definite".
 - When in doubt between definite and possible, prefer possible.

@@ -62,7 +62,7 @@ export function filterZones(allZones, input, { savedZone, common = COMMON_ZONES 
 export function suggestZones(input, savedZone) {
   return filterZones(listZones(), input, { savedZone }).map((zone) => {
     const now = DateTime.now().setZone(zone);
-    const label = now.isValid ? `${zone} — ${now.toFormat('HH:mm')}` : zone;
+    const label = now.isValid ? `${zone} (${now.toFormat('HH:mm')})` : zone;
     return { name: label.slice(0, 100), value: zone };
   });
 }

@@ -41,6 +41,6 @@ export default {
     const posted = await interaction.channel.send({ embeds: [embed] });
     await setBoardPointer(interaction.channel.id, posted.id);
     log.info({ channelId: interaction.channel.id, messageId: posted.id }, 'Comms board posted');
-    return interaction.editReply({ embeds: [successEmbed('Comms board posted here — it updates every couple of minutes.')] });
+    return interaction.editReply({ embeds: [successEmbed('Comms board posted here. It updates every couple of minutes.')] });
   },
 };

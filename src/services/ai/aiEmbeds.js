@@ -83,7 +83,7 @@ export function buildSuggestionEmbed(suggestion, page = 1) {
   const i = safePage - 1
 
   const title = totalPages > 1
-    ? `AI Ticket Suggestion — Page ${safePage}/${totalPages}`
+    ? `AI Ticket Suggestion: Page ${safePage}/${totalPages}`
     : 'AI Ticket Suggestion'
 
   return createEmbed('AI Suggestion')

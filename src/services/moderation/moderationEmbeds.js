@@ -28,7 +28,7 @@ function renderFlagSection(flags, header) {
   if (flags.length === 0) return `${header}\n  (none)\n`;
   const lines = [header];
   flags.forEach((f, i) => {
-    lines.push(`[${i + 1}] ${f.severity.toUpperCase()} — ${f.category}`);
+    lines.push(`[${i + 1}] ${f.severity.toUpperCase()}: ${f.category}`);
     lines.push(`    Player:  ${f.player_name}`);
     lines.push(`    Steam:   ${f.steam_id || '(unknown)'}`);
     lines.push(`    EOS:     ${f.eos_id || '(unknown)'}`);
@@ -54,7 +54,7 @@ function renderRepeatOffenders(offenders) {
       for (const r of o.recent) {
         const date = new Date(r.run_date).toISOString().slice(0, 10);
         const snippet = String(r.message_text || '').slice(0, 100);
-        lines.push(`  - ${date}: ${r.severity}/${r.category} — "${snippet}"`);
+        lines.push(`  - ${date}: ${r.severity}/${r.category}: "${snippet}"`);
       }
     }
     lines.push(`  Total: ${o.total_flags} flag${o.total_flags === 1 ? '' : 's'} (${o.definite_count} definite, ${o.possible_count} possible)`);
@@ -66,7 +66,7 @@ function buildReportTextFile({ runDate, server, stats, definite, possible, repea
   const sep = '='.repeat(64);
   const windowEndIso = `${runDate} ${stats.windowEndTime}`;
   return [
-    'ROYAL BATTALION — DAILY CHAT MODERATION REPORT',
+    'ROYAL BATTALION DAILY CHAT MODERATION REPORT',
     `Date: ${runDate} (window: ${stats.windowStartIso} → ${windowEndIso} UTC)`,
     `Server: ${server.name} (id=${server.id})`,
     `Total messages: ${stats.totalMessages} | Unique players: ${stats.uniquePlayers}`,
@@ -91,7 +91,7 @@ export function buildReportPayload({ runDate, server, stats, definite, possible,
     : 'None';
 
   const embed = new EmbedBuilder()
-    .setTitle(`Daily Chat Moderation — ${runDate}`)
+    .setTitle(`Daily Chat Moderation: ${runDate}`)
     .setColor(color)
     .setDescription(`${server.name}\nWindow: 24h ending ${stats.windowEndTime} UTC`)
     .addFields(
@@ -113,11 +113,11 @@ export function buildReportPayload({ runDate, server, stats, definite, possible,
 
 export function buildZeroViolationsPayload({ runDate, server, stats, model }) {
   const description = stats.totalMessages === 0
-    ? `${server.name}\nNo chat captured in the last 24h — server may have been offline or quiet.`
+    ? `${server.name}\nNo chat captured in the last 24h; server may have been offline or quiet.`
     : `${server.name}\nWindow: 24h ending ${stats.windowEndTime} UTC\nNo violations flagged.`;
 
   const embed = new EmbedBuilder()
-    .setTitle(`Daily Chat Moderation — ${runDate}`)
+    .setTitle(`Daily Chat Moderation: ${runDate}`)
     .setColor(COLOR_CLEAN)
     .setDescription(description)
     .addFields(
@@ -137,7 +137,7 @@ export function buildZeroViolationsPayload({ runDate, server, stats, model }) {
 
 export function buildErrorPayload({ runDate, errorMessage, stage }) {
   const embed = new EmbedBuilder()
-    .setTitle(`Daily Chat Moderation — ${runDate} (failed)`)
+    .setTitle(`Daily Chat Moderation: ${runDate} (failed)`)
     .setColor(COLOR_ERROR)
     .setDescription(`Report could not be generated.\nStage: \`${stage}\`\n\n${errorMessage}`)
     .setFooter({ text: 'Will retry on next scheduler tick (up to 3x per day).' })

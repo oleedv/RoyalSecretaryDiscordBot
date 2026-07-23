@@ -451,7 +451,7 @@ export async function runDailyModerationReport(client, opts = {}) {
     });
     await sendToChannel(client, cfg.channelId, buildErrorPayload({
       runDate,
-      errorMessage: `${err.message} (attempt ${retries}/${MAX_DAILY_RETRIES}${giveUp ? ' — giving up for today' : ''})`,
+      errorMessage: `${err.message} (attempt ${retries}/${MAX_DAILY_RETRIES}${giveUp ? '; giving up for today' : ''})`,
       stage: 'ai_call',
     }));
     return { status: 'ai_failed', error: err.message };

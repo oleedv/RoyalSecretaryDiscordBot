@@ -15,7 +15,7 @@ export function buildLeaderboardRows({ topRows, users, whitelist, slClanId }) {
   }
   return topRows.map((r, i) => {
     const entries = wlBySteam.get(r.steam_id) ?? [];
-    let badge = '—';
+    let badge = '-';
     if (entries.some((e) => e.clanId === slClanId)) badge = '✓ SL';
     else if (entries.length > 0) badge = '✓';
     const user = userBySteam.get(r.steam_id);
@@ -50,7 +50,7 @@ export function formatLeaderboardTable(rows) {
  */
 export function buildLeaderboardEmbed({ rows, nextUpdateUnix }) {
   const embed = new EmbedBuilder()
-    .setTitle('Squad Leader Rankings — rolling 7 days')
+    .setTitle('Squad Leader Rankings (rolling 7 days)')
     .setDescription('Top squad leaders by qualifying SL time. Reach 5h to earn 7 days of free whitelist.')
     .addFields({ name: '​', value: formatLeaderboardTable(rows) })
     .setColor(0x2ecc71);

@@ -133,7 +133,8 @@ Analyze the prospect's application and all available data. Provide your response
 **Positives:**
 [List positive indicators. Be specific - cite the data.]
 
-Keep it concise. Mentors are busy - give them actionable information at a glance.`
+Keep it concise. Mentors are busy - give them actionable information at a glance.
+Do not use em dashes (the long dash character) in your output. Prefer commas, periods, colons, or plain hyphens.`
 }
 
 // Strip angle brackets so user-supplied text cannot close the <application_data> tag and inject instructions.

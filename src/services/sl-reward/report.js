@@ -27,7 +27,7 @@ export function buildCandidateReport(rows, meta) {
   });
 
   const header = [
-    `SL Grant Cron Run — ${fmtUtc(meta.nowIso)}`,
+    `SL Grant Cron Run: ${fmtUtc(meta.nowIso)}`,
     `Environment: ${meta.env} | Dry-run: ${meta.dry ? 'yes' : 'no'}`,
     `Threshold: ${Number(meta.thresholdHours).toFixed(1)}h rolling 7d | Reward: ${meta.rewardDays} days`,
     `Candidates: ${meta.candidates} | Granted: ${meta.grants} | Extended: ${meta.extensions} | Skipped: ${meta.skipped} | DMs: queued ${meta.dmsQueued} · redelivered ${meta.dmsRedelivered}`,

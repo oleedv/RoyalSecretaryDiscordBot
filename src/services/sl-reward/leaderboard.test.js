@@ -17,7 +17,7 @@ test('buildLeaderboardRows merges users, badges whitelist, prefers Discord name'
   const out = buildLeaderboardRows({ topRows, users, whitelist, slClanId: SL });
   expect(out[0]).toEqual({ rank: 1, displayName: 'DiscordAlpha', hours: '4.8', badge: '✓ SL' });
   expect(out[1]).toEqual({ rank: 2, displayName: 'IngameBeta', hours: '4.2', badge: '✓' });
-  expect(out[2]).toEqual({ rank: 3, displayName: 'IngameGamma', hours: '4.0', badge: '—' });
+  expect(out[2]).toEqual({ rank: 3, displayName: 'IngameGamma', hours: '4.0', badge: '-' });
 });
 
 test('formatLeaderboardTable: empty', () => {

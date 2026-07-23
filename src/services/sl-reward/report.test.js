@@ -24,7 +24,7 @@ const ROWS = [
 
 test('report header carries run metadata and counts', () => {
   const out = buildCandidateReport(ROWS, META);
-  expect(out).toContain('SL Grant Cron Run — 2026-06-17 14:30 UTC');
+  expect(out).toContain('SL Grant Cron Run: 2026-06-17 14:30 UTC');
   expect(out).toContain('Environment: production | Dry-run: no');
   expect(out).toContain('Threshold: 5.0h rolling 7d | Reward: 7 days');
   expect(out).toContain('Candidates: 4 | Granted: 1 | Extended: 1 | Skipped: 2 | DMs: queued 0 · redelivered 1');

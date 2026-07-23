@@ -6,7 +6,7 @@ const COLOR_MUTED = 0x99aab5;
 
 function steamField(steamId) {
   // Same Steam-profile link standard used by the prospect/ticket embeds.
-  return `\`${steamId}\` — [steamid.com](https://www.steamid.com/profiles/${steamId})`;
+  return `\`${steamId}\` · [steamid.com](https://www.steamid.com/profiles/${steamId})`;
 }
 
 function relativeTimestamp(date) {
@@ -27,7 +27,7 @@ export function buildGrantLogEmbed({ name, steamId, discordId, hours, days, expi
       { name: 'Qualifying', value: `${hours.toFixed(1)}h / 5.0h`, inline: true },
       {
         name: 'Reward',
-        value: dry ? `${days} days (dry-run)` : `${days} days — expires ${relativeTimestamp(expiresAt)}`,
+        value: dry ? `${days} days (dry-run)` : `${days} days, expires ${relativeTimestamp(expiresAt)}`,
         inline: false
       },
       { name: 'Steam', value: steamField(steamId), inline: false }

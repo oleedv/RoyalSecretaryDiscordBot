@@ -142,7 +142,7 @@ export function formatCombatStatsForAi(stats) {
 
   const lines = [];
   lines.push(`Player: ${stats.player.name || '(unknown)'} | Steam: ${stats.player.steamId || '?'}`);
-  lines.push(`Window: last ${stats.windowDays} days (OUR server only — cross-server TK history is NOT reflected here).`);
+  lines.push(`Window: last ${stats.windowDays} days (OUR server only; cross-server TK history is NOT reflected here).`);
   lines.push(`Kills: ${stats.kills} | Deaths: ${stats.deaths} | K/D: ${stats.kd}`);
   lines.push(`Teamkills committed: ${stats.tksCommitted} (team damage dealt: ${stats.teamDamageDealt})`);
   lines.push(`Teamkills received: ${stats.tksReceived} (team damage received: ${stats.teamDamageReceived})`);

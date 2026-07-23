@@ -20,21 +20,21 @@ export function buildEntryEmbed(giveaway, entryCount, topPlayed = [], topSeed = 
   ];
 
   const embed = new EmbedBuilder()
-    .setTitle(`RB Member Game Giveaway — ${giveaway.month_label}`)
+    .setTitle(`RB Member Game Giveaway: ${giveaway.month_label}`)
     .setDescription(lines.join('\n'))
     .setColor(COLOR_GIVEAWAY);
 
   if (topPlayed.length) {
     embed.addFields({
       name: 'Top Played',
-      value: topPlayed.map((r, i) => `${i + 1}. <@${r.userId}> — ${r.hours}h`).join('\n') || '*(none yet)*',
+      value: topPlayed.map((r, i) => `${i + 1}. <@${r.userId}> · ${r.hours}h`).join('\n') || '*(none yet)*',
       inline: true,
     });
   }
   if (topSeed.length) {
     embed.addFields({
       name: 'Top Seeding',
-      value: topSeed.map((r, i) => `${i + 1}. <@${r.userId}> — ${r.seed}h`).join('\n') || '*(none yet)*',
+      value: topSeed.map((r, i) => `${i + 1}. <@${r.userId}> · ${r.seed}h`).join('\n') || '*(none yet)*',
       inline: true,
     });
   }
@@ -56,9 +56,9 @@ export const VOTE_BUTTONS_PER_MESSAGE = 25;
 const BUTTONS_PER_ROW = 5;
 
 export function buildVoteEmbed(giveaway, page, totalPages) {
-  const pageSuffix = totalPages > 1 ? ` — page ${page + 1}/${totalPages}` : '';
+  const pageSuffix = totalPages > 1 ? ` (page ${page + 1}/${totalPages})` : '';
   return new EmbedBuilder()
-    .setTitle(`Community Vote — ${giveaway.month_label}${pageSuffix}`)
+    .setTitle(`Community Vote: ${giveaway.month_label}${pageSuffix}`)
     .setDescription([
       `**Who has gone above and beyond for the community this month?**`,
       '',
@@ -109,11 +109,11 @@ export function buildLeaderboardEmbed(giveaway, leaderboard, limit = 20) {
   const top = leaderboard.slice(0, limit);
   const lines = top.map((r, i) => {
     const tag = r.manual ? ' *(manual)*' : '';
-    return `\`${String(i + 1).padStart(2, ' ')}.\` <@${r.userId}> — **${r.tickets}** tickets `
+    return `\`${String(i + 1).padStart(2, ' ')}.\` <@${r.userId}> · **${r.tickets}** tickets `
       + `(${r.hours}h + 2×${r.seed}h seed + ${r.votes} votes)${tag}`;
   });
   return new EmbedBuilder()
-    .setTitle(`Leaderboard — ${giveaway.month_label}`)
+    .setTitle(`Leaderboard: ${giveaway.month_label}`)
     .setDescription(lines.length ? lines.join('\n') : '*No entries yet.*')
     .setColor(COLOR_INFO)
     .setFooter({ text: `Total entries: ${leaderboard.length}` });
@@ -123,11 +123,11 @@ export function buildWinnerEmbed(giveaway, winner, leaderboard) {
   const total = leaderboard.reduce((s, e) => s + e.tickets, 0);
   const top5 = leaderboard.slice(0, 5);
   const breakdown = top5.map((r, i) =>
-    `${i + 1}. <@${r.userId}> — ${r.tickets} tickets`
+    `${i + 1}. <@${r.userId}> · ${r.tickets} tickets`
   ).join('\n');
 
   return new EmbedBuilder()
-    .setTitle(`Winner — ${giveaway.month_label}`)
+    .setTitle(`Winner: ${giveaway.month_label}`)
     .setDescription([
       `Prize: **${giveaway.prize}**`,
       '',

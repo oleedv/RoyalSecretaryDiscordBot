@@ -108,8 +108,8 @@ function formatBmFlags(bmFlags) {
   for (const f of shown) {
     const name = f.name || 'Unnamed flag';
     const desc = (f.description || '').replace(/\s+/g, ' ').trim();
-    const prefix = f.addedAt ? `<t:${Math.floor(new Date(f.addedAt).getTime() / 1000)}:d> — ` : '';
-    lines.push(desc ? `${prefix}**${name}** — ${desc}` : `${prefix}**${name}**`);
+    const prefix = f.addedAt ? `<t:${Math.floor(new Date(f.addedAt).getTime() / 1000)}:d>: ` : '';
+    lines.push(desc ? `${prefix}**${name}**: ${desc}` : `${prefix}**${name}**`);
   }
   if (bmFlags.length > shown.length) {
     lines.push(`*…+${bmFlags.length - shown.length} more*`);
@@ -128,7 +128,7 @@ function formatBmNotes(bmNotes) {
     if (!text) continue;
     const truncated = text.length > PER_NOTE_MAX ? text.slice(0, PER_NOTE_MAX - 3) + '...' : text;
     const ts = n.createdAt ? Math.floor(new Date(n.createdAt).getTime() / 1000) : null;
-    const prefix = ts ? `<t:${ts}:d> — ` : '';
+    const prefix = ts ? `<t:${ts}:d>: ` : '';
     lines.push(`${prefix}${truncated}`);
   }
   if (bmNotes.length > shown.length) {
