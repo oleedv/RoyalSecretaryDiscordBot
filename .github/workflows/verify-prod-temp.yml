@@ -1,0 +1,26 @@
+name: Verify Prod Bot
+on: workflow_dispatch
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Verify live prod bot
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -e
+            echo '=== container ==='
+            docker ps --filter name=royal-secretary-bot-prod --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'
+            echo '=== package version ==='
+            docker exec royal-secretary-bot-prod cat package.json | head -5
+            echo '=== SQUADJS_SERVERS shape (ids only, no secrets) ==='
+            docker exec royal-secretary-bot-prod printenv SQUADJS_SERVERS | tr ',' '\n' | awk -F'|' '{printf "name=%s serverId=%s\n", $1, ($4==""?"MISSING":$4)}'
+            echo '=== recent serverStatus / SquadJS logs ==='
+            docker logs --since 30m royal-secretary-bot-prod 2>&1 | grep -E 'serverStatus|serverStatusQueries|Resolved server|Could not resolve|Connected to SquadJS|status updater|serverId|SQUADJS' | tail -80 || true
+            echo '=== recent errors/warns about status ==='
+            docker logs --since 30m royal-secretary-bot-prod 2>&1 | grep -E 'serverStatus|serverStatusQueries' | tail -40 || true
+            echo '=== done ==='
