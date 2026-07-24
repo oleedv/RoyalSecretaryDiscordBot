@@ -15,12 +15,18 @@ const num = (x) => (x == null ? null : Number(x)); // BIGINT may arrive as BigIn
 
 export { getDiscordIdBySteamId };
 
-// Open prospects with a channel (secretary pool — always available even if website is down).
+// Actual prospects in their period (interview accepted). status stays 'open' from application
+// through the period, so period_started_at is what marks a real prospect vs an unclaimed/
+// pre-accept application ticket — those must not get "not on Discord while in-game" alerts.
+// Secretary pool only — works even if the website pool is down.
 export async function getOpenProspects() {
   try {
     return await query(
       `SELECT id, user_id, steam_id, alias, mentor_id, channel_id
-       FROM prospects WHERE status = 'open' AND channel_id IS NOT NULL`,
+       FROM prospects
+       WHERE status = 'open'
+         AND channel_id IS NOT NULL
+         AND period_started_at IS NOT NULL`,
     );
   } catch (err) {
     log.warn({ err }, 'Failed to load open prospects');
