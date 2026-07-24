@@ -287,12 +287,16 @@ export function buildVoteEmbed(prospect, stats = null) {
     });
   }
 
-  if (voice || messages) {
-    const voiceHours = voice ? `${Math.round((voice.totalSeconds / 3600) * 10) / 10}h` : '-';
-    const messageCount = messages ? messages.totalMessages : '-';
+  // Always show Discord hours + messages on the public vote embed (members vote against
+  // the 16h Discord presence expectation). Hours = voice channel time during the period.
+  {
+    const voiceHours = voice
+      ? `${Math.round((voice.totalSeconds / 3600) * 10) / 10}h`
+      : '-';
+    const messageCount = messages ? String(messages.totalMessages) : '-';
     embed.addFields({
       name: 'Discord',
-      value: `Voice: **${voiceHours}**\nMessages: **${messageCount}**`,
+      value: `Hours: **${voiceHours}**\nMessages: **${messageCount}**`,
       inline: true,
     });
   }

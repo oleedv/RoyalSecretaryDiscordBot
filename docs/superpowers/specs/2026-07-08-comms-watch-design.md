@@ -25,7 +25,7 @@ Two consumers of one data pipeline:
 | Decision | Choice |
 |---|---|
 | What is "on Discord" | Connected to **any voice channel except the guild AFK channel**. Mute/deafen ignored. |
-| Tracked group | **Members** (WhitelistEntry `role='Member'`, active) **+ Prospects** (`prospects.status='open'`). |
+| Tracked group | **Members** (WhitelistEntry `role='Member'`, active) **+ actual Prospects** (`prospects.status='open'` **and** `period_started_at IS NOT NULL` — interview accepted; unclaimed/pre-accept application tickets are not tracked for alerts). |
 | Board content | **Only violators** (in-game, not on voice). Each row: mention + in-game name + off-comms duration + `[Member]`/`[Prospect]`. |
 | Servers | **Main only** = `squadjs_servers.id` 1, config-driven (`serverId`, resolved via `getServerStateById` like the seeding announcer) so Battle (id 2) can be flipped on later. |
 | Panel model | **Single canonical persistent panel**; re-running the command moves it. Channel+message id stored in `bot_state`. Survives restart. |
@@ -95,9 +95,11 @@ Per identity we persist debounced state. On each tick, given `obs.inVoice`:
 
 For each live player carrying a `steamID`:
 
-1. **Prospect?** match `steamID` against the set of open prospects' `steam_id`
-   (`SELECT ... FROM prospects WHERE status='open'`). If matched, `discordId = user_id`,
-   and we get `channel_id`, `mentor_id`, `alias`. Prospect classification takes priority.
+1. **Prospect?** match `steamID` against the set of **accepted** open prospects' `steam_id`
+   (`SELECT ... FROM prospects WHERE status='open' AND period_started_at IS NOT NULL`).
+   If matched, `discordId = user_id`, and we get `channel_id`, `mentor_id`, `alias`.
+   Prospect classification takes priority. Application tickets (no mentor / not yet
+   accepted) are excluded so they never get "Prospect not on Discord while in-game" alerts.
 2. **Member?** else `findEntries(steamID)` (website `WhitelistEntry`, active) contains a
    row with `role='Member'`; `discordId = getDiscordIdBySteamId(steamID)`.
 3. Otherwise ignore (public player / not required on comms).
