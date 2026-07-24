@@ -9,7 +9,7 @@ import {
 import { decideSeedingAction } from './seedingLogic.js';
 import {
   buildSeedingCallEmbed, buildSeedingCompletionEmbed,
-  buildSeedingPanelMessage, getLayerImageUrl,
+  buildSeedingPanelMessage, getLayerImageUrl, CALL_UPDATED_SUFFIX_RE,
 } from './seedingEmbeds.js';
 import { createScheduler } from '../../utils/scheduler.js';
 import config from '../../config.js';
@@ -586,12 +586,14 @@ async function postCompletionMessage(client, cfg, session, state, duration) {
 
 // Signature of the meaningful, state-derived parts of the call embed: description
 // (holds the "N / threshold" population line) plus each field's name+value. Ignores
-// inline flags and received-embed extras (type, image proxy_url) so equal state
-// compares equal.
-function callEmbedSignature(embedData) {
+// the live "updated <t:…:R>" suffix, inline flags, and received-embed extras
+// (type, image proxy_url) so equal state compares equal and we do not re-edit
+// every tick just to bump the relative timestamp.
+export function callEmbedSignature(embedData) {
   if (!embedData) return null;
+  const description = (embedData.description || '').replace(CALL_UPDATED_SUFFIX_RE, '');
   const fields = (embedData.fields || []).map((f) => `${f.name}=${f.value}`).join('\x1f');
-  return `${embedData.description || ''}\x1e${fields}`;
+  return `${description}\x1e${fields}`;
 }
 
 export async function updateCallMessage(client, cfg, session, state) {
