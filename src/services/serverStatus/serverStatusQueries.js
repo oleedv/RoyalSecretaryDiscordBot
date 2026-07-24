@@ -1,47 +1,105 @@
+import config from '../../config.js';
 import { query } from '../../database/connection.js';
 import logger from '../../logger.js';
+import { coerceServerId } from '../seeding/serverResolver.js';
 
 const log = logger.child({ module: 'serverStatusQueries' });
 
 const serverIdCache = new Map();
 
-async function getServerId(serverName) {
-  if (serverIdCache.has(serverName)) return serverIdCache.get(serverName);
+/**
+ * Map a SQUADJS_SERVERS connection name (or exact DB name) to squadjs_servers.id.
+ *
+ * Priority:
+ *  1. Explicit serverId from SQUADJS_SERVERS (name|url|token|serverId) — preferred for multi-server
+ *  2. Exact match on squadjs_servers.name for the connection name and any alternate names
+ *     (e.g. live A2S serverName, which matches what SquadJS upserts into the DB)
+ *  3. Single-server only: the sole row in squadjs_servers
+ *
+ * Never use "latest match" for multi-server: both Main and Battle would share the same TPS /
+ * new-players stats. Prefer missing stats over wrong stats.
+ */
+async function getServerId(serverName, alternateNames = []) {
+  if (!serverName && (!alternateNames || alternateNames.length === 0)) return null;
+
+  if (serverName && serverIdCache.has(serverName)) return serverIdCache.get(serverName);
+
+  // 1. Config mapping — socket names like "production"/"battle" → canonical DB id
+  if (serverName) {
+    const fromConfig = (config.squadjs || []).find((s) => s.name === serverName);
+    const configId = coerceServerId(fromConfig?.serverId);
+    if (configId != null) {
+      serverIdCache.set(serverName, configId);
+      return configId;
+    }
+  }
+
+  const nameCandidates = [...new Set(
+    [serverName, ...(alternateNames || [])].filter((n) => typeof n === 'string' && n.trim() !== '')
+  )];
 
   try {
-    // Try exact name match first
-    let rows = await query(
-      'SELECT id FROM squadjs_servers WHERE name = ?',
-      [serverName],
-      'squadjs'
-    );
-    if (rows.length > 0) {
-      serverIdCache.set(serverName, rows[0].id);
-      return rows[0].id;
+    // 2. Exact DB name match (connection name and/or A2S display name)
+    for (const candidate of nameCandidates) {
+      if (serverIdCache.has(candidate)) {
+        const id = serverIdCache.get(candidate);
+        if (serverName) serverIdCache.set(serverName, id);
+        return id;
+      }
+      const rows = await query(
+        'SELECT id FROM squadjs_servers WHERE name = ?',
+        [candidate],
+        'squadjs'
+      );
+      if (rows.length > 0) {
+        const id = rows[0].id;
+        serverIdCache.set(candidate, id);
+        if (serverName) serverIdCache.set(serverName, id);
+        return id;
+      }
     }
 
-    // Fallback: socket names (e.g. "production") won't match DB names
-    // (e.g. "RB | Royal Battalion [ENG] Battle server"). Use the server
-    // with the most recent active match instead.
-    rows = await query(
-      `SELECT s.id FROM squadjs_servers s
-       JOIN squadjs_matches m ON m.server_id = s.id
-       ORDER BY m.start_time DESC LIMIT 1`,
+    // 3. Only safe when there is exactly one game server in the DB
+    const rows = await query(
+      'SELECT id FROM squadjs_servers ORDER BY id ASC',
       [],
       'squadjs'
     );
-    if (rows.length > 0) {
-      log.info({ serverName, resolvedId: rows[0].id }, 'Resolved server ID via latest match fallback');
-      serverIdCache.set(serverName, rows[0].id);
-      return rows[0].id;
+    if (rows.length === 1) {
+      const id = rows[0].id;
+      log.info({ serverName, resolvedId: id }, 'Resolved server ID via single-server fallback');
+      if (serverName) serverIdCache.set(serverName, id);
+      return id;
     }
 
-    log.warn({ serverName }, 'No servers found in squadjs_servers');
+    const fromConfig = serverName
+      ? (config.squadjs || []).find((s) => s.name === serverName)
+      : null;
+    log.warn(
+      {
+        serverName,
+        alternateNames: nameCandidates.filter((n) => n !== serverName),
+        hasConfigEntry: Boolean(fromConfig),
+        configServerId: fromConfig?.serverId ?? null,
+        dbServerCount: rows.length,
+      },
+      'Could not resolve squadjs server ID — set the 4th field of SQUADJS_SERVERS (serverId) per connection'
+    );
     return null;
   } catch (err) {
     log.warn({ err, serverName }, 'Failed to look up server ID');
     return null;
   }
+}
+
+/**
+ * Prefer an explicit id when callers already know it (socket connection serverId).
+ * Otherwise resolve by connection name and optional alternate names (A2S display name).
+ */
+function resolveServerId(serverName, serverIdHint = null, alternateNames = []) {
+  const hinted = coerceServerId(serverIdHint);
+  if (hinted != null) return Promise.resolve(hinted);
+  return getServerId(serverName, alternateNames);
 }
 
 async function fetchMatchStartTime(serverId) {
@@ -118,8 +176,9 @@ async function fetchRecentCompletedLayers(serverId, limit) {
 
 // The most recently completed layers on a server, most-recent first. Returns []
 // on any failure (unknown server, query error) so callers can render without it.
-export async function getRecentCompletedLayers(serverName, limit = 3) {
-  const serverId = await getServerId(serverName);
+// Optional serverIdHint avoids name→id lookup when the socket connection already has it.
+export async function getRecentCompletedLayers(serverName, limit = 3, serverIdHint = null, alternateNames = []) {
+  const serverId = await resolveServerId(serverName, serverIdHint, alternateNames);
   if (serverId == null) return [];
   try {
     return await fetchRecentCompletedLayers(serverId, limit);
@@ -149,8 +208,9 @@ async function fetchActiveMatch(serverId) {
 // The current (in-progress) match: its layer + start unix ts. Sourced from the DB
 // so it is available even when the live socket has no layer yet (e.g. right after a
 // reboot) or is disconnected. Returns null on any failure.
-export async function getActiveMatch(serverName) {
-  const serverId = await getServerId(serverName);
+// Optional serverIdHint avoids name→id lookup when the socket connection already has it.
+export async function getActiveMatch(serverName, serverIdHint = null, alternateNames = []) {
+  const serverId = await resolveServerId(serverName, serverIdHint, alternateNames);
   if (serverId == null) return null;
   try {
     return await fetchActiveMatch(serverId);
@@ -160,22 +220,25 @@ export async function getActiveMatch(serverName) {
   }
 }
 
-export async function getServerStats(serverName) {
-  const serverId = await getServerId(serverName);
+// Optional serverIdHint: pass the socket connection's serverId so Main and Battle
+// each query their own TPS / new-players rows instead of sharing a mis-resolved id.
+// alternateNames: e.g. [state.serverName] from A2S for DB name matching.
+export async function getServerStats(serverName, serverIdHint = null, alternateNames = []) {
+  const serverId = await resolveServerId(serverName, serverIdHint, alternateNames);
   if (serverId == null) return {};
 
   try {
     const [matchStartTime, tps, newPlayers] = await Promise.all([
       fetchMatchStartTime(serverId).catch((err) => {
-        log.warn({ err }, 'Failed to query match start time');
+        log.warn({ err, serverId }, 'Failed to query match start time');
         return null;
       }),
       fetchTps(serverId).catch((err) => {
-        log.warn({ err }, 'Failed to query TPS');
+        log.warn({ err, serverId }, 'Failed to query TPS');
         return null;
       }),
       fetchNewPlayers(serverId).catch((err) => {
-        log.warn({ err }, 'Failed to query new players');
+        log.warn({ err, serverId }, 'Failed to query new players');
         return 0;
       }),
     ]);
@@ -188,7 +251,7 @@ export async function getServerStats(serverName) {
       newPlayers1h: newPlayers,
     };
   } catch (err) {
-    log.warn({ err, serverName }, 'Failed to fetch server stats');
+    log.warn({ err, serverName, serverId }, 'Failed to fetch server stats');
     return {};
   }
 }

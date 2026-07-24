@@ -380,7 +380,7 @@ JavaScript modules.
 | `NODE_ENV`             | yes      | `development` / `staging` / `production`      |
 | `LOG_FORMAT`           | no       | `pretty` (dev) or JSON (prod default)         |
 | `LOG_LEVEL`            | no       | Pino level override                           |
-| `SQUADJS_SERVERS`      | no       | `name\|ws://host:port\|token`, comma-separated |
+| `SQUADJS_SERVERS`      | no       | `name\|ws://host:port\|token\|serverId`, comma-separated (`serverId` = `squadjs_servers.id`; required for multi-server status stats) |
 | `ANTHROPIC_API_KEY`    | no       | Enables Claude features                       |
 
 Feature-specific secrets (BattleMetrics, Steam, SFTP, Git) are read from
@@ -532,7 +532,9 @@ next boot.
   pattern matching. If a new button uses a `prefix:<id>` pattern, add the
   pattern branch in `interactionCreate.js`.
 - **`SQUADJS_SERVERS` is pipe-delimited, comma-separated.** One connection
-  per segment: `production|ws://host:port|token,staging|ws://...|...`.
+  per segment: `production|ws://host:port|token|1,battle|ws://...|token|2`.
+  The 4th field is `squadjs_servers.id` and is required for multi-server
+  (each status embed must query its own TPS / new-players stats).
 - **`settings.js` is a loader, not config.** Edit the file matching your
   `NODE_ENV` (`settings.development.js` / `settings.staging.js` /
   `settings.production.js`).
