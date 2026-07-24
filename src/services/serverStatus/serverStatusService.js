@@ -55,17 +55,20 @@ async function ensureMessages(channel, client, serverStates, threshold) {
   const existing = await findExistingMessages(channel, client, serverStates.length);
 
   for (let i = 0; i < serverStates.length; i++) {
-    const { name, state } = serverStates[i];
+    const { name, serverId, state } = serverStates[i];
 
     if (existing[i]) {
-      statusMessages.push({ name, messageId: existing[i].id });
-      log.info({ name, messageId: existing[i].id }, 'Found existing status message');
+      statusMessages.push({ name, serverId: serverId ?? null, messageId: existing[i].id });
+      log.info({ name, serverId, messageId: existing[i].id }, 'Found existing status message');
     } else {
-      const serverStats = state.connected ? await getServerStats(name) : {};
+      const altNames = state.serverName ? [state.serverName] : [];
+      const serverStats = state.connected
+        ? await getServerStats(name, serverId, altNames)
+        : {};
       const embed = buildServerStatusEmbed(state, threshold, rbSteamIds, serverStats);
       const msg = await channel.send({ embeds: [embed] });
-      statusMessages.push({ name, messageId: msg.id });
-      log.info({ name, messageId: msg.id }, 'Created new status message');
+      statusMessages.push({ name, serverId: serverId ?? null, messageId: msg.id });
+      log.info({ name, serverId, messageId: msg.id }, 'Created new status message');
     }
   }
 }
@@ -115,8 +118,17 @@ async function updateMessages(channel, client) {
         continue;
       }
 
+      // Keep serverId in sync when the socket layer resolves it after startup placeholders
+      if (entry.serverId == null && serverData.serverId != null) {
+        entry.serverId = serverData.serverId;
+      }
+
       try {
-        const serverStats = serverData.state.connected ? await getServerStats(entry.name) : {};
+        const serverId = entry.serverId ?? serverData.serverId ?? null;
+        const altNames = serverData.state.serverName ? [serverData.state.serverName] : [];
+        const serverStats = serverData.state.connected
+          ? await getServerStats(entry.name, serverId, altNames)
+          : {};
         const embed = buildServerStatusEmbed(serverData.state, threshold, rbSteamIds, serverStats);
 
         let msg = await channel.messages.fetch(entry.messageId).catch(() => null);
@@ -179,7 +191,24 @@ export async function startStatusUpdater(client) {
   // If no server states yet, create placeholder entries from config
   const servers = serverStates.length
     ? serverStates
-    : (config.squadjs || []).map((s) => ({ name: s.name, state: { playerCount: 0, connected: false, players: [], publicSlots: 0, reserveSlots: 0, publicQueue: 0, reserveQueue: 0, gameVersion: null, currentLayer: null, currentLayerObj: null, serverName: null, currentMap: null } }));
+    : (config.squadjs || []).map((s) => ({
+      name: s.name,
+      serverId: s.serverId ?? null,
+      state: {
+        playerCount: 0,
+        connected: false,
+        players: [],
+        publicSlots: 0,
+        reserveSlots: 0,
+        publicQueue: 0,
+        reserveQueue: 0,
+        gameVersion: null,
+        currentLayer: null,
+        currentLayerObj: null,
+        serverName: null,
+        currentMap: null,
+      },
+    }));
 
   if (servers.length) {
     await ensureMessages(channel, client, servers, threshold);
