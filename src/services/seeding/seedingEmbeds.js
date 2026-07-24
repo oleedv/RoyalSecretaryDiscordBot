@@ -53,21 +53,32 @@ export function buildSeedingPanelMessage(seederCount, dailyTs, threshold) {
   return { embeds: [embed], components };
 }
 
+/** Matches the " · updated <t:…:R>" suffix on call embeds (for signature compare). */
+export const CALL_UPDATED_SUFFIX_RE = /\s*·\s*updated <t:\d+:R>/g;
+
+/**
+ * Live call embed while a seeding session is active.
+ * @param {object} opts
+ * @param {number|null} [opts.updatedAt] Unix seconds for the relative "updated" line (default: now)
+ */
 export function buildSeedingCallEmbed({
   layerName, playerCount, threshold, thumbnailUrl,
   avgSeedTime, avgSeedTrend,
   gameMode, fastestSeed,
+  updatedAt,
 }) {
+  const updatedTs = updatedAt ?? Math.floor(Date.now() / 1000);
+  const updatedSuffix = ` · updated <t:${updatedTs}:R>`;
+  const populationLine = playerCount == null
+    ? `\`Population: unavailable\`${updatedSuffix}`
+    : `\`${playerCount} / ${threshold} players\`${updatedSuffix}`;
+
   const embed = createEmbed('Seeding')
     .setTitle('Seeding Time!')
     .setDescription(
-      playerCount == null
-        ? 'Join the server and help us get live!\n' +
-          `Target: **${threshold}** players\n\n` +
-          '`Population: unavailable`'
-        : 'Join the server and help us get live!\n' +
-          `Target: **${threshold}** players\n\n` +
-          `\`${playerCount} / ${threshold} players\``
+      'Join the server and help us get live!\n' +
+      `Target: **${threshold}** players\n\n` +
+      populationLine
     )
     .setColor(0x57f287);
 
@@ -77,13 +88,13 @@ export function buildSeedingCallEmbed({
   if (gameMode) row1.push({ name: 'Game Mode', value: gameMode, inline: true });
   if (row1.length) embed.addFields(...row1);
 
-  // Row 2: Timing stats
+  // Row 2: Timing stats (hide 0-minute fastest — usually a flaky session, not a real record)
   const row2 = [];
   if (avgSeedTime) {
     const arrow = trendArrows[avgSeedTrend] || '';
     row2.push({ name: 'Avg Seed Time', value: arrow ? `~${avgSeedTime} min ${arrow}` : `~${avgSeedTime} min`, inline: true });
   }
-  if (fastestSeed != null) {
+  if (fastestSeed != null && fastestSeed > 0) {
     row2.push({ name: 'Fastest Seed', value: `${fastestSeed} min`, inline: true });
   }
   if (row2.length) embed.addFields(...row2);
