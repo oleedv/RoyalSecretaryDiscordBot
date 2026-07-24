@@ -85,23 +85,44 @@ function normalizeTime(time) {
   return time;
 }
 
-function subtractOneHour(time) {
-  const [h, m] = time.split(':').map(Number);
-  const newH = (h - 1 + 24) % 24;
-  return `${String(newH).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+/** Nightly channel reset + panel re-post time (HH:mm in config timezone). */
+export const CHANNEL_RESET_TIME = '04:00';
+
+/**
+ * True once the clock has reached the fixed nightly reset time (default 04:00).
+ * Combined with last_reset_date so the wipe runs once per calendar day.
+ */
+export function isAtOrPastResetTime(currentTime, resetTime = CHANNEL_RESET_TIME) {
+  return currentTime >= resetTime;
 }
 
 /**
- * Check if currentTime is in the reset window (1h before daily call).
- * Reset window: [resetTime, dailyTime)
+ * Accurate seeder-role member count. Role#members only reflects the guild member
+ * cache, which is usually incomplete — fetch all members first so the button
+ * shows every user with the role, not just cached ones.
  */
-function isInResetWindow(currentTime, dailyTime) {
-  const resetTime = subtractOneHour(dailyTime);
-  if (resetTime < dailyTime) {
-    return currentTime >= resetTime && currentTime < dailyTime;
+export async function countSeederRoleMembers(guild, roleId) {
+  if (!guild || !roleId) return null;
+  try {
+    // Role#members only includes cached guild members. Fetch everyone when the
+    // cache is incomplete so the Join Seeders button reflects the true count.
+    if (guild.members.cache.size < (guild.memberCount || 0)) {
+      await guild.members.fetch();
+    }
+    const role = guild.roles.cache.get(String(roleId))
+      || await guild.roles.fetch(String(roleId)).catch(() => null);
+    if (!role) return null;
+    return role.members.size;
+  } catch (err) {
+    log.warn({ err, roleId }, 'Failed to count seeder role members');
+    return null;
   }
-  // Wraps midnight (e.g. daily=00:30, reset=23:30)
-  return currentTime >= resetTime || currentTime < dailyTime;
+}
+
+function primarySeederRoleId(cfg) {
+  if (cfg?.role_id) return String(cfg.role_id);
+  if (Array.isArray(cfg?.role_ids) && cfg.role_ids[0]) return String(cfg.role_ids[0]);
+  return null;
 }
 
 /**
@@ -160,6 +181,27 @@ async function findPanelMessage(client, channel, cfg) {
   return panelMsg || null;
 }
 
+async function buildPanelPayload(channel, cfg) {
+  const tz = cfg.timezone || 'UTC';
+  const dailyTime = normalizeTime(cfg.daily_time || '16:00');
+  const dailyTs = getDailyTimestamp(dailyTime, tz);
+  const roleId = primarySeederRoleId(cfg);
+  const seederCount = roleId && channel.guild
+    ? await countSeederRoleMembers(channel.guild, roleId)
+    : null;
+  return buildSeedingPanelMessage(seederCount, dailyTs, cfg.seed_threshold);
+}
+
+async function postSeedingPanel(channel, cfg) {
+  const panelPayload = await buildPanelPayload(channel, cfg);
+  const msg = await channel.send(panelPayload);
+  await setPanelMessageId(msg.id);
+  const tz = cfg.timezone || 'UTC';
+  const today = getTodayDate(tz);
+  lastPanelConfig = `${today}|${cfg.daily_time}|${tz}|${cfg.seed_threshold}|${cfg.role_id}`;
+  return msg;
+}
+
 async function ensureSeedingPanel(client) {
   try {
     const cfg = await getSeedingConfig();
@@ -168,31 +210,13 @@ async function ensureSeedingPanel(client) {
     const channel = await client.channels.fetch(cfg.channel_id).catch(() => null);
     if (!channel) return;
 
-    const tz = cfg.timezone || 'UTC';
-    const today = getTodayDate(tz);
-    const configKey = `${today}|${cfg.daily_time}|${tz}|${cfg.seed_threshold}|${cfg.role_id}`;
-
     const existingPanel = await findPanelMessage(client, channel, cfg);
     if (existingPanel) {
       log.info('Seeding panel already exists, will refresh on next tick');
       return;
     }
 
-    // Post the panel
-    const dailyTime = normalizeTime(cfg.daily_time || '16:00');
-    const dailyTs = getDailyTimestamp(dailyTime, tz);
-
-    let seederCount = null;
-    if (cfg.role_id && channel.guild) {
-      try {
-        seederCount = channel.guild.roles.cache.get(cfg.role_id)?.members?.size ?? null;
-      } catch { /* role may not exist */ }
-    }
-
-    const panelPayload = buildSeedingPanelMessage(seederCount, dailyTs, cfg.seed_threshold);
-    const msg = await channel.send(panelPayload);
-    await setPanelMessageId(msg.id);
-    lastPanelConfig = configKey;
+    await postSeedingPanel(channel, cfg);
     log.info('Seeding panel posted');
   } catch (err) {
     log.error({ err }, 'Failed to ensure seeding panel');
@@ -210,25 +234,14 @@ async function refreshSeedingPanel(client, cfg) {
     const channel = await client.channels.fetch(cfg.channel_id).catch(() => null);
     if (!channel) return;
 
-    const dailyTime = normalizeTime(cfg.daily_time || '16:00');
-    const dailyTs = getDailyTimestamp(dailyTime, tz);
-
-    let seederCount = null;
-    if (cfg.role_id && channel.guild) {
-      try {
-        seederCount = channel.guild.roles.cache.get(cfg.role_id)?.members?.size ?? null;
-      } catch { /* role may not exist */ }
-    }
-
-    const panelPayload = buildSeedingPanelMessage(seederCount, dailyTs, cfg.seed_threshold);
+    const panelPayload = await buildPanelPayload(channel, cfg);
 
     const panelMsg = await findPanelMessage(client, channel, cfg);
     if (panelMsg) {
       await panelMsg.edit(panelPayload);
       log.info('Seeding panel refreshed (config changed)');
     } else {
-      const msg = await channel.send(panelPayload);
-      await setPanelMessageId(msg.id);
+      await postSeedingPanel(channel, cfg);
       log.warn('Seeding panel not found - re-posted');
     }
 
@@ -252,14 +265,16 @@ async function checkDailyCall(client) {
     const currentTime = getCurrentTime(tz);
     const dailyTime = normalizeTime(cfg.daily_time || '16:00');
 
-    const lastResetDateStored = cfg.last_reset_date
+    let lastResetDateStored = cfg.last_reset_date
       ? new Date(cfg.last_reset_date).toISOString().slice(0, 10)
       : null;
 
-    // Channel reset: 1 hour before daily call, clean up everything except panel (once per day)
-    if (isInResetWindow(currentTime, dailyTime) && lastResetDateStored !== today) {
+    // Channel reset: every day at 04:00 (config timezone). Wipe other messages so the
+    // static panel is left on top; refresh its seeder count (once per calendar day).
+    if (isAtOrPastResetTime(currentTime) && lastResetDateStored !== today) {
       await resetChannel(client, cfg);
       await setLastResetDate(today);
+      lastResetDateStored = today;
     }
 
     // Daily call: post if at or past daily time and not yet posted today
@@ -269,11 +284,12 @@ async function checkDailyCall(client) {
     if (lastCallDate === today) return;
     if (currentTime < dailyTime) return;
 
-    // Self-heal: if reset was missed today (bot was offline during reset window),
+    // Self-heal: if reset was missed today (bot was offline past 04:00),
     // clean the channel now before posting the daily call.
     if (lastResetDateStored !== today) {
       await resetChannel(client, cfg);
       await setLastResetDate(today);
+      lastResetDateStored = today;
     }
 
     await setLastDailyCallDate(today);
@@ -298,13 +314,14 @@ async function resetChannel(client, cfg) {
     const channel = await client.channels.fetch(cfg.channel_id).catch(() => null);
     if (!channel) return;
 
+    // Keep the static panel; deleting everything else leaves it on top of the channel.
     const messages = await channel.messages.fetch({ limit: 100 });
     const toDelete = messages.filter(msg => !isPanelMessage(client, msg));
 
-    if (toDelete.size === 0) return;
-
     // bulkDelete only handles messages younger than 14 days (filter:true drops old ones silently).
-    await channel.bulkDelete(toDelete, true).catch(() => {});
+    if (toDelete.size > 0) {
+      await channel.bulkDelete(toDelete, true).catch(() => {});
+    }
 
     // Fallback: iterate any messages still in the channel (those >14 days old) and delete one-by-one.
     const remaining = await channel.messages.fetch({ limit: 100 }).catch(() => null);
@@ -326,7 +343,21 @@ async function resetChannel(client, cfg) {
     // Expire any lingering active session
     await expireOldSessions();
 
-    log.info({ deleted: toDelete.size }, 'Seeding channel reset (kept panel only)');
+    // Refresh seeder count / daily time on the existing panel (do not re-post).
+    const panelMsg = await findPanelMessage(client, channel, cfg);
+    if (panelMsg) {
+      const panelPayload = await buildPanelPayload(channel, cfg);
+      await panelMsg.edit(panelPayload);
+      const tz = cfg.timezone || 'UTC';
+      const today = getTodayDate(tz);
+      lastPanelConfig = `${today}|${cfg.daily_time}|${tz}|${cfg.seed_threshold}|${cfg.role_id}`;
+    } else {
+      // Panel was missing — only then post a new one so the channel has one.
+      await postSeedingPanel(channel, cfg);
+      log.warn('Seeding panel missing during reset - posted new panel');
+    }
+
+    log.info({ deleted: toDelete.size }, 'Seeding channel reset (kept panel on top)');
   } catch (err) {
     log.warn({ err }, 'Failed to reset seeding channel');
   }

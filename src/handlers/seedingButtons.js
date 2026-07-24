@@ -1,5 +1,6 @@
 import { getSeedingConfig } from '../services/seeding/seedingService.js';
 import { buildSeederRoleComponents } from '../services/seeding/seedingEmbeds.js';
+import { countSeederRoleMembers } from '../services/seeding/seedingScheduler.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'seedingButtons' });
@@ -14,8 +15,9 @@ function roleIdsFromConfig(cfg) {
 
 async function updateButtonCount(interaction, primaryRoleId) {
   try {
-    const role = await interaction.guild.roles.fetch(primaryRoleId);
-    const count = role?.members?.size ?? null;
+    // Full member fetch so the label matches everyone with the seeders role,
+    // not only members already in the bot cache.
+    const count = await countSeederRoleMembers(interaction.guild, primaryRoleId);
     const components = buildSeederRoleComponents(count);
     await interaction.message.edit({ components });
   } catch (err) {
