@@ -1,4 +1,4 @@
-import { isTrackedChannel, isOwner, checkRateLimit, logEvent, logBlockedName } from '../services/tempvoice/tempvoiceManager.js';
+import { isTrackedChannel, isOwner, logEvent, logBlockedName } from '../services/tempvoice/tempvoiceManager.js';
 import { touchActivity, updatePresetField } from '../services/tempvoice/tempvoiceService.js';
 import { getSafeChannelName } from '../services/tempvoice/contentFilter.js';
 import { errorEmbed, successEmbed } from '../utils/embed.js';
@@ -11,11 +11,44 @@ function checkAccess(interaction, channelId) {
   return false;
 }
 
-export async function handleNameModal(interaction) {
-  const vc = interaction.member.voice.channel;
-  if (!vc || !isTrackedChannel(vc.id)) {
-    return interaction.reply({ embeds: [errorEmbed('You must be in a temporary voice channel.')], flags: ['Ephemeral'] });
+function isUnknownChannelError(err) {
+  return err?.code === 10003 || err?.rawError?.code === 10003;
+}
+
+/**
+ * Resolve the member's current tracked temp VC from Discord (not only cache).
+ * Handles the modal race where the channel was deleted while the modal was open.
+ * @returns {Promise<import('discord.js').VoiceChannel|null>}
+ */
+async function resolveTrackedVoiceChannel(interaction) {
+  const channelId = interaction.member?.voice?.channelId;
+  if (!channelId || !isTrackedChannel(channelId)) {
+    await interaction.reply({
+      embeds: [errorEmbed('You must be in a temporary voice channel.')],
+      flags: ['Ephemeral'],
+    });
+    return null;
   }
+
+  const channel = await interaction.guild.channels.fetch(channelId).catch((err) => {
+    if (isUnknownChannelError(err)) return null;
+    throw err;
+  });
+
+  if (!channel) {
+    await interaction.reply({
+      embeds: [errorEmbed('That temporary voice channel no longer exists.')],
+      flags: ['Ephemeral'],
+    });
+    return null;
+  }
+
+  return channel;
+}
+
+export async function handleNameModal(interaction) {
+  const vc = await resolveTrackedVoiceChannel(interaction);
+  if (!vc) return;
   if (!checkAccess(interaction, vc.id)) return;
 
   const input = interaction.fields.getTextInputValue('tv_name_input');
@@ -34,7 +67,18 @@ export async function handleNameModal(interaction) {
   }
 
   const oldName = vc.name;
-  await vc.setName(name);
+  try {
+    await vc.setName(name);
+  } catch (err) {
+    if (isUnknownChannelError(err)) {
+      return interaction.reply({
+        embeds: [errorEmbed('That temporary voice channel no longer exists.')],
+        flags: ['Ephemeral'],
+      });
+    }
+    throw err;
+  }
+
   if (isOwner(vc.id, interaction.user.id)) await updatePresetField(interaction.user.id, interaction.guild.id, 'channel_name', name).catch(() => null);
   await interaction.reply({ embeds: [successEmbed(`Channel renamed to **${name}**.`)], flags: ['Ephemeral'] });
   await logEvent(interaction.guild, {
@@ -51,10 +95,8 @@ export async function handleNameModal(interaction) {
 }
 
 export async function handleLimitModal(interaction) {
-  const vc = interaction.member.voice.channel;
-  if (!vc || !isTrackedChannel(vc.id)) {
-    return interaction.reply({ embeds: [errorEmbed('You must be in a temporary voice channel.')], flags: ['Ephemeral'] });
-  }
+  const vc = await resolveTrackedVoiceChannel(interaction);
+  if (!vc) return;
   if (!checkAccess(interaction, vc.id)) return;
 
   const input = interaction.fields.getTextInputValue('tv_limit_input');
@@ -64,7 +106,18 @@ export async function handleLimitModal(interaction) {
     return interaction.reply({ embeds: [errorEmbed('User limit must be a number between 0 and 99.')], flags: ['Ephemeral'] });
   }
 
-  await vc.setUserLimit(limit);
+  try {
+    await vc.setUserLimit(limit);
+  } catch (err) {
+    if (isUnknownChannelError(err)) {
+      return interaction.reply({
+        embeds: [errorEmbed('That temporary voice channel no longer exists.')],
+        flags: ['Ephemeral'],
+      });
+    }
+    throw err;
+  }
+
   if (isOwner(vc.id, interaction.user.id)) await updatePresetField(interaction.user.id, interaction.guild.id, 'user_limit', limit).catch(() => null);
   const display = limit === 0 ? 'unlimited' : `${limit} users`;
   await interaction.reply({ embeds: [successEmbed(`User limit set to **${display}**.`)], flags: ['Ephemeral'] });
