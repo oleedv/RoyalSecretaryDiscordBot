@@ -93,13 +93,6 @@ export function isInappropriateName(name) {
   if (URL_PATTERN.test(name)) return true;
   if (MENTION_PATTERN.test(name)) return true;
 
-  // Excessive caps (>80% uppercase when 5+ chars)
-  if (name.length > 5) {
-    const upperCount = (name.match(/[A-Z]/g) || []).length;
-    const letterCount = (name.match(/[a-zA-Z]/g) || []).length;
-    if (letterCount > 0 && upperCount / letterCount > 0.8) return true;
-  }
-
   // Excessive special characters (>50% non-alphanumeric/space)
   const specialCount = (name.match(/[^a-zA-Z0-9\s]/g) || []).length;
   if (name.length > 3 && specialCount / name.length > 0.5) return true;
@@ -125,9 +118,10 @@ export function sanitizeChannelName(name) {
 /**
  * Validates a requested channel name.
  * Returns { safe, name, reason, matched } where:
- *   - reason is one of: profanity | url | mention | caps | special | length | empty
+ *   - reason is one of: profanity | url | mention | special | length | empty
  *   - matched is the offending word when reason === 'profanity', else null
  * The { safe, name } shape is preserved for existing callers.
+ * All-caps names are allowed.
  */
 export function getSafeChannelName(name) {
   if (!name || typeof name !== 'string' || !name.trim()) {
@@ -144,14 +138,6 @@ export function getSafeChannelName(name) {
   }
   if (MENTION_PATTERN.test(name)) {
     return { safe: false, name: 'Unnamed Channel', reason: 'mention', matched: null };
-  }
-
-  if (name.length > 5) {
-    const upperCount = (name.match(/[A-Z]/g) || []).length;
-    const letterCount = (name.match(/[a-zA-Z]/g) || []).length;
-    if (letterCount > 0 && upperCount / letterCount > 0.8) {
-      return { safe: false, name: 'Unnamed Channel', reason: 'caps', matched: null };
-    }
   }
 
   const specialCount = (name.match(/[^a-zA-Z0-9\s]/g) || []).length;

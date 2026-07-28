@@ -72,6 +72,13 @@ describe('getSafeChannelName', () => {
     expect(r.matched).toBeNull();
   });
 
+  it('allows all-caps names', () => {
+    const r = getSafeChannelName('SQUAD STACK');
+    expect(r.safe).toBe(true);
+    expect(r.name).toBe('SQUAD STACK');
+    expect(r.reason).toBeNull();
+  });
+
   it('rejects URLs and mentions', () => {
     expect(getSafeChannelName('join https://evil.gg/x').reason).toBe('url');
     expect(getSafeChannelName('hey <@123456789>').reason).toBe('mention');
@@ -95,5 +102,6 @@ describe('isInappropriateName', () => {
     expect(isInappropriateName('fucking lobby')).toBe(true);
     expect(isInappropriateName('My Channel')).toBe(false);
     expect(isInappropriateName('Squad Night')).toBe(false);
+    expect(isInappropriateName('SQUAD STACK')).toBe(false);
   });
 });
