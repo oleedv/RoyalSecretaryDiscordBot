@@ -95,6 +95,11 @@ export default {
     channelId: '1476163752863862875',
     updateIntervalMs: 60000,
   },
+  quickStatus: {
+    channelId: '',                                       // Set to a staging channel to test
+    updateIntervalMs: 60000,
+    serverId: 1,
+  },
   commsWatch: {
     enabled: true,
     serverId: 1,              // squadjs_servers.id (1 = Main ENG server, 2 = Battle)

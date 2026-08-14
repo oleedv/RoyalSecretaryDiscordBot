@@ -14,6 +14,7 @@ import { startScheduler as startSlRewardScheduler } from '../services/sl-reward/
 import { startScheduler as startSlLeaderboardScheduler } from '../services/sl-reward/leaderboardCron.js';
 import { resumeClosingTimers, restoreAnonymousModes } from '../services/ticket/ticketService.js';
 import { startStatusUpdater } from '../services/serverStatus/serverStatusService.js';
+import { startQuickStatusUpdater } from '../services/serverStatus/quickStatusService.js';
 import { startScheduler as startCommsWatchScheduler } from '../services/commsWatch/commsWatchMonitor.js';
 import { startActionProcessor } from '../services/actionProcessor.js';
 import { startScheduler as startConfigGuardian } from '../services/configGuardian/configGuardianScheduler.js';
@@ -55,6 +56,7 @@ export default {
     await safeInit('slLeaderboardScheduler', () => startSlLeaderboardScheduler(client));
     await safeInit('heartbeat', () => startHeartbeat(client));
     await safeInit('statusUpdater', () => startStatusUpdater(client));
+    await safeInit('quickStatusUpdater', () => startQuickStatusUpdater(client));
     await safeInit('commsWatchScheduler', () => startCommsWatchScheduler(client));
     await safeInit('actionProcessor', () => startActionProcessor(client));
     await safeInit('configGuardian', () => startConfigGuardian(client));

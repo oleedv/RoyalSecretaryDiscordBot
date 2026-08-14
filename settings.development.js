@@ -100,6 +100,15 @@ export default {
     logChannelId: '',                                    // Staff channel for verification logs
     roleId: '',                                          // Role assigned on successful verification
   },
+  serverStatus: {
+    channelId: '',
+    updateIntervalMs: 60000,
+  },
+  quickStatus: {
+    channelId: '',                                       // Leave empty in dev unless testing
+    updateIntervalMs: 60000,
+    serverId: 1,
+  },
   alerts: {
     channelId: '',                                       // Leave empty in dev so local runs stay silent
     dedupeWindowMs: 60000,
