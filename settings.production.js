@@ -96,6 +96,11 @@ export default {
     channelId: '1476956161566572705',                    // Server status channel
     updateIntervalMs: 60000,
   },
+  quickStatus: {
+    channelId: '1306379950496153692',                    // Dense stats embed (no full roster)
+    updateIntervalMs: 60000,
+    serverId: 1,                                         // Main ENG (squadjs_servers.id)
+  },
   commsWatch: {
     enabled: true,
     serverId: 1,              // squadjs_servers.id (1 = Main ENG server, 2 = Battle)

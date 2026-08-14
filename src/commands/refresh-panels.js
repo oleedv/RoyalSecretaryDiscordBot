@@ -6,6 +6,7 @@ import { buildPanelMessage as buildVerifyPanel } from '../services/verify/verify
 import { buildPanelMessage as buildPurgedPanel } from '../services/purged/purgedPanel.js';
 import { getSeedingConfig, setPanelMessageId } from '../services/seeding/seedingService.js';
 import { stopStatusUpdater, startStatusUpdater } from '../services/serverStatus/serverStatusService.js';
+import { refreshQuickStatus } from '../services/serverStatus/quickStatusService.js';
 import { refreshLiveLayerHighlight } from '../services/layerRotationValidator/layerRotationValidatorScheduler.js';
 import { successEmbed, errorEmbed } from '../utils/embed.js';
 import config from '../config.js';
@@ -92,6 +93,10 @@ async function refreshLayerRotation(interaction) {
   return `Layer Rotation: skipped (${result.reason})`;
 }
 
+async function refreshQuickStatusPanel(interaction) {
+  return refreshQuickStatus(interaction.client);
+}
+
 export default {
   data: new SlashCommandBuilder()
     .setName('refresh-panels')
@@ -109,6 +114,7 @@ export default {
           { name: 'Purged', value: 'purged' },
           { name: 'Seeding', value: 'seeding' },
           { name: 'Server Status', value: 'server-status' },
+          { name: 'Quick Status', value: 'quick-status' },
           { name: 'Layer Rotation', value: 'layer-rotation' },
         )
     ),
@@ -137,6 +143,10 @@ export default {
 
       if (choice === 'all' || choice === 'server-status') {
         results.push(await refreshServerStatus(interaction));
+      }
+
+      if (choice === 'all' || choice === 'quick-status') {
+        results.push(await refreshQuickStatusPanel(interaction));
       }
 
       if (choice === 'all' || choice === 'layer-rotation') {

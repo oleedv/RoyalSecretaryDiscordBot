@@ -12,6 +12,7 @@ import { disconnect as disconnectSquadJS } from './services/seeding/seedingSocke
 import { stopHeartbeat } from './services/admin/statusHeartbeat.js';
 import { stopScheduler as stopSeedTrackerScheduler } from './services/seedTracker/seedTrackerScheduler.js';
 import { stopStatusUpdater } from './services/serverStatus/serverStatusService.js';
+import { stopQuickStatusUpdater } from './services/serverStatus/quickStatusService.js';
 import { stopScheduler as stopConfigGuardian } from './services/configGuardian/configGuardianScheduler.js';
 import { stopScheduler as stopLayerRotationValidator } from './services/layerRotationValidator/layerRotationValidatorScheduler.js';
 import { stopScheduler as stopModerationScheduler } from './services/moderation/moderationScheduler.js';
@@ -106,6 +107,7 @@ async function main() {
     stopSeedTrackerScheduler();
     disconnectSquadJS();
     stopStatusUpdater();
+    stopQuickStatusUpdater();
     stopConfigGuardian();
     stopLayerRotationValidator();
     stopModerationScheduler();
