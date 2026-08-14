@@ -73,7 +73,7 @@ export async function handleGuild(message) {
     if (dmFailed) {
       await message.channel.send('Failed to send DM to the user. They may have DMs disabled.');
     } else if (dmTooLarge) {
-      await message.channel.send('The file was too large to send to the user. They received the text but the attachment was sent as a link only.');
+      await message.channel.send('The file could not be re-attached to the user DM (too large or upload timed out). They received the text and a link to the attachment.');
     }
     await message.delete().catch(() => null);
 
@@ -108,7 +108,7 @@ export async function handleDM(message, prospect) {
   const { msg: sent, tooLarge } = await trySendWithFiles(channel, sendOptions);
 
   if (tooLarge) {
-    await message.reply({ embeds: [infoEmbed('Your file was too large to embed directly. Staff can still access it via the link.')] }).catch(() => null);
+    await message.reply({ embeds: [infoEmbed('Your file could not be re-attached directly (too large or upload timed out). Staff can still access it via the link in the channel.')] }).catch(() => null);
   }
 
   const attachments = formatForDb(message.attachments);

@@ -19,6 +19,9 @@ export async function createBot() {
       GatewayIntentBits.GuildMessageReactions,
     ],
     partials: [Partials.Channel, Partials.Message, Partials.User, Partials.Reaction],
+    // Default REST timeout is 15s; video re-uploads on ticket/prospect relay often
+    // need longer. trySendWithFiles still falls back to link-only on AbortError.
+    rest: { timeout: 60_000 },
     presence: {
       activities: [{ name: 'DM for support', type: ActivityType.Custom }],
       status: 'online',
