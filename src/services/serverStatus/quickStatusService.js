@@ -1,11 +1,16 @@
 import config from '../../config.js';
 import logger from '../../logger.js';
 import { query } from '../../database/connection.js';
-import { getAllServerStates } from '../seeding/seedingSocket.js';
+import { getAllServerStates, extractGameMode } from '../seeding/seedingSocket.js';
 import { getSeedingConfig } from '../seeding/seedingService.js';
 import { getServerStats } from './serverStatusQueries.js';
-import { buildQuickStatusEmbed } from './quickStatusEmbeds.js';
-import { classifyOnlinePlayers } from './quickStatusRoles.js';
+import { buildQuickStatusEmbed, buildMissingDiscordEmbed } from './quickStatusEmbeds.js';
+import {
+  classifyOnlinePlayers,
+  isMemberRole,
+  isProspectRole,
+  normalizeRole,
+} from './quickStatusRoles.js';
 import { reportError } from '../admin/errorAlertService.js';
 
 const log = logger.child({ module: 'quickStatus' });
@@ -77,6 +82,85 @@ async function loadWhitelistBySteamIds(steamIds) {
   return map;
 }
 
+/**
+ * Discord IDs currently in a non-AFK voice channel in the configured guild.
+ * @returns {{ voiceSet: Set<string>, voiceCount: number }}
+ */
+async function getVoicePresence(client) {
+  const voiceSet = new Set();
+  try {
+    const guildId = config.guild?.id;
+    if (!guildId) return { voiceSet, voiceCount: 0 };
+    const guild = await client.guilds.fetch(guildId);
+    const afkId = config.commsWatch?.afkChannelId || guild.afkChannelId || null;
+    for (const vs of guild.voiceStates.cache.values()) {
+      if (vs.channelId && vs.channelId !== afkId) voiceSet.add(String(vs.id));
+    }
+  } catch (err) {
+    log.warn({ err }, 'Failed to read voice states for quick status');
+  }
+  return { voiceSet, voiceCount: voiceSet.size };
+}
+
+/**
+ * Map steamId -> discordId from website User table (batched).
+ * @returns {Map<string, string>}
+ */
+async function loadDiscordIdsBySteamIds(steamIds) {
+  const map = new Map();
+  if (!steamIds.length) return map;
+  const CHUNK = 100;
+  for (let i = 0; i < steamIds.length; i += CHUNK) {
+    const chunk = steamIds.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    try {
+      const rows = await query(
+        `SELECT steamId, discordId FROM User
+         WHERE steamId IN (${placeholders}) AND discordId IS NOT NULL AND discordId <> ''`,
+        chunk,
+        'website'
+      );
+      for (const row of rows) {
+        if (row.steamId && row.discordId) map.set(String(row.steamId), String(row.discordId));
+      }
+    } catch (err) {
+      log.warn({ err }, 'Failed to load Discord IDs for quick status');
+    }
+  }
+  return map;
+}
+
+/**
+ * RB members + prospects in-game who are not currently in Discord voice.
+ */
+function findMissingFromDiscord(players, wlMap, discordBySteam, voiceSet) {
+  const missing = [];
+  for (const p of players || []) {
+    const steamId = String(p.steamID || p.steamId || '');
+    if (!steamId) continue;
+    const entries = wlMap.get(steamId) || [];
+    let kind = null;
+    for (const e of entries) {
+      const role = normalizeRole(e.role);
+      if (isProspectRole(role)) { kind = 'prospect'; break; }
+      if (isMemberRole(role)) kind = 'member';
+    }
+    if (!kind) continue;
+
+    const discordId = discordBySteam.get(steamId) || null;
+    if (discordId && voiceSet.has(String(discordId))) continue;
+
+    missing.push({
+      name: p.name || entries[0]?.name || 'Unknown',
+      steamId,
+      discordId,
+      kind,
+    });
+  }
+  missing.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  return missing;
+}
+
 async function findExistingMessage(channel, client) {
   const messages = await channel.messages.fetch({ limit: 20 });
   const botEmbeds = messages
@@ -85,7 +169,7 @@ async function findExistingMessage(channel, client) {
   return botEmbeds.first() || null;
 }
 
-async function ensureMessage(channel, client, embed) {
+async function ensureMessage(channel, client, embeds) {
   if (messageId) {
     const existing = await channel.messages.fetch(messageId).catch(() => null);
     if (existing) return existing;
@@ -99,7 +183,7 @@ async function ensureMessage(channel, client, embed) {
     return found;
   }
 
-  const msg = await channel.send({ embeds: [embed] });
+  const msg = await channel.send({ embeds });
   messageId = msg.id;
   log.info({ messageId }, 'Created quick-status message');
   return msg;
@@ -125,18 +209,33 @@ async function updateOnce(channel, client) {
       .map((p) => String(p.steamID || p.steamId || ''))
       .filter(Boolean);
 
-    const [wlMap, serverStats] = await Promise.all([
+    const [wlMap, serverStats, voice, discordBySteam] = await Promise.all([
       loadWhitelistBySteamIds(steamIds),
       state.connected
         ? getServerStats(name, serverId, state.serverName ? [state.serverName] : [])
         : Promise.resolve({}),
+      getVoicePresence(client),
+      loadDiscordIdsBySteamIds(steamIds),
     ]);
 
     const roles = classifyOnlinePlayers(state.players || [], wlMap);
-    const embed = buildQuickStatusEmbed(state, threshold, roles, serverStats);
+    const missing = findMissingFromDiscord(
+      state.players || [],
+      wlMap,
+      discordBySteam,
+      voice.voiceSet,
+    );
+    const isSeeding = (extractGameMode(state.currentLayer) || '').toLowerCase() === 'seed';
 
-    const msg = await ensureMessage(channel, client, embed);
-    await msg.edit({ embeds: [embed] });
+    const mainEmbed = buildQuickStatusEmbed(state, threshold, roles, serverStats, {
+      voiceCount: voice.voiceCount,
+    });
+    // Always keep the second embed so the message shape stays stable (old widget behaviour).
+    const missingEmbed = buildMissingDiscordEmbed(missing, { isSeeding });
+    const embeds = [mainEmbed, missingEmbed];
+
+    const msg = await ensureMessage(channel, client, embeds);
+    await msg.edit({ embeds });
     lastSuccessfulUpdate = Date.now();
   } catch (err) {
     log.error({ err }, 'Failed to update quick status');

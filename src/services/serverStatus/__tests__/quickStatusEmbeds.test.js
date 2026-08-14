@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { buildQuickStatusEmbed } from '../quickStatusEmbeds.js';
+import { buildQuickStatusEmbed, buildMissingDiscordEmbed } from '../quickStatusEmbeds.js';
 
 function baseState(overrides = {}) {
   return {
@@ -47,12 +47,13 @@ describe('buildQuickStatusEmbed', () => {
       newPlayers1h: 6,
     };
 
-    const embed = buildQuickStatusEmbed(baseState(), 40, roles, stats);
+    const embed = buildQuickStatusEmbed(baseState(), 40, roles, stats, { voiceCount: 42 });
     const data = embed.toJSON();
 
     expect(data.title).toContain('Royal Battalion One | MAIN');
     expect(data.description).toContain('LIVE');
     expect(data.fields.some((f) => f.name === 'Online' && f.value.includes('78'))).toBe(true);
+    expect(data.fields.some((f) => f.name === 'In Voice' && f.value.includes('42'))).toBe(true);
     expect(data.fields.some((f) => f.name === 'RB Members' && f.value.includes('12') && f.value.includes('7v5'))).toBe(true);
     expect(data.fields.some((f) => f.name === 'WL / Admins' && f.value.includes('8') && f.value.includes('2'))).toBe(true);
     expect(data.fields.some((f) => f.name.startsWith('Admins online') && f.value.includes('Bonnie'))).toBe(true);
@@ -79,5 +80,25 @@ describe('buildQuickStatusEmbed', () => {
     }, {});
     const adminField = embed.toJSON().fields.find((f) => f.name.startsWith('Admins online'));
     expect(adminField.value).toContain('None online');
+  });
+});
+
+describe('buildMissingDiscordEmbed', () => {
+  test('shows everyone accounted for when empty', () => {
+    const data = buildMissingDiscordEmbed([]).toJSON();
+    expect(data.title).toBe('Not on Discord while playing');
+    expect(data.description).toContain('Everyone accounted for');
+  });
+
+  test('lists missing members and prospects with mentions and steam links', () => {
+    const data = buildMissingDiscordEmbed([
+      { name: 'Alice', discordId: '111', steamId: '76561198000000001', kind: 'member' },
+      { name: 'Bob', discordId: null, steamId: '76561198000000002', kind: 'prospect' },
+    ]).toJSON();
+    expect(data.description).toContain('<@111>');
+    expect(data.description).toContain('[Member]');
+    expect(data.description).toContain('Bob');
+    expect(data.description).toContain('[Prospect]');
+    expect(data.description).toContain('steamid.com/profiles/76561198000000002');
   });
 });
