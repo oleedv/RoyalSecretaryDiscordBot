@@ -4,6 +4,13 @@ const MAX_IMAGE_DIMENSION = 1024
 const IMAGE_FETCH_TIMEOUT = 8000
 
 /**
+ * Max bytes for re-uploading a non-image attachment into the relay channel.
+ * Larger files (especially videos) often exceed Discord REST's ~15s timeout
+ * and abort mid-upload — staff still get the CDN link in the embed field.
+ */
+export const MAX_RELAY_REUPLOAD_BYTES = 8 * 1024 * 1024;
+
+/**
  * Fetch image attachments, resize, and return as base64-encoded PNG.
  * Failed fetches are silently skipped (Promise.allSettled).
  */
@@ -65,7 +72,20 @@ export function buildFileList(attachments) {
 }
 
 /**
+ * Whether a non-image attachment is small enough to attempt re-upload.
+ * Unknown size is treated as eligible; trySendWithFiles falls back on failure.
+ */
+export function canReuploadAttachment(attachment) {
+  if (attachment == null) return false;
+  const size = attachment.size;
+  if (typeof size === 'number' && size > MAX_RELAY_REUPLOAD_BYTES) return false;
+  return Boolean(attachment.url);
+}
+
+/**
  * Enrich an embed and sendOptions with attachment data from a Discord message.
+ * Images are embedded by URL (no re-upload). Non-image files are re-uploaded
+ * only when under MAX_RELAY_REUPLOAD_BYTES; larger ones stay as embed links only.
  */
 export function applyAttachments(embed, sendOptions, messageAttachments) {
   if (messageAttachments.size === 0) return;
@@ -79,7 +99,8 @@ export function applyAttachments(embed, sendOptions, messageAttachments) {
   embed.addFields({ name: 'Attachments', value: fileList });
 
   const nonImageFiles = messageAttachments.filter((a) => !a.contentType?.startsWith('image/'));
-  if (nonImageFiles.size > 0) {
-    sendOptions.files = nonImageFiles.map((a) => ({ attachment: a.url, name: a.name }));
+  const reuploadable = nonImageFiles.filter((a) => canReuploadAttachment(a));
+  if (reuploadable.size > 0) {
+    sendOptions.files = reuploadable.map((a) => ({ attachment: a.url, name: a.name }));
   }
 }
