@@ -121,8 +121,9 @@ function formatAdminList(adminsOnline) {
  * @param {number} seedThreshold
  * @param {object} roles - from classifyOnlinePlayers
  * @param {object} serverStats - from getServerStats
+ * @param {{ voiceCount?: number }} [extras]
  */
-export function buildQuickStatusEmbed(state, seedThreshold = 40, roles = {}, serverStats = {}) {
+export function buildQuickStatusEmbed(state, seedThreshold = 40, roles = {}, serverStats = {}, extras = {}) {
   const totalSlots = (state.publicSlots || 0) + (state.reserveSlots || 0);
   const publicSlots = state.publicSlots || 0;
   const playerCount = state.playerCount ?? 0;
@@ -138,14 +139,16 @@ export function buildQuickStatusEmbed(state, seedThreshold = 40, roles = {}, ser
 
   const popColor = getPopColor(playerCount, publicSlots || totalSlots || 1);
   const queueColor = getQueueColor(queue);
-  const capStr = publicSlots
-    ? `**${playerCount} / ${publicSlots}**${state.reserveSlots ? ` · ${state.reserveSlots} res` : ''}`
-    : `**${playerCount}**`;
+  const onlineStr = publicSlots
+    ? `${popColor} **${playerCount}** / ${publicSlots}${state.reserveSlots ? ` · ${state.reserveSlots} res` : ''}`
+    : `${popColor} **${playerCount}**`;
+  const voiceCount = extras.voiceCount;
+  const voiceStr = voiceCount != null ? `💬 **${voiceCount}**` : '💬 **—**';
 
   embed.addFields(
-    { name: 'Online', value: `${popColor} **${playerCount}**`, inline: true },
+    { name: 'Online', value: onlineStr, inline: true },
     { name: 'Queue', value: `${queueColor} **${queue}**`, inline: true },
-    { name: 'Capacity', value: capStr, inline: true },
+    { name: 'In Voice', value: voiceStr, inline: true },
   );
 
   const rb = roles.rbCount ?? 0;
@@ -224,6 +227,60 @@ export function buildQuickStatusEmbed(state, seedThreshold = 40, roles = {}, ser
   });
 
   embed.setFooter({ text: 'Royal Secretary · refreshes every 60s' });
+
+  return embed;
+}
+
+/**
+ * Second embed: RB members / prospects in-game but not in Discord voice.
+ * Mirrors the old Python "Not on Discord while playing" widget.
+ *
+ * @param {Array<{ name: string, discordId?: string|null, steamId?: string|null, kind?: string }>} missing
+ * @param {{ isSeeding?: boolean }} [opts]
+ */
+export function buildMissingDiscordEmbed(missing = [], opts = {}) {
+  const embed = createEmbed('Quick Status')
+    .setTitle('Not on Discord while playing');
+
+  if (!missing.length) {
+    return embed
+      .setColor(0x57f287)
+      .setDescription('Everyone accounted for.');
+  }
+
+  const lines = missing.map((p) => {
+    const steam = p.steamId
+      ? `[Steam](https://www.steamid.com/profiles/${p.steamId})`
+      : null;
+    const tag = p.kind === 'prospect' ? ' [Prospect]' : p.kind === 'member' ? ' [Member]' : '';
+    if (p.discordId && steam) return `· <@${p.discordId}>${tag} — ${steam}`;
+    if (p.discordId) return `· <@${p.discordId}>${tag}`;
+    if (steam) return `· **${p.name || 'Unknown'}**${tag} — ${steam}`;
+    return `· **${p.name || 'Unknown'}**${tag}`;
+  });
+
+  let description = lines.join('\n');
+  if (description.length > 4000) {
+    const kept = [];
+    let len = 0;
+    for (const line of lines) {
+      if (len + line.length + 1 > 3900) {
+        kept.push(`*... and ${lines.length - kept.length} more*`);
+        break;
+      }
+      kept.push(line);
+      len += line.length + 1;
+    }
+    description = kept.join('\n');
+  }
+
+  embed.setColor(0xfee75c).setDescription(description);
+
+  if (opts.isSeeding) {
+    embed.setFooter({ text: 'Seeding — voice not required for prospects' });
+  } else {
+    embed.setFooter({ text: 'In-game but not in Discord voice' });
+  }
 
   return embed;
 }
