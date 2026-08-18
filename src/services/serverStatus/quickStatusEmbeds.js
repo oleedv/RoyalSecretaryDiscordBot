@@ -254,10 +254,10 @@ export function buildMissingDiscordEmbed(missing = [], opts = {}) {
       ? `[Steam](https://www.steamid.com/profiles/${p.steamId})`
       : null;
     const tag = p.kind === 'prospect' ? ' [Prospect]' : p.kind === 'member' ? ' [Member]' : '';
-    if (p.discordId && steam) return `· <@${p.discordId}>${tag} — ${steam}`;
-    if (p.discordId) return `· <@${p.discordId}>${tag}`;
-    if (steam) return `· **${p.name || 'Unknown'}**${tag} — ${steam}`;
-    return `· **${p.name || 'Unknown'}**${tag}`;
+    const name = p.name || 'Unknown';
+    const who = p.discordId ? `${name} <@${p.discordId}>` : name;
+    if (steam) return `· ${who}${tag} - ${steam}`;
+    return `· ${who}${tag}`;
   });
 
   let description = lines.join('\n');

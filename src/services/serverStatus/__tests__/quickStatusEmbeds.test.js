@@ -97,7 +97,7 @@ describe('buildMissingDiscordEmbed', () => {
       { name: 'Alice', discordId: '111', steamId: '76561198000000001', kind: 'member' },
       { name: 'Bob', discordId: null, steamId: '76561198000000002', kind: 'prospect' },
     ]).toJSON();
-    expect(data.description).toContain('<@111>');
+    expect(data.description).toContain('Alice <@111>');
     expect(data.description).toContain('[Member]');
     expect(data.description).toContain('Bob');
     expect(data.description).toContain('[Prospect]');
