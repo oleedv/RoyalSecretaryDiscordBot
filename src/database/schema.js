@@ -236,6 +236,34 @@ export async function initSchema() {
   await query(`ALTER TABLE prospect_events MODIFY COLUMN event_type ENUM('created', 'vote_started', 'accepted', 'denied', 'closed', 'paused', 'unpaused', 'extended', 'unclaimed') NOT NULL`).catch(e => log.warn({ err: e.message }, 'prospect_events.event_type MODIFY skipped'));
   await query(`ALTER TABLE prospect_votes ADD COLUMN IF NOT EXISTS reason TEXT NULL`);
 
+  await query(`
+    CREATE TABLE IF NOT EXISTS prospect_config (
+      id INT PRIMARY KEY DEFAULT 1,
+      vote_start_hours INT NOT NULL DEFAULT 6,
+      vote_accept_hours INT NOT NULL DEFAULT 16,
+      period_days INT NOT NULL DEFAULT 28,
+      cooldown_days INT NOT NULL DEFAULT 28,
+      min_yes_votes INT NOT NULL DEFAULT 10,
+      min_yes_rate DECIMAL(5,4) NOT NULL DEFAULT 0.8000,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CHECK (id = 1)
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS prospect_cooldowns (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id VARCHAR(20) NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      created_by VARCHAR(20) NOT NULL,
+      reason VARCHAR(500) NULL,
+      prospect_id INT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_pcool_user (user_id),
+      INDEX idx_pcool_expires (expires_at)
+    )
+  `);
+
   // ── Seeding tables ──
 
   await query(`

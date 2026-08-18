@@ -6,6 +6,7 @@ import {
 } from 'discord.js';
 import { rawModal, labelComponent, textInput, radioGroup } from '../utils/modalComponents.js';
 import { getOpenProspectByUser, getProspectByChannel, getProspectByChannelAnyStatus, claimProspect, unclaimProspect, acceptProspect, extendProspect, closeProspect } from '../services/prospect/prospectService.js';
+import { applyCooldownMessage, getActiveCooldown, getProspectConfig } from '../services/prospect/prospectConfig.js';
 import { postVote, getProspectByVoteMessage, upsertVote, getVoteCounts, finalizeVote } from '../services/prospect/prospectVoting.js';
 import { buildVoteComponents } from '../services/prospect/prospectEmbeds.js';
 import { getPlaytime } from '../services/playtimeService.js';
@@ -29,6 +30,11 @@ export async function handleApply(interaction) {
   const existing = await getOpenProspectByUser(interaction.user.id);
   if (existing) {
     return interaction.reply({ embeds: [errorEmbed('You already have an open prospect application.')], flags: ['Ephemeral'] });
+  }
+
+  const cooldown = await getActiveCooldown(interaction.user.id);
+  if (cooldown) {
+    return interaction.reply({ embeds: [errorEmbed(applyCooldownMessage(cooldown.expires_at))], flags: ['Ephemeral'] });
   }
 
   const modal = new ModalBuilder()
@@ -225,8 +231,10 @@ export async function handleTestVote(interaction) {
   let playtimeWarning = null;
   if (prospect.steam_id && prospect.steam_id.toUpperCase() !== 'Q') {
     const stats = await getPlaytime(prospect.steam_id, prospect.created_at).catch(() => null);
-    if (stats && stats.playtimeHours < 16) {
-      playtimeWarning = `**${prospect.alias}** only has **${stats.playtimeHours}h** playtime (16h required). Posting vote anyway since this is a force action.`;
+    const live = await getProspectConfig();
+    const acceptHours = live.voteAcceptHours;
+    if (stats && stats.playtimeHours < acceptHours) {
+      playtimeWarning = `**${prospect.alias}** only has **${stats.playtimeHours}h** playtime (${acceptHours}h required to be accepted). Posting vote anyway since this is a force action.`;
     }
   }
 

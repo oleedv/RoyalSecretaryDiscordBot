@@ -8,6 +8,8 @@ import { getPlaytime } from '../playtimeService.js';
 import { getProspectStats } from '../squadStats/combatStatsService.js';
 import { getVoiceStats, getMessageStats } from '../activity/activityService.js';
 import * as whitelistService from '../whitelistService.js';
+import { evaluateVoteOutcome } from './prospectVoteRules.js';
+import { getProspectConfig } from './prospectConfig.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
 
@@ -84,11 +86,13 @@ export async function postVote(prospect, client) {
     getMessageStats(prospect.user_id, periodStartIso, nowIso).catch(() => null),
   ]);
 
+  const liveForVote = await getProspectConfig();
   const voteEmbed = buildVoteEmbed(prospect, {
     playtime: playtimeStats,
     combat: combatStats,
     voice: voiceStats,
     messages: messageStats,
+    voteAcceptHours: liveForVote.voteAcceptHours,
   });
   const counts = { yes: 0, no: 0, unsure: 0 };
   const components = buildVoteComponents(counts);
@@ -99,7 +103,8 @@ export async function postVote(prospect, client) {
     allowedMentions: { roles: memberRoleId ? [memberRoleId] : [] },
   });
 
-  const { periodEnd } = getProspectDates(prospect);
+  const liveForDates = await getProspectConfig();
+  const { periodEnd } = getProspectDates(prospect, liveForDates.periodDays);
   // Guarantee the whitelist entry covers the full vote window even if the vote starts late
   // (force-vote or delayed by low playtime). Anchor expiry to max(periodEnd, now + voteDaysBefore).
   const minExpiry = new Date(Date.now() + (config.prospects.voteDaysBefore || 14) * 24 * 60 * 60 * 1000);
@@ -165,21 +170,47 @@ export async function postVote(prospect, client) {
 export async function finalizeVote(prospect, actorId, client, guild) {
   const counts = await getVoteCounts(prospect.id);
 
-  const MIN_VOTES = config.prospects?.minYesVotes ?? 10;
-  const MIN_RATE = config.prospects?.minYesRate ?? 0.80;
+  const live = await getProspectConfig();
+  const MIN_VOTES = live.minYesVotes;
+  const MIN_RATE = live.minYesRate;
+  const acceptHours = live.voteAcceptHours;
 
-  const totalVotes = counts.yes + counts.no;
-  const yesRate = totalVotes > 0 ? counts.yes / totalVotes : 0;
-  const meetsMinimum = counts.yes >= MIN_VOTES;
-  const meetsRate = yesRate >= MIN_RATE;
-  const outcome = (meetsMinimum && meetsRate) ? 'accepted' : 'denied';
+  let playtimeHours = null;
+  if (!isTestSteamId(prospect.steam_id)) {
+    const periodStartIso = new Date(prospect.period_started_at || prospect.created_at).toISOString().slice(0, 10);
+    const nowIso = new Date().toISOString().slice(0, 10);
+    const stats = await getPlaytime(prospect.steam_id, periodStartIso, nowIso).catch(() => null);
+    playtimeHours = stats ? stats.playtimeHours : null;
+  }
+
+  const judged = evaluateVoteOutcome({
+    yes: counts.yes,
+    no: counts.no,
+    playtimeHours,
+    isTestSteamId: isTestSteamId(prospect.steam_id),
+    minYesVotes: MIN_VOTES,
+    minYesRate: MIN_RATE,
+    voteAcceptHours: acceptHours,
+  });
+  const outcome = judged.outcome;
 
   const staffChannel = await guild.channels.fetch(prospect.channel_id).catch(() => null);
 
+  if (judged.hoursUnverified && staffChannel) {
+    await staffChannel.send({
+      embeds: [infoEmbed(`Could not verify gameplay hours; the ${acceptHours}-hour accept rule was skipped.`)],
+    }).catch(() => null);
+  }
+
   if (outcome === 'denied' && staffChannel) {
     const warnings = [];
-    if (!meetsMinimum) warnings.push(`${counts.yes}/${MIN_VOTES} minimum yes votes`);
-    if (!meetsRate) warnings.push(`${Math.round(yesRate * 100)}% of ${Math.round(MIN_RATE * 100)}% required yes rate`);
+    if (!judged.votesOk) {
+      const totalVotes = counts.yes + counts.no;
+      const yesRate = totalVotes > 0 ? counts.yes / totalVotes : 0;
+      if (counts.yes < MIN_VOTES) warnings.push(`${counts.yes}/${MIN_VOTES} minimum yes votes`);
+      if (yesRate < MIN_RATE) warnings.push(`${Math.round(yesRate * 100)}% of ${Math.round(MIN_RATE * 100)}% required yes rate`);
+    }
+    if (!judged.hoursOk) warnings.push(`${playtimeHours}/${acceptHours} required gameplay hours`);
     if (warnings.length > 0) {
       await staffChannel.send({
         embeds: [infoEmbed(`Thresholds not met: ${warnings.join(', ')}. Prospect will be **denied**.`)],
@@ -187,7 +218,7 @@ export async function finalizeVote(prospect, actorId, client, guild) {
     }
   }
 
-  const reason = outcome === 'denied' ? 'The membership vote did not pass.' : undefined;
+  const reason = outcome === 'denied' ? judged.denyReason : undefined;
   await closeProspect(prospect, actorId, outcome, guild, reason);
 
   if (staffChannel) {

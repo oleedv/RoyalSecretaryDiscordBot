@@ -16,6 +16,7 @@ import { generateProspectEvaluation } from '../ai/prospectAiService.js';
 import { query, transaction } from '../../database/connection.js';
 import { buildOrderedStatFields } from './prospectStatsFields.js';
 import { assignTeamRole, removeTeamRole } from './teamRoleService.js';
+import { applyCooldownMessage, getActiveCooldown, getProspectConfig, upsertCooldown } from './prospectConfig.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
 
@@ -46,8 +47,9 @@ export function isTestSteamId(id) {
  * Calculate period end date, vote date, and paused state for a prospect.
  * Uses period_started_at if set, otherwise falls back to created_at.
  */
-export function getProspectDates(prospect) {
-  const { periodDays, voteDaysBefore } = config.prospects;
+export function getProspectDates(prospect, periodDaysOverride) {
+  const periodDays = periodDaysOverride ?? config.prospects.periodDays;
+  const { voteDaysBefore } = config.prospects;
   const extra = prospect.extra_days || 0;
   const totalPeriod = periodDays + extra;
   const daysUntilVote = (periodDays - voteDaysBefore) + extra;
@@ -416,8 +418,9 @@ export async function getProspectByForumThread(forumThreadId) {
 }
 
 export async function getProspectsNeedingVote() {
-  const { periodDays, voteDaysBefore } = config.prospects;
-  const daysUntilVote = periodDays - voteDaysBefore;
+  const live = await getProspectConfig();
+  const { voteDaysBefore } = config.prospects;
+  const daysUntilVote = live.periodDays - voteDaysBefore;
   return await query(
     `SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE status = ? AND forum_thread_id IS NOT NULL AND vote_posted_at IS NULL AND paused_at IS NULL AND TIMESTAMPDIFF(DAY, COALESCE(period_started_at, created_at), NOW()) >= (? + COALESCE(extra_days, 0))`,
     ['open', daysUntilVote]
@@ -425,10 +428,10 @@ export async function getProspectsNeedingVote() {
 }
 
 export async function getProspectsNeedingVoteEnd() {
-  const { periodDays } = config.prospects;
+  const live = await getProspectConfig();
   return await query(
     `SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE status = ? AND vote_posted_at IS NOT NULL AND paused_at IS NULL AND TIMESTAMPDIFF(DAY, COALESCE(period_started_at, created_at), NOW()) >= (? + COALESCE(extra_days, 0))`,
-    ['open', periodDays]
+    ['open', live.periodDays]
   );
 }
 
@@ -582,6 +585,9 @@ export async function backfillForumThread(prospectId, thread) {
 export async function createProspect(userId, guild, formData) {
   const existing = await getOpenProspectByUser(userId);
   if (existing) return { error: 'You already have an open prospect application.' };
+
+  const cooldown = await getActiveCooldown(userId);
+  if (cooldown) return { error: applyCooldownMessage(cooldown.expires_at) };
 
   const uuid = randomUUID();
   const shortId = uuid.slice(0, 6);
@@ -743,7 +749,9 @@ export async function unclaimProspect(prospect, actorId, guild, reason = null) {
 }
 
 export async function acceptProspect(prospect, acceptedById, guild) {
-  const { forumChannelId, periodDays, prospectRoleId, purgedRoleId, prospectLoungeChannelId } = config.prospects;
+  const live = await getProspectConfig();
+  const periodDays = live.periodDays;
+  const { forumChannelId, prospectRoleId, purgedRoleId, prospectLoungeChannelId } = config.prospects;
 
   const member = await guild.members.fetch(prospect.user_id).catch(() => null);
 
@@ -918,6 +926,22 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
   if (!claimed) {
     log.warn({ prospectId: prospect.id, outcome, closedById }, 'closeProspect skipped: prospect already closed');
     return;
+  }
+
+  if (outcome === 'denied') {
+    try {
+      const live = await getProspectConfig();
+      const expiresAt = new Date(Date.now() + live.cooldownDays * 24 * 60 * 60 * 1000);
+      await upsertCooldown({
+        userId: prospect.user_id,
+        expiresAt,
+        createdBy: closedById,
+        reason: reason || null,
+        prospectId: prospect.id,
+      });
+    } catch (err) {
+      log.warn({ err, prospectId: prospect.id }, 'Failed to write deny cooldown');
+    }
   }
 
   if (prospect.forum_thread_id) {
@@ -1144,7 +1168,8 @@ async function slideProspectWhitelistExpiry(prospectId, guild, cause, actorId = 
   const updated = rows[0];
   if (!updated || !updated.vote_posted_at) return;
 
-  const { periodEnd } = getProspectDates(updated);
+  const live = await getProspectConfig();
+  const { periodEnd } = getProspectDates(updated, live.periodDays);
   const expiryUnix = Math.floor(periodEnd.getTime() / 1000);
 
   if (!isTestSteamId(updated.steam_id)) {

@@ -1,6 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { createEmbed } from '../../utils/embed.js';
 import { isTestSteamId, getProspectDates } from './prospectService.js';
+import { shouldShowHoursWarning, hoursWarningValue } from './prospectVoteRules.js';
 import config from '../../config.js';
 
 export function buildProspectInfoEmbed(member, prospect, forumUrl, bmPlayerId = null) {
@@ -258,6 +259,14 @@ export function buildVoteEmbed(prospect, stats = null) {
 
   if (extra > 0) {
     embed.addFields({ name: 'Voting extended', value: `${extra} d`, inline: true });
+  }
+
+  const acceptHours = stats?.voteAcceptHours ?? config.prospects?.voteAcceptHours ?? 16;
+  if (shouldShowHoursWarning(stats?.playtime?.playtimeHours, acceptHours)) {
+    embed.addFields({
+      name: 'Hours requirement',
+      value: hoursWarningValue(acceptHours),
+    });
   }
 
   const playtime = stats?.playtime;

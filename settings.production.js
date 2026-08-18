@@ -37,6 +37,13 @@ export default {
     loungeChannelId: '460898033794809856',              // Public announcements (voting, accepted)
     periodDays: 28,
     voteDaysBefore: 14,
+    // First-insert defaults for prospect_config. Live hours / period / cooldown / vote
+    // thresholds are edited on the website /prospects/settings page.
+    voteStartHours: 6,
+    voteAcceptHours: 16,
+    cooldownDays: 28,
+    minYesVotes: 10,
+    minYesRate: 0.80,
     roles: ['1204763136830218260', '654022866261770270', '1213958671843860552', '1295470787934814259', '989894740642263082'],                      // Staff roles, trainee mentor, mentor, seniro mentor, recruitment officer, comm officer, rb managers
     prospectRoleId: '706053335106715650',               // Prospect role
     purgedRoleId: '1125873310182428693',                // Purged role (removed on accept)

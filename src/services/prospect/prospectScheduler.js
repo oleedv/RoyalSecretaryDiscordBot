@@ -1,5 +1,7 @@
 import { getProspectsNeedingVote, getProspectsNeedingVoteEnd, isTestSteamId, getProspectDates, refreshAllOpenProspectStats, refreshAllOpenProspectChecks } from './prospectService.js';
 import { postVote, finalizeVote } from './prospectVoting.js';
+import { shouldSkipVoteStart } from './prospectVoteRules.js';
+import { getProspectConfig } from './prospectConfig.js';
 import { getPlaytime } from '../playtimeService.js';
 import { createEmbed } from '../../utils/embed.js';
 import config from '../../config.js';
@@ -70,10 +72,12 @@ async function runVoteCheck(client) {
       try {
         if (!isTestSteamId(prospect.steam_id)) {
           const stats = await getPlaytime(prospect.steam_id, prospect.period_started_at || prospect.created_at).catch(() => null);
-          if (stats && stats.playtimeHours < 16) {
-            log.info({ prospectId: prospect.id, playtimeHours: stats.playtimeHours }, 'Skipping vote - prospect has < 16h playtime');
+          const live = await getProspectConfig();
+          const startHours = live.voteStartHours;
+          if (shouldSkipVoteStart(stats?.playtimeHours ?? null, startHours)) {
+            log.info({ prospectId: prospect.id, playtimeHours: stats.playtimeHours }, 'Skipping vote - below start hours');
 
-            const { periodEnd } = getProspectDates(prospect);
+            const { periodEnd } = getProspectDates(prospect, live.periodDays);
 
             if (new Date() >= periodEnd && !lowPlaytimeWarned.has(prospect.id)) {
               lowPlaytimeWarned.add(prospect.id);
@@ -83,8 +87,8 @@ async function runVoteCheck(client) {
                 const warnEmbed = createEmbed('Prospect')
                   .setTitle('Insufficient Playtime')
                   .setDescription(
-                    `**${prospect.alias}**'s prospect period has ended but they only have **${stats.playtimeHours}h** of playtime (16h required).\n` +
-                    'The vote will be posted automatically once they reach 16 hours, or a staff member can force-vote from the ticket.'
+                    `**${prospect.alias}**'s prospect period has ended but they only have **${stats.playtimeHours}h** of playtime (${startHours}h required to start the vote).\n` +
+                    `The vote will be posted automatically once they reach ${startHours} hours, or a staff member can force-vote from the ticket.`
                   )
                   .setColor(0xed4245);
                 await staffChannel.send({ embeds: [warnEmbed] }).catch(() => null);
