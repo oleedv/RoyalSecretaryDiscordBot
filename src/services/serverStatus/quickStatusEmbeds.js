@@ -1,6 +1,7 @@
 import tinygradient from 'tinygradient';
 import { createEmbed } from '../../utils/embed.js';
 import config from '../../config.js';
+import { QUICK_STATUS_FOOTER, MISSING_DISCORD_TITLE } from './quickStatusMessages.js';
 
 const gradient = tinygradient([
   { color: '#ff0000', pos: 0 },
@@ -226,7 +227,7 @@ export function buildQuickStatusEmbed(state, seedThreshold = 40, roles = {}, ser
     inline: false,
   });
 
-  embed.setFooter({ text: 'Royal Secretary · refreshes every 60s' });
+  embed.setFooter({ text: QUICK_STATUS_FOOTER });
 
   return embed;
 }
@@ -240,7 +241,7 @@ export function buildQuickStatusEmbed(state, seedThreshold = 40, roles = {}, ser
  */
 export function buildMissingDiscordEmbed(missing = [], opts = {}) {
   const embed = createEmbed('Quick Status')
-    .setTitle('Not on Discord while playing');
+    .setTitle(MISSING_DISCORD_TITLE);
 
   if (!missing.length) {
     return embed

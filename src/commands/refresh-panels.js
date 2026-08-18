@@ -8,6 +8,9 @@ import { getSeedingConfig, setPanelMessageId } from '../services/seeding/seeding
 import { stopStatusUpdater, startStatusUpdater } from '../services/serverStatus/serverStatusService.js';
 import { refreshQuickStatus } from '../services/serverStatus/quickStatusService.js';
 import { refreshLiveLayerHighlight } from '../services/layerRotationValidator/layerRotationValidatorScheduler.js';
+import { refreshLeaderboard } from '../services/sl-reward/leaderboardCron.js';
+import { refreshCommsBoard } from '../services/commsWatch/commsWatchMonitor.js';
+import { REFRESHABLE_PANELS } from './refreshPanelRegistry.js';
 import { successEmbed, errorEmbed } from '../utils/embed.js';
 import config from '../config.js';
 import logger from '../logger.js';
@@ -31,9 +34,8 @@ async function refreshStaticPanel(interaction, panel) {
   if (!channel) return `${panel.label}: skipped (channel not found)`;
 
   const existing = await findBotMessageByCustomId(channel, interaction.client.user.id, panel.customId);
-  if (existing) await existing.delete().catch(() => {});
-
   await channel.send(panel.build());
+  if (existing) await existing.delete().catch(() => {});
   log.info(`${panel.label} panel refreshed`);
   return `${panel.label}: refreshed`;
 }
@@ -97,6 +99,27 @@ async function refreshQuickStatusPanel(interaction) {
   return refreshQuickStatus(interaction.client);
 }
 
+async function refreshSlLeaderboard(interaction) {
+  return refreshLeaderboard(interaction.client);
+}
+
+async function refreshCommsBoardPanel(interaction) {
+  return refreshCommsBoard(interaction.client);
+}
+
+export const PANEL_REFRESHERS = {
+  ticket: (i) => refreshStaticPanel(i, STATIC_PANELS.find((p) => p.key === 'ticket')),
+  prospect: (i) => refreshStaticPanel(i, STATIC_PANELS.find((p) => p.key === 'prospect')),
+  verify: (i) => refreshStaticPanel(i, STATIC_PANELS.find((p) => p.key === 'verify')),
+  purged: (i) => refreshStaticPanel(i, STATIC_PANELS.find((p) => p.key === 'purged')),
+  seeding: refreshSeedingPanel,
+  'server-status': refreshServerStatus,
+  'quick-status': refreshQuickStatusPanel,
+  'layer-rotation': refreshLayerRotation,
+  'sl-leaderboard': refreshSlLeaderboard,
+  'comms-board': refreshCommsBoardPanel,
+};
+
 export default {
   data: new SlashCommandBuilder()
     .setName('refresh-panels')
@@ -108,14 +131,7 @@ export default {
         .setDescription('Which panel to refresh (default: all)')
         .addChoices(
           { name: 'All', value: 'all' },
-          { name: 'Ticket', value: 'ticket' },
-          { name: 'Prospect', value: 'prospect' },
-          { name: 'Verify', value: 'verify' },
-          { name: 'Purged', value: 'purged' },
-          { name: 'Seeding', value: 'seeding' },
-          { name: 'Server Status', value: 'server-status' },
-          { name: 'Quick Status', value: 'quick-status' },
-          { name: 'Layer Rotation', value: 'layer-rotation' },
+          ...REFRESHABLE_PANELS.map((p) => ({ name: p.choiceName, value: p.key })),
         )
     ),
 
@@ -127,30 +143,14 @@ export default {
     await interaction.deferReply({ flags: ['Ephemeral'] });
 
     const choice = interaction.options.getString('panel') || 'all';
+    const keys = choice === 'all' ? REFRESHABLE_PANELS.map((p) => p.key) : [choice];
     const results = [];
 
     try {
-      if (choice === 'all' || STATIC_PANELS.some((p) => p.key === choice)) {
-        const panels = choice === 'all' ? STATIC_PANELS : STATIC_PANELS.filter((p) => p.key === choice);
-        for (const panel of panels) {
-          results.push(await refreshStaticPanel(interaction, panel));
-        }
-      }
-
-      if (choice === 'all' || choice === 'seeding') {
-        results.push(await refreshSeedingPanel(interaction));
-      }
-
-      if (choice === 'all' || choice === 'server-status') {
-        results.push(await refreshServerStatus(interaction));
-      }
-
-      if (choice === 'all' || choice === 'quick-status') {
-        results.push(await refreshQuickStatusPanel(interaction));
-      }
-
-      if (choice === 'all' || choice === 'layer-rotation') {
-        results.push(await refreshLayerRotation(interaction));
+      for (const key of keys) {
+        const handler = PANEL_REFRESHERS[key];
+        if (!handler) throw new Error(`No refresher registered for panel "${key}"`);
+        results.push(await handler(interaction));
       }
 
       await interaction.editReply({ embeds: [successEmbed(results.join('\n'))] });

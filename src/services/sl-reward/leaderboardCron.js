@@ -93,3 +93,29 @@ export function startScheduler(client) {
 export function stopScheduler() {
   scheduler.stop();
 }
+
+/** Re-post the live leaderboard (used by /refresh-panels). Posts first, then deletes the old message. */
+export async function refreshLeaderboard(client) {
+  if (!SL_LEADERBOARD_CHANNEL_ID) return 'SL Leaderboard: skipped (no channel configured)';
+
+  const channel = await client.channels.fetch(SL_LEADERBOARD_CHANNEL_ID).catch(() => null);
+  if (!channel) return 'SL Leaderboard: skipped (channel not found)';
+
+  const previous = await getBotState(STATE_KEY);
+  await setBotState(STATE_KEY, null);
+  try {
+    await tick(client);
+  } catch (err) {
+    if (previous) await setBotState(STATE_KEY, previous);
+    throw err;
+  }
+
+  const next = await getBotState(STATE_KEY);
+  if (previous?.messageId && next?.messageId && previous.messageId !== next.messageId) {
+    const old = await channel.messages.fetch(previous.messageId).catch(() => null);
+    if (old) await old.delete().catch(() => {});
+  }
+
+  if (!next?.messageId) return 'SL Leaderboard: skipped (post failed)';
+  return 'SL Leaderboard: refreshed';
+}

@@ -7,7 +7,7 @@ import { evaluateComms } from './commsWatchState.js';
 import {
   getOpenProspects, isMember, getDiscordIdBySteamId,
   loadAllStates, upsertState, deleteStatesNotIn,
-  getBoardPointer, clearBoardPointer,
+  getBoardPointer, setBoardPointer, clearBoardPointer,
 } from './commsWatchService.js';
 import { buildBoardEmbed, buildProspectAlertEmbed } from './commsWatchEmbeds.js';
 
@@ -193,6 +193,30 @@ const scheduler = createScheduler({
     }
   },
 });
+
+/** Re-post the live comms board in its current channel (used by /refresh-panels). */
+export async function refreshCommsBoard(client) {
+  const pointer = await getBoardPointer();
+  if (!pointer?.channelId || !pointer?.messageId) {
+    return 'Comms Board: skipped (not posted - use /comms-board show)';
+  }
+
+  const channel = await client.channels.fetch(pointer.channelId).catch(() => null);
+  if (!channel) return 'Comms Board: skipped (channel not found)';
+
+  await runMonitorTick(client).catch((err) => log.warn({ err }, 'pre-refresh tick failed'));
+  const embed = await buildCurrentBoardEmbed();
+  const posted = await channel.send({ embeds: [embed] });
+
+  const old = await channel.messages.fetch(pointer.messageId).catch(() => null);
+  if (old) await old.delete().catch(() => null);
+  await setBoardPointer(channel.id, posted.id);
+  lastBoardEditAt = Date.now();
+  lastMembershipSig = null;
+  lastRenderSig = null;
+  log.info({ channelId: channel.id, messageId: posted.id }, 'Comms board refreshed');
+  return 'Comms Board: refreshed';
+}
 
 export function startScheduler(client) {
   const c = cfg();

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { buildQuickStatusEmbed, buildMissingDiscordEmbed } from '../quickStatusEmbeds.js';
+import { QUICK_STATUS_FOOTER, MISSING_DISCORD_TITLE } from '../quickStatusMessages.js';
 
 function baseState(overrides = {}) {
   return {
@@ -60,6 +61,7 @@ describe('buildQuickStatusEmbed', () => {
     expect(data.fields.some((f) => f.name.startsWith('Admins online') && f.value.includes('Lind'))).toBe(true);
     // No full roster fields
     expect(data.fields.every((f) => !f.name.startsWith('Team 1 •'))).toBe(true);
+    expect(data.footer?.text).toBe(QUICK_STATUS_FOOTER);
   });
 
   test('seeding state when below threshold', () => {
@@ -86,7 +88,7 @@ describe('buildQuickStatusEmbed', () => {
 describe('buildMissingDiscordEmbed', () => {
   test('shows everyone accounted for when empty', () => {
     const data = buildMissingDiscordEmbed([]).toJSON();
-    expect(data.title).toBe('Not on Discord while playing');
+    expect(data.title).toBe(MISSING_DISCORD_TITLE);
     expect(data.description).toContain('Everyone accounted for');
   });
 
