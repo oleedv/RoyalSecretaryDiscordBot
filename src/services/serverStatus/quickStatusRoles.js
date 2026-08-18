@@ -1,7 +1,10 @@
 /**
- * Classify online players against website WhitelistEntry roles.
+ * Classify online players against website WhitelistEntry + AdminGroup.
  *
- * Admin roles (count + list): TraineeAdmin, Admin, SeniorAdmin, SuperAdmin, Founder
+ * A group is an admin group when its website permissions include kick or ban
+ * (same rule as the whitelist panel). Role-name fallback is only used when
+ * no permission string / group list is available.
+ *
  * RB Members: Member
  * Prospects: Prospect
  * WL: any other active whitelist role (Whitelist, Seeder, clan partners, etc.)
@@ -26,7 +29,27 @@ function roleKey(role) {
   return normalizeRole(role).toLowerCase().replace(/[\s_-]+/g, '');
 }
 
-export function isAdminRole(role) {
+/** Website AdminGroup.permissions is a comma-separated Squad permission list. */
+export function groupHasKickOrBan(permissions) {
+  const parts = String(permissions || '')
+    .split(',')
+    .map((p) => p.trim().toLowerCase())
+    .filter(Boolean);
+  return parts.includes('kick') || parts.includes('ban');
+}
+
+export function adminGroupNameKeys(groups = []) {
+  const names = new Set();
+  for (const g of groups) {
+    if (!groupHasKickOrBan(g?.permissions)) continue;
+    const key = roleKey(g.name);
+    if (key) names.add(key);
+  }
+  return names;
+}
+
+export function isAdminRole(role, adminNames = null) {
+  if (adminNames && adminNames.size > 0) return adminNames.has(roleKey(role));
   return ADMIN_ROLE_SET.has(roleKey(role));
 }
 
@@ -74,9 +97,16 @@ export function roleLabelsFromEntry(entry) {
 
 /**
  * @param {Array<{ steamID?: string, steamId?: string, name?: string, teamID?: number }>} players
- * @param {Map<string, Array<{ role?: string, groupName?: string, name?: string }>>} entriesBySteamId
+ * @param {Map<string, Array<{ role?: string, groupName?: string, groupPermissions?: string, name?: string }>>} entriesBySteamId
+ * @param {Array<{ name?: string, permissions?: string, sortOrder?: number }>} [adminGroups]
  */
-export function classifyOnlinePlayers(players, entriesBySteamId) {
+export function classifyOnlinePlayers(players, entriesBySteamId, adminGroups = []) {
+  const adminNames = adminGroupNameKeys(adminGroups);
+  const orderByName = new Map(
+    (adminGroups || [])
+      .filter((g) => groupHasKickOrBan(g?.permissions))
+      .map((g) => [roleKey(g.name), Number(g.sortOrder) || 0]),
+  );
   const result = {
     rbCount: 0,
     prospectCount: 0,
@@ -109,21 +139,29 @@ export function classifyOnlinePlayers(players, entriesBySteamId) {
     let adminRank = -1;
 
     for (const entry of entries) {
-      for (const role of roleLabelsFromEntry(entry)) {
-        if (isAdminRole(role)) {
-          isAdmin = true;
-          const rank = ADMIN_ROLES.findIndex((r) => roleKey(r) === roleKey(role));
-          if (rank >= adminRank) {
-            adminRank = rank;
-            adminRole = rank >= 0 ? ADMIN_ROLES[rank] : role;
-          }
-        } else if (isMemberRole(role)) {
-          isMember = true;
-        } else if (isProspectRole(role)) {
-          isProspect = true;
-        } else {
-          isWlOnly = true;
+      const labels = roleLabelsFromEntry(entry);
+      const permsKnown = entry.groupPermissions != null;
+      const entryIsAdmin = permsKnown
+        ? groupHasKickOrBan(entry.groupPermissions)
+        : labels.some((role) => isAdminRole(role, adminNames.size ? adminNames : null));
+
+      if (entryIsAdmin) {
+        isAdmin = true;
+        const title = entry.groupName || labels.find((r) => isAdminRole(r, adminNames.size ? adminNames : null)) || labels[0] || 'Admin';
+        const rank = ADMIN_ROLES.findIndex((r) => roleKey(r) === roleKey(title));
+        const sort = orderByName.has(roleKey(title))
+          ? 1000 + orderByName.get(roleKey(title))
+          : (rank >= 0 ? rank : 99);
+        if (sort >= adminRank) {
+          adminRank = sort;
+          adminRole = rank >= 0 ? ADMIN_ROLES[rank] : title;
         }
+      }
+
+      for (const role of labels) {
+        if (isMemberRole(role)) isMember = true;
+        else if (isProspectRole(role)) isProspect = true;
+        else if (!entryIsAdmin && !isAdminRole(role, adminNames.size ? adminNames : null)) isWlOnly = true;
       }
     }
 

@@ -73,7 +73,7 @@ async function loadWhitelistBySteamIds(steamIds) {
     const placeholders = chunk.map(() => '?').join(',');
     try {
       const rows = await query(
-        `SELECT w.steamId, w.role, w.name, g.name AS groupName
+        `SELECT w.steamId, w.role, w.name, g.name AS groupName, g.permissions AS groupPermissions
          FROM WhitelistEntry w
          LEFT JOIN AdminGroup g ON g.id = w.groupId
          WHERE w.steamId IN (${placeholders})
@@ -85,13 +85,27 @@ async function loadWhitelistBySteamIds(steamIds) {
       for (const row of rows) {
         const id = String(row.steamId);
         if (!map.has(id)) map.set(id, []);
-        map.get(id).push({ role: row.role, groupName: row.groupName, name: row.name });
+        map.get(id).push({
+          role: row.role,
+          groupName: row.groupName,
+          groupPermissions: row.groupPermissions,
+          name: row.name,
+        });
       }
     } catch (err) {
       log.error({ err }, 'Failed to load whitelist entries for quick status');
     }
   }
   return map;
+}
+
+async function loadAdminGroups() {
+  try {
+    return await query('SELECT name, permissions, sortOrder FROM AdminGroup', [], 'website');
+  } catch (err) {
+    log.warn({ err }, 'Failed to load AdminGroups for quick status');
+    return [];
+  }
 }
 
 /**
@@ -259,8 +273,9 @@ async function updateOnce(channel, client) {
       .map((p) => String(p.steamID || p.steamId || ''))
       .filter(Boolean);
 
-    const [wlMap, serverStats, voice, discordBySteam] = await Promise.all([
+    const [wlMap, adminGroups, serverStats, voice, discordBySteam] = await Promise.all([
       loadWhitelistBySteamIds(steamIds),
+      loadAdminGroups(),
       state.connected
         ? getServerStats(name, serverId, state.serverName ? [state.serverName] : [])
         : Promise.resolve({}),
@@ -268,7 +283,7 @@ async function updateOnce(channel, client) {
       loadDiscordIdsBySteamIds(steamIds),
     ]);
 
-    const roles = classifyOnlinePlayers(state.players || [], wlMap);
+    const roles = classifyOnlinePlayers(state.players || [], wlMap, adminGroups);
     const missing = findMissingFromDiscord(
       state.players || [],
       wlMap,
@@ -361,15 +376,16 @@ export async function refreshQuickStatus(client) {
       const steamIds = (state.players || [])
         .map((p) => String(p.steamID || p.steamId || ''))
         .filter(Boolean);
-      const [wlMap, serverStats, voice, discordBySteam] = await Promise.all([
+      const [wlMap, adminGroups, serverStats, voice, discordBySteam] = await Promise.all([
         loadWhitelistBySteamIds(steamIds),
+        loadAdminGroups(),
         state.connected
           ? getServerStats(name, serverId, state.serverName ? [state.serverName] : [])
           : Promise.resolve({}),
         getVoicePresence(client),
         loadDiscordIdsBySteamIds(steamIds),
       ]);
-      const roles = classifyOnlinePlayers(state.players || [], wlMap);
+      const roles = classifyOnlinePlayers(state.players || [], wlMap, adminGroups);
       const missing = findMissingFromDiscord(
         state.players || [],
         wlMap,

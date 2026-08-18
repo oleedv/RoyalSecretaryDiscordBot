@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   ADMIN_ROLES,
   classifyOnlinePlayers,
+  groupHasKickOrBan,
   isAdminRole,
   pickPrimaryEntry,
 } from '../quickStatusRoles.js';
@@ -121,6 +122,68 @@ describe('classifyOnlinePlayers', () => {
     const r = classifyOnlinePlayers(players, map);
     expect(r.adminCount).toBe(1);
     expect(r.adminsOnline[0].role).toBe('Founder');
+  });
+
+  test('any group with kick or ban permissions is an admin', () => {
+    const players = [{ steamID: '1', name: 'Pat', teamID: 1 }];
+    const map = new Map([
+      ['1', [{
+        role: 'Member',
+        groupName: 'ServerStaff',
+        groupPermissions: 'chat,kick,canseeadminchat',
+        name: 'Pat',
+      }]],
+    ]);
+    const r = classifyOnlinePlayers(players, map);
+    expect(r.adminCount).toBe(1);
+    expect(r.rbCount).toBe(1);
+    expect(r.adminsOnline[0]).toEqual({ name: 'Pat', role: 'ServerStaff', teamID: 1 });
+  });
+
+  test('group without kick or ban is not an admin even if named Admin', () => {
+    const players = [{ steamID: '1', name: 'Cam', teamID: 2 }];
+    const map = new Map([
+      ['1', [{
+        role: 'Admin',
+        groupName: 'Admin',
+        groupPermissions: 'cameraman,chat,reserve',
+        name: 'Cam',
+      }]],
+    ]);
+    const r = classifyOnlinePlayers(players, map);
+    expect(r.adminCount).toBe(0);
+    expect(r.adminsOnline).toEqual([]);
+  });
+
+  test('role string matching a kick/ban group name counts when groupId is missing', () => {
+    const players = [{ steamID: '1', name: 'Lee', teamID: 1 }];
+    const map = new Map([
+      ['1', [{ role: 'Mod', name: 'Lee' }]],
+    ]);
+    const groups = [
+      { name: 'Mod', permissions: 'kick,ban', sortOrder: 3 },
+      { name: 'Whitelist', permissions: 'reserve,chat', sortOrder: 10 },
+    ];
+    const r = classifyOnlinePlayers(players, map, groups);
+    expect(r.adminCount).toBe(1);
+    expect(r.adminsOnline[0].role).toBe('Mod');
+  });
+});
+
+describe('groupHasKickOrBan', () => {
+  test('true when kick or ban is present', () => {
+    expect(groupHasKickOrBan('kick')).toBe(true);
+    expect(groupHasKickOrBan('ban')).toBe(true);
+    expect(groupHasKickOrBan('chat,kick,ban')).toBe(true);
+    expect(groupHasKickOrBan('BAN,changemap')).toBe(true);
+    expect(groupHasKickOrBan(' kick , reserve ')).toBe(true);
+  });
+
+  test('false without kick or ban', () => {
+    expect(groupHasKickOrBan('')).toBe(false);
+    expect(groupHasKickOrBan(null)).toBe(false);
+    expect(groupHasKickOrBan('cameraman,chat,reserve')).toBe(false);
+    expect(groupHasKickOrBan('kickvote')).toBe(false);
   });
 });
 
