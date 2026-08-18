@@ -13,11 +13,7 @@ import {
 } from './quickStatusRoles.js';
 import { reportError } from '../admin/errorAlertService.js';
 import { getBotState, setBotState } from '../botState.js';
-import {
-  collectQuickStatusMessages,
-  selectQuickStatusMessage,
-  postThenDeleteQuickStatus,
-} from './quickStatusMessages.js';
+import { selectQuickStatusMessage } from './quickStatusMessages.js';
 
 const log = logger.child({ module: 'quickStatus' });
 const STATE_KEY = 'quick_status_message';
@@ -351,10 +347,7 @@ export function stopQuickStatusUpdater() {
   log.info('Quick status updater stopped');
 }
 
-/**
- * Re-post the embed, then delete the old one. Never delete first — if the
- * replacement send fails, the previous message stays in the channel.
- */
+/** Edit the live embed in place. Never delete it. */
 export async function refreshQuickStatus(client) {
   const channelId = config.quickStatus?.channelId;
   if (!channelId) return 'Quick Status: skipped (no channel configured)';
@@ -362,50 +355,6 @@ export async function refreshQuickStatus(client) {
   const channel = await client.channels.fetch(channelId).catch(() => null);
   if (!channel) return 'Quick Status: skipped (channel not found)';
 
-  const messages = await channel.messages.fetch({ limit: FETCH_LIMIT });
-  const existing = collectQuickStatusMessages(messages.values(), client.user.id);
-
-  const seedCfg = await getSeedingConfig();
-  const threshold = seedCfg?.seed_threshold ?? config.seeding?.defaultThreshold ?? 40;
-  const entry = pickServerEntry();
-  let embeds = buildOfflineEmbeds(threshold);
-
-  if (entry) {
-    try {
-      const { name, serverId, state } = entry;
-      const steamIds = (state.players || [])
-        .map((p) => String(p.steamID || p.steamId || ''))
-        .filter(Boolean);
-      const [wlMap, adminGroups, serverStats, voice, discordBySteam] = await Promise.all([
-        loadWhitelistBySteamIds(steamIds),
-        loadAdminGroups(),
-        state.connected
-          ? getServerStats(name, serverId, state.serverName ? [state.serverName] : [])
-          : Promise.resolve({}),
-        getVoicePresence(client),
-        loadDiscordIdsBySteamIds(steamIds),
-      ]);
-      const roles = classifyOnlinePlayers(state.players || [], wlMap, adminGroups);
-      const missing = findMissingFromDiscord(
-        state.players || [],
-        wlMap,
-        discordBySteam,
-        voice.voiceSet,
-      );
-      const isSeeding = (extractGameMode(state.currentLayer) || '').toLowerCase() === 'seed';
-      embeds = [
-        buildQuickStatusEmbed(state, threshold, roles, serverStats, { voiceCount: voice.voiceCount }),
-        buildMissingDiscordEmbed(missing, { isSeeding }),
-      ];
-    } catch (err) {
-      log.warn({ err }, 'Live refresh payload failed — posting offline placeholder');
-    }
-  }
-
-  const sent = await postThenDeleteQuickStatus({ channel, embeds, oldMessages: existing });
-  await persistMessageId(sent.id);
-
-  stopQuickStatusUpdater();
-  await startQuickStatusUpdater(client);
-  return `Quick Status: refreshed (${existing.length} message(s) replaced)`;
+  await updateOnce(channel, client);
+  return 'Quick Status: updated';
 }

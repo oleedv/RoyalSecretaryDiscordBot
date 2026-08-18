@@ -5,7 +5,7 @@ import {
   isQuickStatusMessage,
   collectQuickStatusMessages,
   selectQuickStatusMessage,
-  postThenDeleteQuickStatus,
+  editOrCreateQuickStatus,
 } from '../quickStatusMessages.js';
 
 const BOT_ID = 'bot-1';
@@ -89,28 +89,31 @@ describe('collectQuickStatusMessages', () => {
   });
 });
 
-describe('postThenDeleteQuickStatus', () => {
-  test('does not delete existing messages if the new post fails', async () => {
-    const deleted = [];
+describe('editOrCreateQuickStatus', () => {
+  test('edits the existing message and never deletes', async () => {
+    const events = [];
+    const existing = {
+      id: 'old',
+      edit: async () => { events.push('edit'); },
+      delete: async () => { events.push('delete'); },
+    };
     const channel = {
       send: async () => {
-        throw new Error('discord down');
+        events.push('send');
+        return { id: 'new' };
       },
     };
-    const existing = [{
-      id: 'old',
-      delete: async () => { deleted.push('old'); },
-    }];
 
-    await expect(postThenDeleteQuickStatus({
+    const result = await editOrCreateQuickStatus({
       channel,
       embeds: [{}],
-      oldMessages: existing,
-    })).rejects.toThrow('discord down');
-    expect(deleted).toEqual([]);
+      existing,
+    });
+    expect(result.id).toBe('old');
+    expect(events).toEqual(['edit']);
   });
 
-  test('deletes old messages only after the replacement is posted', async () => {
+  test('sends only when no message exists', async () => {
     const events = [];
     const channel = {
       send: async () => {
@@ -118,17 +121,12 @@ describe('postThenDeleteQuickStatus', () => {
         return { id: 'new' };
       },
     };
-    const existing = [{
-      id: 'old',
-      delete: async () => { events.push('delete'); },
-    }];
-
-    const sent = await postThenDeleteQuickStatus({
+    const result = await editOrCreateQuickStatus({
       channel,
       embeds: [{}],
-      oldMessages: existing,
+      existing: null,
     });
-    expect(sent.id).toBe('new');
-    expect(events).toEqual(['send', 'delete']);
+    expect(result.id).toBe('new');
+    expect(events).toEqual(['send']);
   });
 });

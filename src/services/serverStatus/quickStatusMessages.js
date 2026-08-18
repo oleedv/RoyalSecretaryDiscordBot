@@ -29,16 +29,11 @@ export function selectQuickStatusMessage(messages, botId) {
   return hits[0] || null;
 }
 
-/**
- * Post a replacement first, then delete the previous messages.
- * If send fails, the old messages stay put.
- */
-export async function postThenDeleteQuickStatus({ channel, embeds, oldMessages = [] }) {
-  const sent = await channel.send({ embeds });
-  for (const msg of oldMessages) {
-    if (msg?.id && msg.id !== sent.id) {
-      await msg.delete().catch(() => {});
-    }
+/** Edit the existing message in place. Only send if none exists. Never delete. */
+export async function editOrCreateQuickStatus({ channel, embeds, existing = null }) {
+  if (existing) {
+    await existing.edit({ embeds });
+    return existing;
   }
-  return sent;
+  return channel.send({ embeds });
 }
