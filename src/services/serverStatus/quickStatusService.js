@@ -58,7 +58,9 @@ function pickServerEntry() {
 
 /**
  * Load active whitelist entries for the given steam IDs.
- * @returns {Map<string, Array<{ role: string, name?: string }>>}
+ * Admin detection uses AdminGroup.name (what admins.cfg writes) plus the
+ * legacy WhitelistEntry.role column.
+ * @returns {Map<string, Array<{ role: string, groupName?: string, name?: string }>>}
  */
 async function loadWhitelistBySteamIds(steamIds) {
   const map = new Map();
@@ -71,17 +73,19 @@ async function loadWhitelistBySteamIds(steamIds) {
     const placeholders = chunk.map(() => '?').join(',');
     try {
       const rows = await query(
-        `SELECT steamId, role, name
-         FROM WhitelistEntry
-         WHERE steamId IN (${placeholders})
-           AND (expiresAt IS NULL OR expiresAt > NOW())`,
+        `SELECT w.steamId, w.role, w.name, g.name AS groupName
+         FROM WhitelistEntry w
+         LEFT JOIN AdminGroup g ON g.id = w.groupId
+         WHERE w.steamId IN (${placeholders})
+           AND w.deactivatedAt IS NULL
+           AND (w.expiresAt IS NULL OR w.expiresAt > NOW())`,
         chunk,
         'website'
       );
       for (const row of rows) {
         const id = String(row.steamId);
         if (!map.has(id)) map.set(id, []);
-        map.get(id).push({ role: row.role, name: row.name });
+        map.get(id).push({ role: row.role, groupName: row.groupName, name: row.name });
       }
     } catch (err) {
       log.error({ err }, 'Failed to load whitelist entries for quick status');

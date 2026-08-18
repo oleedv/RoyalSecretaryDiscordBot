@@ -55,8 +55,26 @@ export function pickPrimaryEntry(entries) {
 }
 
 /**
+ * Labels used for classification. AdminGroup.name is what admins.cfg uses;
+ * WhitelistEntry.role is a legacy/display field and can be Member/Whitelist
+ * even when the linked group is SuperAdmin.
+ */
+export function roleLabelsFromEntry(entry) {
+  const labels = [];
+  const seen = new Set();
+  for (const raw of [entry?.role, entry?.groupName]) {
+    const role = normalizeRole(raw);
+    const key = roleKey(role);
+    if (!role || seen.has(key)) continue;
+    seen.add(key);
+    labels.push(role);
+  }
+  return labels;
+}
+
+/**
  * @param {Array<{ steamID?: string, steamId?: string, name?: string, teamID?: number }>} players
- * @param {Map<string, Array<{ role: string, name?: string }>>} entriesBySteamId
+ * @param {Map<string, Array<{ role?: string, groupName?: string, name?: string }>>} entriesBySteamId
  */
 export function classifyOnlinePlayers(players, entriesBySteamId) {
   const result = {
@@ -91,22 +109,21 @@ export function classifyOnlinePlayers(players, entriesBySteamId) {
     let adminRank = -1;
 
     for (const entry of entries) {
-      const role = normalizeRole(entry.role);
-      if (!role) continue;
-      if (isAdminRole(role)) {
-        isAdmin = true;
-        const rank = ADMIN_ROLES.findIndex((r) => roleKey(r) === roleKey(role));
-        if (rank >= adminRank) {
-          adminRank = rank;
-          // Canonical title from our list when possible
-          adminRole = rank >= 0 ? ADMIN_ROLES[rank] : role;
+      for (const role of roleLabelsFromEntry(entry)) {
+        if (isAdminRole(role)) {
+          isAdmin = true;
+          const rank = ADMIN_ROLES.findIndex((r) => roleKey(r) === roleKey(role));
+          if (rank >= adminRank) {
+            adminRank = rank;
+            adminRole = rank >= 0 ? ADMIN_ROLES[rank] : role;
+          }
+        } else if (isMemberRole(role)) {
+          isMember = true;
+        } else if (isProspectRole(role)) {
+          isProspect = true;
+        } else {
+          isWlOnly = true;
         }
-      } else if (isMemberRole(role)) {
-        isMember = true;
-      } else if (isProspectRole(role)) {
-        isProspect = true;
-      } else {
-        isWlOnly = true;
       }
     }
 

@@ -87,6 +87,41 @@ describe('classifyOnlinePlayers', () => {
     const r = classifyOnlinePlayers(players, map);
     expect(r.adminsOnline[0].role).toBe('SeniorAdmin');
   });
+
+  test('AdminGroup.name counts as admin even when role is Member', () => {
+    const players = [{ steamID: '1', name: 'Bonnie', teamID: 1 }];
+    const map = new Map([
+      ['1', [{ role: 'Member', groupName: 'SuperAdmin', name: 'Bonnie' }]],
+    ]);
+    const r = classifyOnlinePlayers(players, map);
+    expect(r.adminCount).toBe(1);
+    expect(r.rbCount).toBe(1);
+    expect(r.wlCount).toBe(0);
+    expect(r.adminsOnline).toEqual([
+      { name: 'Bonnie', role: 'SuperAdmin', teamID: 1 },
+    ]);
+  });
+
+  test('AdminGroup.name counts as admin when role is Whitelist', () => {
+    const players = [{ steamID: '2', name: 'Lind', teamID: 2 }];
+    const map = new Map([
+      ['2', [{ role: 'Whitelist', groupName: 'Admin', name: 'Lind' }]],
+    ]);
+    const r = classifyOnlinePlayers(players, map);
+    expect(r.adminCount).toBe(1);
+    expect(r.wlCount).toBe(0);
+    expect(r.adminsOnline[0]).toEqual({ name: 'Lind', role: 'Admin', teamID: 2 });
+  });
+
+  test('groupName-only row with no role string is still classified', () => {
+    const players = [{ steamID: '3', name: 'Solo', teamID: 1 }];
+    const map = new Map([
+      ['3', [{ role: null, groupName: 'Founder', name: 'Solo' }]],
+    ]);
+    const r = classifyOnlinePlayers(players, map);
+    expect(r.adminCount).toBe(1);
+    expect(r.adminsOnline[0].role).toBe('Founder');
+  });
 });
 
 describe('pickPrimaryEntry', () => {
