@@ -56,7 +56,7 @@ export default {
           channelId: message.channel?.id,
         }).catch(() => {});
       }
-      if (!message.author.bot) logMessage(message);
+      logMessage(message);
       return;
     }
 

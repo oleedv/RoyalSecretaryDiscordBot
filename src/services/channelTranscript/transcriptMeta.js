@@ -32,3 +32,12 @@ export function isRelayMirrorId(messageId, channelMessageIds) {
   if (!messageId || !channelMessageIds) return false;
   return channelMessageIds.has(messageId);
 }
+
+/** Other bots/webhooks. Our own bot id is allowed so ticket embeds still archive. */
+export function isForeignBotMessage(message, selfBotId) {
+  const author = message?.author;
+  if (!author) return false;
+  if (!author.bot && !message.webhookId) return false;
+  if (selfBotId && author.id === selfBotId) return false;
+  return Boolean(author.bot || message.webhookId);
+}

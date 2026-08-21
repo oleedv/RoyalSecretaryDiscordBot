@@ -18,6 +18,7 @@ import { buildOrderedStatFields } from './prospectStatsFields.js';
 import { assignTeamRole, removeTeamRole } from './teamRoleService.js';
 import { applyCooldownMessage, getActiveCooldown, getProspectConfig, upsertCooldown } from './prospectConfig.js';
 import { insertTranscriptRow } from '../channelTranscript/channelTranscript.js';
+import { isForeignBotMessage } from '../channelTranscript/transcriptMeta.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
 
@@ -574,7 +575,9 @@ export async function backfillForumThread(prospectId, thread) {
     const batch = await thread.messages.fetch({ limit: 100, before }).catch(() => null);
     if (!batch || batch.size === 0) break;
 
+    const selfBotId = thread.client?.user?.id || null;
     for (const message of batch.values()) {
+      if (isForeignBotMessage(message, selfBotId)) continue;
       const row = buildForumMessageRow(prospectId, message);
       const result = await query(
         `INSERT IGNORE INTO prospect_forum_messages

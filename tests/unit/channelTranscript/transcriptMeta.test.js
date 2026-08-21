@@ -6,6 +6,7 @@ import {
   getReplyToId,
   serializeEmbeds,
   isRelayMirrorId,
+  isForeignBotMessage,
 } from '../../../src/services/channelTranscript/transcriptMeta.js';
 
 describe('isThreadChannel', () => {
@@ -81,5 +82,28 @@ describe('isRelayMirrorId', () => {
     const ids = new Set(['embed-1']);
     expect(isRelayMirrorId('embed-1', ids)).toBe(true);
     expect(isRelayMirrorId('other', ids)).toBe(false);
+  });
+});
+
+describe('isForeignBotMessage', () => {
+  const selfId = 'secretary-1';
+
+  it('allows humans', () => {
+    expect(isForeignBotMessage({ author: { id: 'u-1', bot: false } }, selfId)).toBe(false);
+  });
+
+  it('allows our own bot so ticket/prospect embeds still archive', () => {
+    expect(isForeignBotMessage({ author: { id: selfId, bot: true } }, selfId)).toBe(false);
+  });
+
+  it('rejects other bot accounts', () => {
+    expect(isForeignBotMessage({ author: { id: 'dyno', bot: true } }, selfId)).toBe(true);
+  });
+
+  it('rejects webhook log-bot posts', () => {
+    expect(isForeignBotMessage({
+      webhookId: 'wh-1',
+      author: { id: 'wh-1', bot: true },
+    }, selfId)).toBe(true);
   });
 });

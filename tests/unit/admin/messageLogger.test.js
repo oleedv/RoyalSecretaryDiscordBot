@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { buildMessageLogFields } from '../../../src/services/admin/messageLogger.js';
+import { buildMessageLogFields, isLoggableHumanMessage } from '../../../src/services/admin/messageLogger.js';
 
 function baseMessage(overrides = {}) {
   return {
@@ -81,3 +81,32 @@ describe('buildMessageLogFields', () => {
     expect(row.parentChannelId).toBe(null);
   });
 });
+
+describe('isLoggableHumanMessage', () => {
+  it('allows a normal human guild message', () => {
+    expect(isLoggableHumanMessage(baseMessage())).toBe(true);
+  });
+
+  it('rejects bot accounts', () => {
+    expect(isLoggableHumanMessage(baseMessage({
+      author: { id: 'bot-1', tag: 'Logger#0000', bot: true },
+    }))).toBe(false);
+  });
+
+  it('rejects webhook posts used by log/spam bots', () => {
+    expect(isLoggableHumanMessage(baseMessage({
+      webhookId: 'wh-1',
+      author: { id: 'wh-1', tag: 'Mod Log', bot: true },
+    }))).toBe(false);
+  });
+
+  it('rejects Discord system messages', () => {
+    expect(isLoggableHumanMessage(baseMessage({ system: true }))).toBe(false);
+  });
+
+  it('rejects messages with no author', () => {
+    expect(isLoggableHumanMessage(baseMessage({ author: null }))).toBe(false);
+    expect(isLoggableHumanMessage(null)).toBe(false);
+  });
+});
+

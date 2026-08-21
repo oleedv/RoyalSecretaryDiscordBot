@@ -7,6 +7,7 @@ import {
   getThreadMeta,
   getReplyToId,
   serializeEmbeds,
+  isForeignBotMessage,
 } from './transcriptMeta.js';
 
 const log = logger.child({ module: 'channelTranscript' });
@@ -120,6 +121,7 @@ export async function captureStaffMessage(message, target = null) {
   const resolved = target || await resolveStaffTarget(message.channel);
   if (!resolved) return false;
   if (!message?.id || !message.author) return false;
+  if (isForeignBotMessage(message, message.client?.user?.id)) return false;
 
   const row = applyOwnerStaff(rowFromDiscordMessage(message), resolved.record.user_id);
   await insertTranscriptRow(resolved.kind, resolved.record.id, row, { overwrite: false });
@@ -135,8 +137,10 @@ async function backfillTextChannel(target, channel) {
     const batch = await channel.messages.fetch({ limit: 100, before }).catch(() => null);
     if (!batch || batch.size === 0) break;
 
+    const selfBotId = channel.client?.user?.id || null;
     for (const message of batch.values()) {
       scanned++;
+      if (isForeignBotMessage(message, selfBotId)) continue;
       const row = applyOwnerStaff(rowFromDiscordMessage(message), target.record.user_id);
       const wrote = await insertTranscriptRow(target.kind, target.record.id, row, { overwrite: false });
       if (wrote) inserted++;

@@ -48,7 +48,17 @@ export function buildMessageLogFields(message) {
   };
 }
 
+export function isLoggableHumanMessage(message) {
+  if (!message?.author?.id) return false;
+  if (message.author.bot) return false;
+  if (message.webhookId) return false;
+  if (message.system) return false;
+  return true;
+}
+
 export function logMessage(message) {
+  if (!isLoggableHumanMessage(message)) return;
+
   const row = buildMessageLogFields(message);
 
   query(
