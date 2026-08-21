@@ -3,7 +3,9 @@ import { createEmbed, infoEmbed, errorEmbed, buildRelayEmbed } from '../utils/em
 import { formatForDb, applyAttachments } from '../utils/attachments.js';
 import { parseTextCommand } from '../utils/commands.js';
 import { trySendWithFiles } from '../utils/discord.js';
-import { getTicketByChannel, saveMessage, beginCloseGracePeriod, getClosedTicketsByUser, isAnonymousMode } from '../services/ticket/ticketService.js';
+import { saveMessage, getClosedTicketsByUser, isAnonymousMode } from '../services/ticket/ticketService.js';
+import { captureStaffMessage } from '../services/channelTranscript/channelTranscript.js';
+import { getReplyToId } from '../services/channelTranscript/transcriptMeta.js';
 import { hasAnyRole } from '../utils/permissions.js';
 import { detectSteamIds, buildSteamEmbed, buildVanityEmbed } from '../services/steamService.js';
 import { resolvePlayerId } from '../services/battlemetricsService.js';
@@ -64,7 +66,7 @@ async function sendStaffReply(message, ticket, replyContent, anonymous) {
   const logOptions = { embeds: [logEmbed] };
   applyAttachments(logEmbed, logOptions, message.attachments);
 
-  await trySendWithFiles(message.channel, logOptions);
+  const { msg: logMsg } = await trySendWithFiles(message.channel, logOptions);
 
   if (dmFailed) {
     await message.channel.send('Failed to send DM to the user. They may have DMs disabled.');
@@ -74,16 +76,18 @@ async function sendStaffReply(message, ticket, replyContent, anonymous) {
   await message.delete().catch(() => null);
 
   const attachments = formatForDb(message.attachments);
-  await saveMessage(ticket.id, message.author.id, message.author.tag, replyContent, attachments, true);
+  await saveMessage(ticket.id, message.author.id, message.author.tag, replyContent, attachments, true, null, logMsg?.id, {
+    discordMessageId: logMsg?.id,
+    replyToMessageId: getReplyToId(message),
+  });
 
   log.debug({ ticketId: ticket.id, staffId: message.author.id, anonymous }, 'Staff reply sent');
 }
 
-export async function handleGuild(message) {
-  const ticket = await getTicketByChannel(message.channel.id);
+export async function handleGuild(message, ticket) {
   if (!ticket) return false;
 
-  const cmd = parseTextCommand(message.content);
+  const cmd = parseTextCommand(message.content || '');
 
   if (cmd?.type === 'close') {
     await message.delete().catch(() => null);
@@ -110,7 +114,7 @@ export async function handleGuild(message) {
 
   if (cmd?.type === 'reply') {
     if (!hasAnyRole(message.member, allTicketStaffRoles())) return true;
-    const anonymous = await isAnonymousMode(message.channel.id);
+    const anonymous = await isAnonymousMode(ticket.channel_id);
     await sendStaffReply(message, ticket, cmd.content, anonymous);
     return true;
   }
@@ -122,7 +126,7 @@ export async function handleGuild(message) {
   }
 
   // SteamID detection on any message in a ticket channel
-  const { steamIds, vanityUrls } = detectSteamIds(message.content.trim());
+  const { steamIds, vanityUrls } = detectSteamIds((message.content || '').trim());
   for (const id of steamIds) {
     const bmPlayerId = await resolvePlayerId(id);
     await message.channel.send({ embeds: [buildSteamEmbed(id, bmPlayerId)] });
@@ -131,6 +135,7 @@ export async function handleGuild(message) {
     await message.channel.send({ embeds: [buildVanityEmbed(vanity)] });
   }
 
+  await captureStaffMessage(message, { kind: 'ticket', record: ticket });
   return true;
 }
 
@@ -220,7 +225,10 @@ export async function handleDM(message, ticket) {
   }
 
   const attachments = formatForDb(message.attachments);
-  await saveMessage(ticket.id, message.author.id, message.author.tag, message.content, attachments, false, message.id, sent.id);
+  await saveMessage(ticket.id, message.author.id, message.author.tag, message.content, attachments, false, message.id, sent?.id, {
+    discordMessageId: message.id,
+    replyToMessageId: getReplyToId(message),
+  });
   if (!tooLarge) await message.react('✅').catch(() => null);
 
   log.debug({ ticketId: ticket.id, userId: message.author.id }, 'DM forwarded to ticket channel');

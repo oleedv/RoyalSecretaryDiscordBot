@@ -17,6 +17,7 @@ import { query, transaction } from '../../database/connection.js';
 import { buildOrderedStatFields } from './prospectStatsFields.js';
 import { assignTeamRole, removeTeamRole } from './teamRoleService.js';
 import { applyCooldownMessage, getActiveCooldown, getProspectConfig, upsertCooldown } from './prospectConfig.js';
+import { insertTranscriptRow } from '../channelTranscript/channelTranscript.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
 
@@ -514,11 +515,23 @@ export async function refreshAllOpenProspectChecks(client) {
   }
 }
 
-export async function saveProspectMessage(prospectId, authorId, authorTag, content, attachments, isStaff, sourceMessageId, channelMessageId) {
-  await query(
-    'INSERT INTO prospect_messages (prospect_id, author_id, author_tag, content, attachments, is_staff, source_message_id, channel_message_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    [prospectId, authorId, authorTag, content, JSON.stringify(attachments || []), isStaff ? 1 : 0, sourceMessageId || null, channelMessageId || null]
-  );
+export async function saveProspectMessage(prospectId, authorId, authorTag, content, attachments, isStaff, sourceMessageId, channelMessageId, meta = {}) {
+  await insertTranscriptRow('prospect', prospectId, {
+    authorId,
+    authorTag,
+    content,
+    attachments,
+    isStaff,
+    isBot: Boolean(meta.isBot),
+    sourceMessageId,
+    channelMessageId,
+    discordMessageId: meta.discordMessageId || sourceMessageId || channelMessageId || null,
+    replyToMessageId: meta.replyToMessageId || null,
+    threadId: meta.threadId || null,
+    threadName: meta.threadName || null,
+    embeds: meta.embeds || null,
+    createdAt: meta.createdAt || new Date(),
+  }, { overwrite: true });
 }
 
 function buildForumMessageRow(prospectId, message) {

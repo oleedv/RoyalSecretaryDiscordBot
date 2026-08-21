@@ -7,6 +7,7 @@ import { buildTicketInfoEmbed, buildTicketComponents, TIER_CHANNEL_PREFIX, TIER_
 import { query } from '../../database/connection.js';
 import { getStoredSteamId } from '../userService.js';
 import { resolvePlayerId } from '../battlemetricsService.js';
+import { insertTranscriptRow, flushThenDelete } from '../channelTranscript/channelTranscript.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
 
@@ -137,11 +138,23 @@ export async function getAllClosedTicketsByUser(userId) {
   );
 }
 
-export async function saveMessage(ticketId, authorId, authorTag, content, attachments, isStaff, sourceMessageId, channelMessageId) {
-  await query(
-    'INSERT INTO ticket_messages (ticket_id, author_id, author_tag, content, attachments, is_staff, source_message_id, channel_message_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    [ticketId, authorId, authorTag, content, JSON.stringify(attachments || []), isStaff ? 1 : 0, sourceMessageId || null, channelMessageId || null]
-  );
+export async function saveMessage(ticketId, authorId, authorTag, content, attachments, isStaff, sourceMessageId, channelMessageId, meta = {}) {
+  await insertTranscriptRow('ticket', ticketId, {
+    authorId,
+    authorTag,
+    content,
+    attachments,
+    isStaff,
+    isBot: Boolean(meta.isBot),
+    sourceMessageId,
+    channelMessageId,
+    discordMessageId: meta.discordMessageId || sourceMessageId || channelMessageId || null,
+    replyToMessageId: meta.replyToMessageId || null,
+    threadId: meta.threadId || null,
+    threadName: meta.threadName || null,
+    embeds: meta.embeds || null,
+    createdAt: meta.createdAt || new Date(),
+  }, { overwrite: true });
 }
 
 export async function getMessageBySourceId(sourceMessageId) {
@@ -431,7 +444,7 @@ export async function beginCloseGracePeriod(ticket, closedById, channel, client)
       'UPDATE tickets SET status = ? WHERE id = ?',
       ['closed', ticket.id]
     );
-    await channel.delete().catch(() => null);
+    await flushThenDelete(channel);
     log.info({ ticketId: ticket.id }, 'Ticket channel deleted after grace period');
   }, GRACE_PERIOD_MS);
 
@@ -460,7 +473,7 @@ export async function forceCloseTicket(ticket, channel) {
     }).catch(() => null);
   }
 
-  await channel.delete().catch(() => null);
+  await flushThenDelete(channel);
   log.info({ ticketId: ticket.id }, 'Ticket force closed');
 }
 
@@ -553,7 +566,7 @@ export async function resumeClosingTimers(client) {
     if (remaining <= 0) {
       // Grace period already expired
       await query('UPDATE tickets SET status = ? WHERE id = ?', ['closed', ticket.id]);
-      await channel.delete().catch(() => null);
+      await flushThenDelete(channel);
       log.info({ ticketId: ticket.id }, 'Expired closing ticket finalized on restart');
       continue;
     }
@@ -562,7 +575,7 @@ export async function resumeClosingTimers(client) {
     const timer = setTimeout(async () => {
       closingTimers.delete(channel.id);
       await query('UPDATE tickets SET status = ? WHERE id = ?', ['closed', ticket.id]);
-      await channel.delete().catch(() => null);
+      await flushThenDelete(channel);
       log.info({ ticketId: ticket.id }, 'Ticket channel deleted after resumed grace period');
     }, remaining);
 

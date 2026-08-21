@@ -14,6 +14,7 @@ import { query } from '../database/connection.js';
 import { errorEmbed, successEmbed, infoEmbed } from '../utils/embed.js';
 import { requireRole } from '../utils/permissions.js';
 import { logProspectVote } from '../services/admin/dmLogService.js';
+import { flushThenDelete } from '../services/channelTranscript/channelTranscript.js';
 import config from '../config.js';
 import logger from '../logger.js';
 
@@ -335,5 +336,5 @@ export async function handleCloseTicket(interaction) {
   );
 
   log.info({ prospectId: prospect.id, closedBy: interaction.user.id }, 'Prospect ticket closed');
-  await interaction.channel.delete().catch(() => null);
+  await flushThenDelete(interaction.channel);
 }

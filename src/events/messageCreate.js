@@ -11,6 +11,7 @@ import { logMessage } from '../services/admin/messageLogger.js';
 import { incrementMessageCount } from '../services/activity/activityService.js';
 import { reportError } from '../services/admin/errorAlertService.js';
 import { logUnmatchedDm } from '../services/admin/dmLogService.js';
+import { captureStaffMessage, resolveStaffTarget } from '../services/channelTranscript/channelTranscript.js';
 import config from '../config.js';
 import logger from '../logger.js';
 
@@ -56,6 +57,25 @@ export default {
         }).catch(() => {});
       }
       return;
+    }
+
+    // Staff ticket/prospect channels (and their Discord threads): capture bot
+    // messages before the global bot short-circuit so info/steam/close embeds persist.
+    if (message.guild) {
+      try {
+        const target = await resolveStaffTarget(message.channel);
+        if (target && message.author.bot) {
+          await captureStaffMessage(message, target);
+          return;
+        }
+      } catch (err) {
+        reportError(err, {
+          source: 'messageCreate.staffTranscript',
+          userId: message.author?.id,
+          channelId: message.channel?.id,
+        }).catch(() => {});
+        if (message.author.bot) return;
+      }
     }
 
     if (message.author.bot) return;
@@ -194,14 +214,13 @@ export async function handleDM(message) {
 }
 
 async function handleGuild(message) {
-  const parentId = message.channel.parentId;
-  if (!parentId) return;
+  const target = await resolveStaffTarget(message.channel);
+  if (!target) return;
 
-  const relevantCategories = [config.ticket?.categoryId, config.prospect?.categoryId].filter(Boolean);
-  if (relevantCategories.length > 0 && !relevantCategories.includes(parentId)) return;
+  if (target.kind === 'ticket') {
+    await ticketMessages.handleGuild(message, target.record);
+    return;
+  }
 
-  const handled = await ticketMessages.handleGuild(message);
-  if (handled) return;
-
-  await prospectMessages.handleGuild(message);
+  await prospectMessages.handleGuild(message, target.record);
 }

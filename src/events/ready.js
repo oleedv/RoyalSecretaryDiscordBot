@@ -13,6 +13,7 @@ import { startScheduler as startSeedTrackerScheduler } from '../services/seedTra
 import { startScheduler as startSlRewardScheduler } from '../services/sl-reward/grantCron.js';
 import { startScheduler as startSlLeaderboardScheduler } from '../services/sl-reward/leaderboardCron.js';
 import { resumeClosingTimers, restoreAnonymousModes } from '../services/ticket/ticketService.js';
+import { backfillOpenStaffChannels } from '../services/channelTranscript/channelTranscript.js';
 import { startStatusUpdater } from '../services/serverStatus/serverStatusService.js';
 import { startQuickStatusUpdater } from '../services/serverStatus/quickStatusService.js';
 import { startScheduler as startCommsWatchScheduler } from '../services/commsWatch/commsWatchMonitor.js';
@@ -66,5 +67,9 @@ export default {
     await safeInit('activityScheduler', () => startActivityScheduler());
     await safeInit('tempVoiceRecovery', () => initTempVoice(client));
     await safeInit('tempVoiceCleanup', () => startTempVoiceCleanup(client));
+
+    backfillOpenStaffChannels(client).catch((err) => {
+      log.error({ err }, 'Staff transcript backfill failed');
+    });
   },
 };

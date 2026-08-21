@@ -84,6 +84,12 @@ export async function initSchema() {
   // Migrations for existing tables
   await query(`ALTER TABLE ticket_messages ADD COLUMN IF NOT EXISTS source_message_id VARCHAR(20)`);
   await query(`ALTER TABLE ticket_messages ADD COLUMN IF NOT EXISTS channel_message_id VARCHAR(20)`);
+  await query(`ALTER TABLE ticket_messages ADD COLUMN IF NOT EXISTS discord_message_id VARCHAR(20)`);
+  await query(`ALTER TABLE ticket_messages ADD COLUMN IF NOT EXISTS reply_to_message_id VARCHAR(20)`);
+  await query(`ALTER TABLE ticket_messages ADD COLUMN IF NOT EXISTS thread_id VARCHAR(20)`);
+  await query(`ALTER TABLE ticket_messages ADD COLUMN IF NOT EXISTS thread_name VARCHAR(100)`);
+  await query(`ALTER TABLE ticket_messages ADD COLUMN IF NOT EXISTS is_bot TINYINT(1) DEFAULT 0`);
+  await query(`ALTER TABLE ticket_messages ADD COLUMN IF NOT EXISTS embeds JSON`);
 
   await query(`
     CREATE TABLE IF NOT EXISTS ticket_events (
@@ -235,6 +241,12 @@ export async function initSchema() {
   await query(`ALTER TABLE prospects MODIFY COLUMN preferred_roles VARCHAR(200) NULL`).catch(e => log.warn({ err: e.message }, 'prospects.preferred_roles MODIFY skipped'));
   await query(`ALTER TABLE prospect_events MODIFY COLUMN event_type ENUM('created', 'vote_started', 'accepted', 'denied', 'closed', 'paused', 'unpaused', 'extended', 'unclaimed') NOT NULL`).catch(e => log.warn({ err: e.message }, 'prospect_events.event_type MODIFY skipped'));
   await query(`ALTER TABLE prospect_votes ADD COLUMN IF NOT EXISTS reason TEXT NULL`);
+  await query(`ALTER TABLE prospect_messages ADD COLUMN IF NOT EXISTS discord_message_id VARCHAR(20)`);
+  await query(`ALTER TABLE prospect_messages ADD COLUMN IF NOT EXISTS reply_to_message_id VARCHAR(20)`);
+  await query(`ALTER TABLE prospect_messages ADD COLUMN IF NOT EXISTS thread_id VARCHAR(20)`);
+  await query(`ALTER TABLE prospect_messages ADD COLUMN IF NOT EXISTS thread_name VARCHAR(100)`);
+  await query(`ALTER TABLE prospect_messages ADD COLUMN IF NOT EXISTS is_bot TINYINT(1) DEFAULT 0`);
+  await query(`ALTER TABLE prospect_messages ADD COLUMN IF NOT EXISTS embeds JSON`);
 
   await query(`
     CREATE TABLE IF NOT EXISTS prospect_config (
@@ -481,6 +493,10 @@ export async function initSchema() {
   await query(`CREATE INDEX IF NOT EXISTS idx_prospects_user_status ON prospects (user_id, status)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_prospects_channel_status ON prospects (channel_id, status)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_ticket_messages_source ON ticket_messages (source_message_id)`);
+  await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_ticket_messages_discord_id ON ticket_messages (discord_message_id)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_ticket_messages_thread ON ticket_messages (thread_id)`);
+  await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_prospect_messages_discord_id ON prospect_messages (discord_message_id)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_prospect_messages_thread ON prospect_messages (thread_id)`);
 
   // ── Activity tracking tables ──
 
