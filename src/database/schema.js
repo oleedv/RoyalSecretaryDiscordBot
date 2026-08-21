@@ -415,6 +415,16 @@ export async function initSchema() {
     )
   `);
 
+  await query(`ALTER TABLE bot_messages ADD COLUMN IF NOT EXISTS parent_channel_id VARCHAR(20)`);
+  await query(`ALTER TABLE bot_messages ADD COLUMN IF NOT EXISTS parent_channel_name VARCHAR(100)`);
+  await query(`ALTER TABLE bot_messages ADD COLUMN IF NOT EXISTS thread_id VARCHAR(20)`);
+  await query(`ALTER TABLE bot_messages ADD COLUMN IF NOT EXISTS thread_name VARCHAR(100)`);
+  await query(`ALTER TABLE bot_messages ADD COLUMN IF NOT EXISTS reply_to_message_id VARCHAR(20)`);
+  await query(`ALTER TABLE bot_messages ADD COLUMN IF NOT EXISTS reply_to_tag VARCHAR(100)`);
+  await query(`ALTER TABLE bot_messages ADD COLUMN IF NOT EXISTS reply_to_content VARCHAR(180)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_bot_messages_parent ON bot_messages (parent_channel_id)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_bot_messages_thread ON bot_messages (thread_id)`);
+
   await query(`
     CREATE TABLE IF NOT EXISTS bot_logs (
       id BIGINT AUTO_INCREMENT PRIMARY KEY,
