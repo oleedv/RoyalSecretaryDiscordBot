@@ -19,7 +19,13 @@ mock.module('../../database/connection.js', () => ({
   }),
 }));
 mock.module('../../utils/id.js', () => ({ generateId: () => 'generated-id' }));
-mock.module('../whitelistAudit.js', () => ({ logWhitelistActivity: () => Promise.resolve() }));
+const auditCalls = [];
+mock.module('../whitelistAudit.js', () => ({
+  logWhitelistActivity: (...args) => {
+    auditCalls.push(args);
+    return Promise.resolve();
+  },
+}));
 const reportErrorCalls = [];
 mock.module('../admin/errorAlertService.js', () => ({
   reportError: (...args) => { reportErrorCalls.push(args); return Promise.resolve(); },
@@ -28,7 +34,7 @@ mock.module('../../logger.js', () => ({
   default: { child: () => ({ warn() {}, info() {}, error() {} }) },
 }));
 
-const { createEntry, createSlEntry, expireByRole, upsertSeederEntry, promoteToMember } = await import('../whitelistService.js');
+const { createEntry, createSlEntry, expireByRole, upsertSeederEntry, promoteToMember, extendEntryByDays } = await import('../whitelistService.js');
 
 // route each query by its SQL: link-id lookups + existing-entry check vs writes
 function route(existingRows) {
@@ -41,6 +47,7 @@ function route(existingRows) {
 
 beforeEach(() => {
   calls.length = 0;
+  auditCalls.length = 0;
   reportErrorCalls.length = 0;
   queryImpl = () => Promise.resolve([]);
 });
@@ -166,6 +173,33 @@ describe('promoteToMember is role-agnostic + idempotent', () => {
     expect(insert).toBeDefined();
     expect(String(insert[0])).toContain("'Member'");
     expect(calls.some((c) => String(c[0]).startsWith('UPDATE WhitelistEntry'))).toBe(false);
+  });
+});
+
+describe('extendEntryByDays', () => {
+  test('logs the player name and steamId on an SL reward extension', async () => {
+    queryImpl = (sql) => {
+      if (sql.includes('SELECT steamId, name FROM WhitelistEntry WHERE id')) {
+        return Promise.resolve([{ steamId: '76561198819769429', name: 'Lind' }]);
+      }
+      if (sql.startsWith('UPDATE')) return Promise.resolve({ affectedRows: 1 });
+      return Promise.resolve([]);
+    };
+
+    const ok = await extendEntryByDays('entry-1', 7);
+
+    expect(ok).toBe(true);
+    expect(auditCalls).toHaveLength(1);
+    const [action, resourceId, actor, detail] = auditCalls[0];
+    expect(action).toBe('whitelist.update');
+    expect(resourceId).toBe('entry-1');
+    expect(actor).toEqual({ system: 'slReward' });
+    expect(detail).toEqual({
+      steamId: '76561198819769429',
+      name: 'Lind',
+      source: 'sl-reward',
+      changes: { expiresAt: { extendedByDays: 7 } },
+    });
   });
 });
 

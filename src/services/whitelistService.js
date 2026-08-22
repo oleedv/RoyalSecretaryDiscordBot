@@ -145,7 +145,7 @@ export async function expireByRole(steamId, role, actor = null) {
     // Audit after commit (best-effort; never blocks or reverts the committed change).
     for (const entry of matching) {
       await logWhitelistActivity('whitelist.update', entry.id, actor, {
-        steamId, role, changes: { expiresAt: { to: 'expired' } },
+        steamId, name: entry.name ?? null, role, changes: { expiresAt: { to: 'expired' } },
       });
     }
     return matching.length;
@@ -323,13 +323,22 @@ export async function createSlEntry(steamId, userId, name, clanId, addedBy, reas
 export async function extendEntryByDays(id, days) {
   if (!isConfigured()) return null;
   try {
+    const rows = await query(
+      'SELECT steamId, name FROM WhitelistEntry WHERE id = ?',
+      [id],
+      'website'
+    );
     await query(
       'UPDATE WhitelistEntry SET expiresAt = expiresAt + INTERVAL ? DAY WHERE id = ?',
       [days, id],
       'website'
     );
+    const entry = rows[0] || {};
     await logWhitelistActivity('whitelist.update', id, { system: 'slReward' }, {
-      source: 'sl-reward', changes: { expiresAt: { extendedByDays: days } },
+      steamId: entry.steamId ?? null,
+      name: entry.name ?? null,
+      source: 'sl-reward',
+      changes: { expiresAt: { extendedByDays: days } },
     });
     return true;
   } catch (err) {
@@ -357,7 +366,7 @@ export async function updateExpiryByRole(steamId, role, expiresAt, actor = null)
     // Audit after commit (best-effort; never blocks or reverts the committed change).
     for (const entry of matching) {
       await logWhitelistActivity('whitelist.update', entry.id, actor, {
-        steamId, role, changes: { expiresAt: { to: toIso(expiresAt) } },
+        steamId, name: entry.name ?? null, role, changes: { expiresAt: { to: toIso(expiresAt) } },
       });
     }
     return matching.length;
