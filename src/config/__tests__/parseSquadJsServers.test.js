@@ -29,4 +29,14 @@ describe('parseSquadJsServers', () => {
   test('non-numeric serverId becomes null (never NaN)', () => {
     expect(parseSquadJsServers('main|ws://h|tok|abc')[0].serverId).toBeNull();
   });
+
+  test('drops connection names listed in SQUADJS_DISABLED', () => {
+    const result = parseSquadJsServers(
+      'staging|ws://s|t1|2,production|ws://p|t2|1',
+      'staging',
+    );
+    expect(result).toEqual([
+      { name: 'production', url: 'ws://p', token: 't2', serverId: 1 },
+    ]);
+  });
 });

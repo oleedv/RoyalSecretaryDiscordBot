@@ -1,6 +1,7 @@
 import { EmbedBuilder } from 'discord.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
+import { shouldLogReconnectAttempt } from '../../utils/reconnectLog.js';
 
 const log = logger.child({ module: 'errorAlertService' });
 
@@ -26,17 +27,35 @@ export async function reportError(err, ctx = {}) {
   const severity = SEVERITY[ctx.severity] ? ctx.severity : 'error';
   const source = ctx.source || 'unknown';
 
-  logger.child({ module: source })[severity]({ err, ...stripEmbedContext(ctx) }, err?.message || 'Error');
-
-  if (!client || !channelId) return;
-
   const key = `${source}::${err?.name || 'Error'}::${(err?.message || '').split('\n')[0]}`;
   const now = Date.now();
   const entry = recent.get(key);
+  const rolling = entry && now - (entry.lastSeen ?? entry.firstSeen) < dedupeWindowMs;
+  const nextCount = rolling ? entry.count + 1 : 1;
 
-  if (entry && now - entry.firstSeen < dedupeWindowMs) {
-    entry.count += 1;
-    if (entry.messageId) {
+  if (!rolling || shouldLogReconnectAttempt(nextCount)) {
+    logger.child({ module: source })[severity]({ err, ...stripEmbedContext(ctx) }, err?.message || 'Error');
+  }
+
+  if (rolling) {
+    entry.count = nextCount;
+    entry.lastSeen = now;
+    scheduleExpire(key);
+  }
+
+  if (!client || !channelId) {
+    if (!rolling) {
+      recent.set(key, { count: 1, firstSeen: now, lastSeen: now, messageId: null });
+      scheduleExpire(key);
+    }
+    return;
+  }
+
+  // Roll up while the same error is still firing. A new Discord message is
+  // only posted after `dedupeWindowMs` of silence, so a down env does not
+  // spam the alerts channel every minute.
+  if (rolling) {
+    if (entry.messageId && shouldLogReconnectAttempt(entry.count)) {
       try {
         const channel = await client.channels.fetch(channelId).catch((fetchErr) => {
           log.warn({ err: fetchErr, channelId }, 'Failed to fetch alert channel for dedupe edit');
@@ -74,10 +93,17 @@ export async function reportError(err, ctx = {}) {
     return null;
   });
 
-  const record = { count: 1, firstSeen: now, messageId: sent?.id || null };
+  const record = { count: 1, firstSeen: now, lastSeen: now, messageId: sent?.id || null };
   recent.set(key, record);
-  const t = setTimeout(() => recent.delete(key), dedupeWindowMs);
-  t.unref?.();
+  scheduleExpire(key);
+}
+
+function scheduleExpire(key) {
+  const entry = recent.get(key);
+  if (!entry) return;
+  if (entry.expireTimer) clearTimeout(entry.expireTimer);
+  entry.expireTimer = setTimeout(() => recent.delete(key), dedupeWindowMs);
+  entry.expireTimer.unref?.();
 }
 
 export async function postStartupNotice({ env, commit, bootMs, commandCount, eventCount }) {

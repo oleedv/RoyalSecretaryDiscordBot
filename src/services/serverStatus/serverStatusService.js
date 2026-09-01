@@ -16,6 +16,7 @@ let lastSuccessfulUpdate = Date.now();
 let lastEmptyStatesWarn = 0;
 let lastNameMismatchWarn = 0;
 let lastStaleWarn = 0;
+let lastRbMembersWarn = 0;
 const THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
 
 // Stored references for self-recovery
@@ -38,7 +39,11 @@ async function refreshRBMembers() {
     );
     rbSteamIds = new Set(rows.map((r) => r.steamId));
   } catch (err) {
-    log.error({ err }, 'Failed to fetch RB members for status display');
+    const now = Date.now();
+    if (now - lastRbMembersWarn >= THROTTLE_MS) {
+      lastRbMembersWarn = now;
+      log.error({ err }, 'Failed to fetch RB members for status display');
+    }
   }
 }
 

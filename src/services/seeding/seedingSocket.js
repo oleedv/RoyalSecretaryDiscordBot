@@ -3,6 +3,7 @@ import config from '../../config.js';
 import logger from '../../logger.js';
 import { isRosterStale } from './seedingHealth.js';
 import { pickServerStateById, coerceServerId } from './serverResolver.js';
+import { shouldLogReconnectAttempt } from '../../utils/reconnectLog.js';
 
 const log = logger.child({ module: 'seedingSocket' });
 
@@ -116,8 +117,11 @@ function connectServer(serverCfg) {
   });
 
   conn.socket.on('disconnect', (reason) => {
+    const wasConnected = conn.state.connected;
     conn.state.connected = false;
-    log.warn({ name: serverCfg.name, reason }, 'Disconnected from SquadJS');
+    if (wasConnected) {
+      log.warn({ name: serverCfg.name, reason }, 'Disconnected from SquadJS');
+    }
     if (reason === 'io server disconnect') {
       log.info({ name: serverCfg.name }, 'Server-initiated disconnect, reconnecting in 5s...');
       setTimeout(() => conn.socket.connect(), 5000);
@@ -126,10 +130,13 @@ function connectServer(serverCfg) {
 
   conn.socket.on('connect_error', (err) => {
     conn.state.reconnectErrorCount++;
-    if (conn.state.reconnectErrorCount === 1) {
-      log.error({ name: serverCfg.name, err: err.message }, 'SquadJS connection error');
-    } else if (conn.state.reconnectErrorCount % 5 === 0) {
-      log.warn({ name: serverCfg.name, attempt: conn.state.reconnectErrorCount }, 'Still reconnecting to SquadJS');
+    if (shouldLogReconnectAttempt(conn.state.reconnectErrorCount)) {
+      const payload = { name: serverCfg.name, attempt: conn.state.reconnectErrorCount, err: err.message };
+      if (conn.state.reconnectErrorCount === 1) {
+        log.error(payload, 'SquadJS connection error');
+      } else {
+        log.warn(payload, 'Still reconnecting to SquadJS');
+      }
     }
   });
 
@@ -213,8 +220,11 @@ function connectServer(serverCfg) {
 export function connect(client) {
   if (client) discordClient = client;
   const servers = config.squadjs;
+  if (process.env.SQUADJS_DISABLED) {
+    log.info({ disabled: process.env.SQUADJS_DISABLED }, 'Skipping disabled SquadJS server(s)');
+  }
   if (!servers?.length) {
-    log.warn('No SquadJS server configured (SQUADJS_SERVERS env var missing)');
+    log.warn('No SquadJS server configured (SQUADJS_SERVERS env var missing, or all names listed in SQUADJS_DISABLED)');
     return;
   }
 
