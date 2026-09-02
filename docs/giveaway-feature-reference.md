@@ -15,7 +15,9 @@ Living engineering doc for the giveaway feature. Keep this updated as bugs are f
 
 ## What it does
 
-Monthly raffle run from Discord. People earn tickets by playing on RB (hours + seed hours), with a small RB-only community vote bonus. At month end a staff member runs the draw — weighted random pick, posts the winner.
+Monthly raffle run from Discord or the website `/giveaway` page. People earn tickets by playing on RB (hours + seed hours), with a small RB-only community vote bonus. At month end a staff member runs the draw — weighted random pick, posts the winner.
+
+Website start/draw/cancel/open-vote/add-entry go through `pending_actions` (`giveaway_start`, `giveaway_open_vote`, `giveaway_draw`, `giveaway_cancel`, `giveaway_add_entry`, `giveaway_refresh_entry`). Default channels and ticket rules live in `giveaway_config` (id=1) and are copied onto each new giveaway row.
 
 **Scope as shipped:** RB members only. Non-RB community members can only enter via `/giveaway add-entry` (staff manual entry). Self-serve Steam linking for the wider community is deferred to a separate spec.
 

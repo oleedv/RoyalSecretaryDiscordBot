@@ -1,36 +1,18 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { successEmbed, errorEmbed } from '../utils/embed.js';
+import { computeLeaderboard, getActiveGiveaway, windowStartIso } from '../services/giveaway/giveawayService.js';
+import { buildLeaderboardEmbed } from '../services/giveaway/giveawayEmbeds.js';
 import {
-  createGiveaway,
-  getActiveGiveaway,
-  setEntryMessage,
-  setVoteMessage,
-  upsertManualEntry,
-  computeLeaderboard,
-  windowStartIso,
-  listEntries,
-  markDrawn,
-  cancelGiveaway,
-} from '../services/giveaway/giveawayService.js';
-import { buildEntryEmbed, buildEntryRow, buildLeaderboardEmbed, buildVoteMessages, buildWinnerEmbed } from '../services/giveaway/giveawayEmbeds.js';
-import { refreshEntryMessage } from '../services/giveaway/giveawayMessage.js';
-import { pickWinner } from '../services/giveaway/giveawayDraw.js';
+  GiveawayActionError,
+  startGiveaway,
+  addManualGiveawayEntry,
+  openGiveawayVote,
+  drawGiveaway,
+  cancelActiveGiveaway,
+} from '../services/giveaway/giveawayActions.js';
 import logger from '../logger.js';
 
 const log = logger.child({ module: 'cmd:giveaway' });
-
-const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-
-function lastDayOfThisMonthIso() {
-  const now = new Date();
-  const last = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59));
-  return last;
-}
-
-function currentMonthLabel() {
-  const now = new Date();
-  return `${MONTHS[now.getUTCMonth()]} ${now.getUTCFullYear()}`;
-}
 
 export default {
   data: new SlashCommandBuilder()
@@ -79,61 +61,50 @@ export default {
   },
 };
 
-async function handleStart(interaction) {
+async function runAction(interaction, fn) {
   await interaction.deferReply({ flags: ['Ephemeral'] });
-
-  const existing = await getActiveGiveaway();
-  if (existing) {
-    return interaction.editReply({
-      embeds: [errorEmbed(`A giveaway is already active (id ${existing.id}, status ${existing.status}). Cancel or draw it first.`)],
-    });
+  try {
+    return await fn();
+  } catch (err) {
+    if (err instanceof GiveawayActionError) {
+      return interaction.editReply({ embeds: [errorEmbed(err.message)] });
+    }
+    log.error({ err }, 'giveaway command failed');
+    return interaction.editReply({ embeds: [errorEmbed('Something went wrong.')] });
   }
+}
 
-  const prize = interaction.options.getString('prize', true);
-  const channel = interaction.options.getChannel('channel', true);
-
-  const giveaway = await createGiveaway({
-    prize,
-    monthLabel: currentMonthLabel(),
-    drawAt: lastDayOfThisMonthIso(),
-    entryChannelId: channel.id,
-    createdBy: interaction.user.id,
-  });
-
-  const message = await channel.send({
-    embeds: [buildEntryEmbed(giveaway, 0)],
-    components: [buildEntryRow(giveaway.id)],
-  });
-
-  await setEntryMessage(giveaway.id, channel.id, message.id);
-
-  log.info({ giveawayId: giveaway.id, prize, channelId: channel.id }, 'Giveaway started');
-  await interaction.editReply({
-    embeds: [successEmbed(`Giveaway #${giveaway.id} posted in ${channel}.\nPrize: **${prize}**`)],
+async function handleStart(interaction) {
+  return runAction(interaction, async () => {
+    const prize = interaction.options.getString('prize', true);
+    const channel = interaction.options.getChannel('channel', true);
+    const { giveaway } = await startGiveaway({
+      client: interaction.client,
+      prize,
+      channel,
+      createdBy: interaction.user.id,
+    });
+    await interaction.editReply({
+      embeds: [successEmbed(`Giveaway #${giveaway.id} posted in ${channel}.\nPrize: **${prize}**`)],
+    });
   });
 }
 
 async function handleAddEntry(interaction) {
-  await interaction.deferReply({ flags: ['Ephemeral'] });
-
-  const giveaway = await getActiveGiveaway();
-  if (!giveaway) {
-    return interaction.editReply({ embeds: [errorEmbed('No active giveaway.')] });
-  }
-  if (giveaway.status === 'drawn' || giveaway.status === 'cancelled') {
-    return interaction.editReply({ embeds: [errorEmbed(`Giveaway is ${giveaway.status}; cannot add entries.`)] });
-  }
-
-  const user = interaction.options.getUser('user', true);
-  const hours = interaction.options.getNumber('hours', true);
-  const seed = interaction.options.getNumber('seed', true);
-
-  await upsertManualEntry(giveaway.id, user.id, hours, seed, interaction.user.id);
-  await refreshEntryMessage(interaction.client, giveaway);
-
-  log.info({ giveawayId: giveaway.id, userId: user.id, hours, seed, addedBy: interaction.user.id }, 'Manual entry added');
-  await interaction.editReply({
-    embeds: [successEmbed(`Added/updated manual entry for ${user}: ${hours}h played, ${seed}h seed.`)],
+  return runAction(interaction, async () => {
+    const user = interaction.options.getUser('user', true);
+    const hours = interaction.options.getNumber('hours', true);
+    const seed = interaction.options.getNumber('seed', true);
+    await addManualGiveawayEntry({
+      client: interaction.client,
+      userId: user.id,
+      hours,
+      seed,
+      addedBy: interaction.user.id,
+    });
+    await interaction.editReply({
+      embeds: [successEmbed(`Added/updated manual entry for ${user}: ${hours}h played, ${seed}h seed.`)],
+    });
   });
 }
 
@@ -148,91 +119,34 @@ async function handleLeaderboard(interaction) {
 }
 
 async function handleOpenVote(interaction) {
-  await interaction.deferReply({ flags: ['Ephemeral'] });
-  const giveaway = await getActiveGiveaway();
-  if (!giveaway) return interaction.editReply({ embeds: [errorEmbed('No active giveaway.')] });
-  if (giveaway.status !== 'open') {
-    return interaction.editReply({ embeds: [errorEmbed(`Giveaway is in status '${giveaway.status}'; expected 'open'.`)] });
-  }
-
-  const entries = await listEntries(giveaway.id);
-  if (entries.length === 0) {
-    return interaction.editReply({ embeds: [errorEmbed('No one has entered yet.')] });
-  }
-
-  const channel = interaction.options.getChannel('channel')
-    || await interaction.guild.channels.fetch(giveaway.entry_channel_id);
-  if (!channel) {
-    return interaction.editReply({ embeds: [errorEmbed('Could not resolve vote channel.')] });
-  }
-
-  const enriched = await Promise.all(entries.map(async (e) => {
-    const member = await interaction.guild.members.fetch(e.user_id).catch(() => null);
-    return { userId: e.user_id, displayName: member?.displayName || e.user_id };
-  }));
-
-  const pages = buildVoteMessages(giveaway, enriched);
-  let firstMessage = null;
-  for (const payload of pages) {
-    const sent = await channel.send(payload);
-    if (!firstMessage) firstMessage = sent;
-  }
-
-  await setVoteMessage(giveaway.id, channel.id, firstMessage.id);
-
-  log.info({ giveawayId: giveaway.id, pages: pages.length, channelId: channel.id }, 'Vote post opened');
-  await interaction.editReply({
-    embeds: [successEmbed(`Vote post opened in ${channel} (${pages.length} message${pages.length > 1 ? 's' : ''}).`)],
+  return runAction(interaction, async () => {
+    const channel = interaction.options.getChannel('channel');
+    const { channel: posted, pages } = await openGiveawayVote({
+      client: interaction.client,
+      guild: interaction.guild,
+      channel,
+    });
+    await interaction.editReply({
+      embeds: [successEmbed(`Vote post opened in ${posted} (${pages} message${pages > 1 ? 's' : ''}).`)],
+    });
   });
 }
 
 async function handleDraw(interaction) {
-  await interaction.deferReply({ flags: ['Ephemeral'] });
-  const giveaway = await getActiveGiveaway();
-  if (!giveaway) return interaction.editReply({ embeds: [errorEmbed('No active giveaway.')] });
-  if (giveaway.status === 'drawn') {
-    return interaction.editReply({ embeds: [errorEmbed(`Already drawn; winner: <@${giveaway.winner_user_id}>.`)] });
-  }
-  if (giveaway.status === 'cancelled') {
-    return interaction.editReply({ embeds: [errorEmbed('Giveaway is cancelled.')] });
-  }
-
-  const leaderboard = await computeLeaderboard(giveaway, windowStartIso(giveaway.window_days));
-  const winnerRow = pickWinner(leaderboard);
-  if (!winnerRow) {
-    return interaction.editReply({ embeds: [errorEmbed('No eligible entries (total tickets is 0).')] });
-  }
-
-  await markDrawn(giveaway.id, winnerRow.userId);
-
-  const channel = await interaction.guild.channels.fetch(giveaway.entry_channel_id).catch(() => null);
-  const target = channel || interaction.channel;
-  await target.send({ embeds: [buildWinnerEmbed(giveaway, winnerRow, leaderboard)] });
-
-  log.info({ giveawayId: giveaway.id, winnerId: winnerRow.userId, tickets: winnerRow.tickets }, 'Giveaway drawn');
-  await interaction.editReply({
-    embeds: [successEmbed(`Winner posted in ${target}: <@${winnerRow.userId}> with ${winnerRow.tickets} tickets.`)],
+  return runAction(interaction, async () => {
+    const { winner, channel } = await drawGiveaway({
+      client: interaction.client,
+      fallbackChannel: interaction.channel,
+    });
+    await interaction.editReply({
+      embeds: [successEmbed(`Winner posted in ${channel}: <@${winner.userId}> with ${winner.tickets} tickets.`)],
+    });
   });
 }
 
 async function handleCancel(interaction) {
-  await interaction.deferReply({ flags: ['Ephemeral'] });
-  const giveaway = await getActiveGiveaway();
-  if (!giveaway) return interaction.editReply({ embeds: [errorEmbed('No active giveaway.')] });
-
-  await cancelGiveaway(giveaway.id);
-
-  for (const [chId, mId] of [
-    [giveaway.entry_channel_id, giveaway.entry_message_id],
-    [giveaway.vote_channel_id, giveaway.vote_message_id],
-  ]) {
-    if (!chId || !mId) continue;
-    const ch = await interaction.guild.channels.fetch(chId).catch(() => null);
-    if (!ch) continue;
-    const msg = await ch.messages.fetch(mId).catch(() => null);
-    if (msg) await msg.delete().catch((err) => log.warn({ err, mId }, 'Failed to delete giveaway message'));
-  }
-
-  log.info({ giveawayId: giveaway.id }, 'Giveaway cancelled');
-  await interaction.editReply({ embeds: [successEmbed(`Giveaway #${giveaway.id} cancelled.`)] });
+  return runAction(interaction, async () => {
+    const { giveaway } = await cancelActiveGiveaway({ client: interaction.client });
+    await interaction.editReply({ embeds: [successEmbed(`Giveaway #${giveaway.id} cancelled.`)] });
+  });
 }

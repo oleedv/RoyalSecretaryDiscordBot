@@ -93,6 +93,18 @@ async function dispatch(actionType, targetType, targetId, payload, actorId, guil
       return handleSendSeedingCall(client)
     case 'send_seeding_rapport':
       return handleSendSeedingRapport(payload, client)
+    case 'giveaway_start':
+      return handleGiveawayStart(payload, actorId, client)
+    case 'giveaway_open_vote':
+      return handleGiveawayOpenVote(payload, client, guild)
+    case 'giveaway_draw':
+      return handleGiveawayDraw(client)
+    case 'giveaway_cancel':
+      return handleGiveawayCancel(client)
+    case 'giveaway_add_entry':
+      return handleGiveawayAddEntry(payload, actorId, client)
+    case 'giveaway_refresh_entry':
+      return handleGiveawayRefreshEntry(client)
     default:
       throw new Error(`Unknown action type: ${actionType}`)
   }
@@ -189,4 +201,65 @@ async function handleSendSeedingRapport(payload, client) {
   const embed = buildSeedingRapportEmbed(rapport)
   await channel.send({ embeds: [embed] })
   log.info({ date }, 'Seeding rapport posted to Discord')
+}
+
+async function handleGiveawayStart(payload, actorId, client) {
+  const { startGiveaway } = await import('./giveaway/giveawayActions.js')
+  const prize = payload.prize
+  const entryChannelId = payload.entryChannelId
+  if (!prize || !entryChannelId) throw new Error('giveaway_start requires prize and entryChannelId')
+
+  const rules = {}
+  if (payload.windowDays != null) rules.windowDays = Number(payload.windowDays)
+  if (payload.minHours != null) rules.minHours = Number(payload.minHours)
+  if (payload.hoursWeight != null) rules.hoursWeight = Number(payload.hoursWeight)
+  if (payload.seedWeight != null) rules.seedWeight = Number(payload.seedWeight)
+  if (payload.voteWeight != null) rules.voteWeight = Number(payload.voteWeight)
+  if (payload.votesPerVoter != null) rules.votesPerVoter = Number(payload.votesPerVoter)
+
+  await startGiveaway({
+    client,
+    prize,
+    channel: entryChannelId,
+    createdBy: payload.discordUserId || actorId,
+    monthLabel: payload.monthLabel || undefined,
+    drawAt: payload.drawAt || undefined,
+    rules,
+  })
+}
+
+async function handleGiveawayOpenVote(payload, client, guild) {
+  const { openGiveawayVote } = await import('./giveaway/giveawayActions.js')
+  await openGiveawayVote({
+    client,
+    guild,
+    channel: payload.channelId || undefined,
+  })
+}
+
+async function handleGiveawayDraw(client) {
+  const { drawGiveaway } = await import('./giveaway/giveawayActions.js')
+  await drawGiveaway({ client })
+}
+
+async function handleGiveawayCancel(client) {
+  const { cancelActiveGiveaway } = await import('./giveaway/giveawayActions.js')
+  await cancelActiveGiveaway({ client })
+}
+
+async function handleGiveawayAddEntry(payload, actorId, client) {
+  const { addManualGiveawayEntry } = await import('./giveaway/giveawayActions.js')
+  if (!payload.userId) throw new Error('giveaway_add_entry requires userId')
+  await addManualGiveawayEntry({
+    client,
+    userId: String(payload.userId),
+    hours: Number(payload.hours) || 0,
+    seed: Number(payload.seed) || 0,
+    addedBy: payload.discordUserId || actorId,
+  })
+}
+
+async function handleGiveawayRefreshEntry(client) {
+  const { refreshActiveEntryMessage } = await import('./giveaway/giveawayActions.js')
+  await refreshActiveEntryMessage({ client })
 }

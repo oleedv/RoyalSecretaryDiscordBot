@@ -725,6 +725,21 @@ export async function initSchema() {
     )
   `);
 
+  await query(`
+    CREATE TABLE IF NOT EXISTS giveaway_config (
+      id INT PRIMARY KEY,
+      default_entry_channel_id VARCHAR(20) NULL,
+      default_vote_channel_id VARCHAR(20) NULL,
+      window_days INT DEFAULT 30,
+      min_hours DECIMAL(5,2) DEFAULT 5.00,
+      hours_weight DECIMAL(4,2) DEFAULT 1.00,
+      seed_weight DECIMAL(4,2) DEFAULT 2.00,
+      vote_weight INT DEFAULT 5,
+      votes_per_voter INT DEFAULT 2
+    )
+  `);
+  await query(`INSERT IGNORE INTO giveaway_config (id) VALUES (1)`);
+
   // ── User timezone (remembered per user for /timestamp) ──
 
   await query(`

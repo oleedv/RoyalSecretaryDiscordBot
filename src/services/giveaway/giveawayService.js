@@ -213,3 +213,21 @@ export function windowStartIso(windowDays) {
   const d = new Date(Date.now() - windowDays * 86400000);
   return d.toISOString().slice(0, 10);
 }
+
+export async function getGiveawayConfig() {
+  const rows = await query('SELECT * FROM giveaway_config WHERE id = 1');
+  if (rows[0]) return rows[0];
+  await query('INSERT INTO giveaway_config (id) VALUES (1)');
+  const again = await query('SELECT * FROM giveaway_config WHERE id = 1');
+  return again[0];
+}
+
+export async function listVotes(giveawayId) {
+  return await query(
+    `SELECT voter_id AS voterId, target_id AS targetId, created_at AS createdAt
+       FROM giveaway_votes
+      WHERE giveaway_id = ?
+      ORDER BY created_at ASC`,
+    [giveawayId]
+  );
+}
