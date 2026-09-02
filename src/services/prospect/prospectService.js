@@ -18,6 +18,7 @@ import { buildOrderedStatFields } from './prospectStatsFields.js';
 import { assignTeamRole, removeTeamRole } from './teamRoleService.js';
 import { applyCooldownMessage, getActiveCooldown, getProspectConfig, upsertCooldown } from './prospectConfig.js';
 import { insertTranscriptRow } from '../channelTranscript/channelTranscript.js';
+import { applyProspectProfile } from '../userService.js';
 import { isForeignBotMessage } from '../channelTranscript/transcriptMeta.js';
 import config from '../../config.js';
 import logger from '../../logger.js';
@@ -1026,6 +1027,20 @@ export async function closeProspect(prospect, closedById, outcome, guild, reason
         );
       }
     }
+  }
+
+  if (outcome === 'accepted') {
+    applyProspectProfile(
+      prospect.user_id,
+      {
+        nationality: prospect.nationality,
+        date_of_birth: prospect.date_of_birth,
+        steam_id: prospect.steam_id,
+        status: 'accepted',
+        closed_at: new Date(),
+      },
+      { discordName: member?.user?.username || member?.displayName },
+    ).catch((err) => log.warn({ err, userId: prospect.user_id }, 'Failed to copy prospect profile to website user'));
   }
 
   if (!isTestSteamId(prospect.steam_id)) {

@@ -4,7 +4,7 @@ import { validateDateOfBirth, validateSquadHours } from '../utils/validation.js'
 import { validateCountry } from '../utils/countries.js';
 import { validateSteamInput } from '../services/steamService.js';
 import { createProspect, getProspectByChannel, getProspectById, closeProspect, extendProspect } from '../services/prospect/prospectService.js';
-import { linkSteamId } from '../services/userService.js';
+import { applyProspectProfile } from '../services/userService.js';
 import { upsertVote, getVoteCounts } from '../services/prospect/prospectVoting.js';
 import { buildVoteComponents, buildCloseTicketComponents } from '../services/prospect/prospectEmbeds.js';
 import { requireRole } from '../utils/permissions.js';
@@ -177,7 +177,16 @@ export async function handleModal2(interaction) {
     embeds: [successEmbed('Your application has been submitted! Check your DMs for confirmation.')],
   });
 
-  linkSteamId(interaction.user.id, validatedSteamId);
+  applyProspectProfile(
+    interaction.user.id,
+    {
+      nationality: formData.nationality,
+      date_of_birth: formData.dateOfBirth,
+      steam_id: validatedSteamId,
+      status: 'open',
+    },
+    { discordName: interaction.user.username },
+  ).catch((err) => log.warn({ err, userId: interaction.user.id }, 'Failed to copy prospect profile to website user'));
 
   const cleanup = pendingCleanups.get(interaction.user.id);
   if (cleanup) {
