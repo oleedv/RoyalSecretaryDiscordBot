@@ -37,4 +37,16 @@ describe('computeTickets', () => {
     const weights = { hours: 2, seed: 3, vote: 5 };
     expect(computeTickets(entry, null, 1, weights)).toBe(40); // 20 + 15 + 5
   });
+
+  it('adds a staff bonus after flooring earned tickets', () => {
+    const entry = { manualHours: 5.7, manualSeed: 1.4, steamId: null, bonusTickets: 3 };
+    const weights = { hours: 1, seed: 2, vote: 1 };
+    expect(computeTickets(entry, null, 0, weights)).toBe(11); // floor(5.7+2.8)=8 + 3
+  });
+
+  it('never goes below zero after a staff penalty', () => {
+    const entry = { manualHours: 10, manualSeed: 0, steamId: null, bonusTickets: -50 };
+    const weights = { hours: 1, seed: 2, vote: 1 };
+    expect(computeTickets(entry, null, 0, weights)).toBe(0);
+  });
 });

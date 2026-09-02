@@ -109,8 +109,10 @@ export function buildLeaderboardEmbed(giveaway, leaderboard, limit = 20) {
   const top = leaderboard.slice(0, limit);
   const lines = top.map((r, i) => {
     const tag = r.manual ? ' *(manual)*' : '';
+    const bonus = Number(r.bonusTickets) || 0;
+    const bonusBit = bonus ? `, ${bonus > 0 ? '+' : ''}${bonus} staff` : '';
     return `\`${String(i + 1).padStart(2, ' ')}.\` <@${r.userId}> · **${r.tickets}** tickets `
-      + `(${r.hours}h + 2×${r.seed}h seed + ${r.votes} votes)${tag}`;
+      + `(${r.hours}h + 2×${r.seed}h seed + ${r.votes} votes${bonusBit})${tag}`;
   });
   return new EmbedBuilder()
     .setTitle(`Leaderboard: ${giveaway.month_label}`)

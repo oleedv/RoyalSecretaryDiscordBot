@@ -189,7 +189,12 @@ export async function computeLeaderboard(giveaway, windowStartIso) {
       : null;
     const votes = voteCounts.get(e.user_id) || 0;
     const tickets = computeTickets(
-      { manualHours: e.manual_hours, manualSeed: e.manual_seed, steamId: e.steam_id },
+      {
+        manualHours: e.manual_hours,
+        manualSeed: e.manual_seed,
+        steamId: e.steam_id,
+        bonusTickets: Number(e.bonus_tickets) || 0,
+      },
       live,
       votes,
       weights
@@ -202,6 +207,7 @@ export async function computeLeaderboard(giveaway, windowStartIso) {
       seed:  e.manual_seed  != null ? Number(e.manual_seed)  : Number(live?.seedHours ?? 0),
       votes,
       tickets,
+      bonusTickets: Number(e.bonus_tickets) || 0,
     };
   }));
 

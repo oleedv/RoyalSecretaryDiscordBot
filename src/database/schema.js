@@ -712,6 +712,8 @@ export async function initSchema() {
     )
   `);
 
+  await query(`ALTER TABLE giveaway_entries ADD COLUMN IF NOT EXISTS bonus_tickets INT NOT NULL DEFAULT 0`);
+
   await query(`
     CREATE TABLE IF NOT EXISTS giveaway_votes (
       id           INT AUTO_INCREMENT PRIMARY KEY,
