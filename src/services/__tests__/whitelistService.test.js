@@ -133,6 +133,35 @@ describe('upsertSeederEntry stamps the "Monthly seeders" clan', () => {
     expect(update[1]).toContain('Monthly seeders');
     expect(update[1]).toContain('clan-monthly-seeders');
   });
+
+  test('UPDATE path logs expiry from/to so activity is not a blank "Updated entry"', async () => {
+    queryImpl = seederRoute([{
+      id: 'existing-seeder',
+      role: 'Seeder',
+      expiresAt: '2026-07-01T00:00:00.000Z',
+    }]);
+    await upsertSeederEntry('76561198000000011', 'Seedy', new Date('2026-08-01T00:00:00Z'));
+
+    expect(auditCalls).toHaveLength(1);
+    const [action, resourceId, actor, detail] = auditCalls[0];
+    expect(action).toBe('whitelist.update');
+    expect(resourceId).toBe('existing-seeder');
+    expect(actor).toEqual({ system: 'seedTracker' });
+    expect(detail).toEqual({
+      steamId: '76561198000000011',
+      name: 'Seedy',
+      role: 'Seeder',
+      clan: 'Monthly seeders',
+      source: 'seed-tracker',
+      changes: {
+        expiresAt: {
+          from: '2026-07-01T00:00:00.000Z',
+          to: '2026-08-01T00:00:00.000Z',
+          extendedByDays: 31,
+        },
+      },
+    });
+  });
 });
 
 describe('promoteToMember is role-agnostic + idempotent', () => {

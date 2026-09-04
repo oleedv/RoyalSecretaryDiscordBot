@@ -60,6 +60,34 @@ describe('decideSeederAction', () => {
     const r = decideSeederAction({ ...base, uniqueDays: 10, whitelist: wl });
     expect(r.action).toBe('skip');
   });
+
+  // Regression: every completed session used to rewrite expiry to now+durationDays.
+  // After a grant at NOW+30d, a reconnect 3 hours later is still now+30d+3h — a
+  // few hours later, so the old `newMs <= currentMs` skip never fired and the
+  // activity log filled with "Updated entry" rows.
+  test('does not rewrite seeder expiry for a same-day bump', () => {
+    const wl = { role: 'Seeder', expiresAt: new Date(NOW + 30 * DAY) };
+    const r = decideSeederAction({ ...base, uniqueDays: 10, whitelist: wl, nowMs: NOW + 3 * 3600000 });
+    expect(r.action).toBe('skip');
+  });
+
+  test('extends seeder expiry once the bump is at least a day', () => {
+    const wl = { role: 'Seeder', expiresAt: new Date(NOW + 30 * DAY) };
+    const r = decideSeederAction({ ...base, uniqueDays: 10, whitelist: wl, nowMs: NOW + DAY });
+    expect(r.action).toBe('extend');
+    expect(r.expiresAt.getTime()).toBe(NOW + DAY + 30 * DAY);
+  });
+
+  test('website member with leftover Seeder whitelist => thank (do not extend)', () => {
+    const wl = { role: 'Seeder', expiresAt: new Date(NOW + 5 * DAY) };
+    const r = decideSeederAction({ ...base, uniqueDays: 99, whitelist: wl, isMember: true });
+    expect(r.action).toBe('thank');
+  });
+
+  test('website member with no whitelist => thank (do not grant)', () => {
+    const r = decideSeederAction({ ...base, uniqueDays: 99, whitelist: null, isMember: true });
+    expect(r.action).toBe('thank');
+  });
 });
 
 describe('shouldThankToday', () => {

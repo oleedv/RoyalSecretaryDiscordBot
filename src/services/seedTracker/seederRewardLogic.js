@@ -7,14 +7,17 @@ const DAY_MS = 86400000;
  * @param {number} p.requiredDays    threshold to earn/renew
  * @param {number} p.minProgressionDays minimum seed days before a progression embed shows (gates one-time connects)
  * @param {{role: string, expiresAt: (Date|string|null)}|null} p.whitelist
+ * @param {boolean} [p.isMember]     website member (Discord member role) — never grant/extend Seeder
  * @param {number} p.durationDays    grant/renewal length
  * @param {number} p.maxExtensionDays cap measured from now
  * @param {number} p.nowMs           current epoch ms (injected for testability)
  * @returns {{action: 'skip'|'progression'|'grant'|'extend'|'thank', expiresAt?: Date}}
  */
-export function decideSeederAction({ uniqueDays, requiredDays, whitelist, durationDays, maxExtensionDays, nowMs, minProgressionDays = 2 }) {
-  // Active non-Seeder whitelist (clan, admin, donor, etc.) — thank them for helping seed.
-  if (whitelist && whitelist.role !== 'Seeder') return { action: 'thank' };
+export function decideSeederAction({ uniqueDays, requiredDays, whitelist, durationDays, maxExtensionDays, nowMs, minProgressionDays = 2, isMember = false }) {
+  // Members and other non-Seeder whitelist holders (clan, admin, donor, etc.)
+  // get a thank-you, never a Seeder grant/renewal — including leftover Seeder
+  // rows on people who later became members.
+  if (isMember || (whitelist && whitelist.role !== 'Seeder')) return { action: 'thank' };
 
   const earned = uniqueDays >= requiredDays;
 
@@ -23,7 +26,9 @@ export function decideSeederAction({ uniqueDays, requiredDays, whitelist, durati
     const maxMs = nowMs + maxExtensionDays * DAY_MS;
     const newMs = nowMs + durationDays * DAY_MS;
     const currentMs = whitelist.expiresAt ? new Date(whitelist.expiresAt).getTime() : null;
-    if (currentMs != null && newMs <= currentMs) return { action: 'skip' };
+    // Require a full day's extra expiry so reconnects / map changes the same day
+    // do not rewrite the row (and spam whitelist activity) for a few hours.
+    if (currentMs != null && newMs < currentMs + DAY_MS) return { action: 'skip' };
     return { action: 'extend', expiresAt: new Date(Math.min(newMs, maxMs)) };
   }
 

@@ -182,9 +182,18 @@ export async function upsertSeederEntry(steamId, name, expiresAt) {
         ['Seeder', seederGroupId, SEEDER_CLAN_TAG, seederClanId, name, expiresAt, 'SeedTracker', seederEntry.id],
         'website'
       );
+      const fromIso = toIso(seederEntry.expiresAt);
+      const toIsoVal = toIso(expiresAt);
+      const expiresChange = { to: toIsoVal };
+      if (fromIso) expiresChange.from = fromIso;
+      const fromMs = seederEntry.expiresAt ? new Date(seederEntry.expiresAt).getTime() : NaN;
+      const toMs = expiresAt ? new Date(expiresAt).getTime() : NaN;
+      if (Number.isFinite(fromMs) && Number.isFinite(toMs)) {
+        expiresChange.extendedByDays = Math.round((toMs - fromMs) / 86400000);
+      }
       await logWhitelistActivity('whitelist.update', seederEntry.id, { system: 'seedTracker' }, {
         steamId, name, role: 'Seeder', clan: SEEDER_CLAN_TAG, source: 'seed-tracker',
-        changes: { expiresAt: { to: toIso(expiresAt) } },
+        changes: { expiresAt: expiresChange },
       });
       return { id: seederEntry.id, steamId, role: 'Seeder', expiresAt };
     }

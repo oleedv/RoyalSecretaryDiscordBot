@@ -1,5 +1,5 @@
 import { query } from '../../database/connection.js';
-import { upsertSeederEntry } from '../whitelistService.js';
+import { upsertSeederEntry, promoteToMember } from '../whitelistService.js';
 import { getDiscordIdBySteamId } from '../userService.js';
 import {
   buildProgressionEmbed,
@@ -117,6 +117,25 @@ export async function getSeederWhitelist(steamId) {
   }
 }
 
+export async function isWebsiteMember(steamId) {
+  try {
+    const rows = await query(
+      `SELECT 1 AS ok
+       FROM User u
+       JOIN UserRole ur ON ur.userId = u.id
+       JOIN DiscordRole r ON r.id = ur.roleId AND r.isMemberRole = 1
+       WHERE u.steamId = ? AND u.disabled = 0
+       LIMIT 1`,
+      [steamId],
+      'website'
+    );
+    return rows.length > 0;
+  } catch (err) {
+    log.warn({ err, steamId }, 'Failed to check website membership');
+    return false;
+  }
+}
+
 export async function getTopSeeders(windowDays = 30, limit = 20, serverId = null) {
   try {
     const rows = await query(
@@ -196,15 +215,17 @@ export async function processCompletedSession(data, client) {
     const windowDays = cfg.rolling_window_days || 30;
     const serverId = cfg.tracker_server_id;
 
-    const [stats, whitelist] = await Promise.all([
+    const [stats, whitelist, isMember] = await Promise.all([
       getPlayerSeedStats(data.steamID, windowDays, serverId),
       getSeederWhitelist(data.steamID),
+      isWebsiteMember(data.steamID),
     ]);
 
     const decision = decideSeederAction({
       uniqueDays: stats.uniqueDays,
       requiredDays,
       whitelist,
+      isMember,
       durationDays: cfg.whitelist_duration_days || 30,
       maxExtensionDays: cfg.max_extension_days || 60,
       nowMs: Date.now(),
@@ -225,6 +246,13 @@ export async function processCompletedSession(data, client) {
     }
 
     if (decision.action === 'thank') {
+      // Leftover Seeder row on a member (accepted before role-agnostic promote,
+      // or given the member role by hand) — convert it once so seed-tracker
+      // stops renewing a seeder whitelist they should not have.
+      if (isMember && whitelist?.role === 'Seeder') {
+        await promoteToMember(data.steamID, data.playerName, { system: 'seedTracker' });
+        log.info({ steamId: data.steamID }, 'Promoted leftover Seeder whitelist to Member');
+      }
       await thankWhitelistedSeeder(data, cfg, client);
       return;
     }
