@@ -105,6 +105,10 @@ async function dispatch(actionType, targetType, targetId, payload, actorId, guil
       return handleGiveawayAddEntry(payload, actorId, client)
     case 'giveaway_refresh_entry':
       return handleGiveawayRefreshEntry(client)
+    case 'tempvoice_manage':
+      return handleTempvoiceManage(payload, actorId, guild)
+    case 'tempvoice_update_config':
+      return handleTempvoiceUpdateConfig(payload)
     default:
       throw new Error(`Unknown action type: ${actionType}`)
   }
@@ -262,4 +266,15 @@ async function handleGiveawayAddEntry(payload, actorId, client) {
 async function handleGiveawayRefreshEntry(client) {
   const { refreshActiveEntryMessage } = await import('./giveaway/giveawayActions.js')
   await refreshActiveEntryMessage({ client })
+}
+
+async function handleTempvoiceManage(payload, actorId, guild) {
+  const { applyStaffOp } = await import('./tempvoice/tempvoiceActions.js')
+  const actor = payload.discordUserId || actorId
+  await applyStaffOp(guild, payload, actor)
+}
+
+async function handleTempvoiceUpdateConfig(payload) {
+  const { applyConfigUpdate } = await import('./tempvoice/tempvoiceActions.js')
+  await applyConfigUpdate(payload)
 }

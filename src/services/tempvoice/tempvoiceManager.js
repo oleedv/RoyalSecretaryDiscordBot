@@ -2,6 +2,7 @@ import { ChannelType, PermissionFlagsBits, EmbedBuilder, AuditLogEvent } from 'd
 import * as db from './tempvoiceService.js';
 import { buildControlPanelMessage } from './tempvoiceEmbeds.js';
 import { getSafeChannelName, findProfanity } from './contentFilter.js';
+import { inspectChannel, eventTypeFromTitle } from './tempvoiceState.js';
 import logger from '../../logger.js';
 import { reportError } from '../admin/errorAlertService.js';
 
@@ -87,6 +88,31 @@ export function getActiveChannelCount() {
   return activeChannels.size;
 }
 
+export async function snapshotChannel(channel, ownerId = null) {
+  if (!channel?.id) return;
+  const owner = ownerId || getOwner(channel.id);
+  const snap = inspectChannel(channel, owner);
+  if (snap.channelName && activeChannels.has(channel.id)) {
+    activeChannels.get(channel.id).channelName = snap.channelName;
+  }
+  await db.updateChannelSnapshot(channel.id, snap);
+}
+
+/** Attach a Discord channel to in-memory tracking if it has a DB row. */
+export async function ensureTracked(channel) {
+  if (!channel?.id) return false;
+  if (activeChannels.has(channel.id)) return true;
+  const row = await db.getTempChannel(channel.id);
+  if (!row) return false;
+  activeChannels.set(channel.id, {
+    ownerId: row.owner_id,
+    guildId: row.guild_id,
+    panelMessageId: row.panel_message_id,
+    channelName: channel.name,
+  });
+  return true;
+}
+
 function capDeletedChannels() {
   while (deletedChannels.size > 1000) {
     const first = deletedChannels.values().next().value;
@@ -151,7 +177,8 @@ async function deleteTrackedChannel(channelId, guild, opts = {}) {
       await logEvent(guild, {
         title: 'Channel Deleted',
         actorId: actorId || ownerId,
-        channel: { name },
+        ownerId,
+        channel: { id: channelId, name },
         fields: [
           { name: 'Owner', value: ownerId ? `<@${ownerId}>` : 'Unknown', inline: true },
           { name: 'Reason', value: logReason, inline: true },
@@ -585,21 +612,24 @@ export async function handleTempVoiceStateUpdate(oldState, newState) {
     return;
   }
 
-  // User left a temp channel -- check if now empty
+  // User left a temp channel -- delete if empty, otherwise refresh occupancy
   if (oldChannelId && activeChannels.has(oldChannelId) && oldChannelId !== newChannelId) {
     try {
       const channel = await oldState.guild.channels.fetch(oldChannelId).catch(() => null);
       if (channel && channel.members.size === 0) {
         await handleChannelEmpty(oldChannelId, oldState.guild);
+      } else if (channel) {
+        snapshotChannel(channel).catch(() => null);
       }
     } catch (err) {
       log.error({ err, channelId: oldChannelId }, 'Error checking empty temp channel');
     }
   }
 
-  // Touch activity on join/switch into tracked channel
   if (newChannelId && activeChannels.has(newChannelId)) {
     db.touchActivity(newChannelId).catch(() => null);
+    const joined = await newState.guild.channels.fetch(newChannelId).catch(() => null);
+    if (joined) snapshotChannel(joined).catch(() => null);
   }
 }
 
@@ -657,6 +687,7 @@ export async function initFromDb(client) {
         panelMessageId: row.panel_message_id,
         channelName: channel.name,
       });
+      await snapshotChannel(channel, row.owner_id).catch(() => null);
       recovered++;
     } catch (err) {
       log.error({ err, channelId: row.channel_id }, 'Error recovering temp channel');
@@ -724,6 +755,9 @@ async function runEmptySweep(client) {
           panelMessageId: row.panel_message_id,
           channelName: channel.name,
         });
+        await snapshotChannel(channel, row.owner_id).catch(() => null);
+      } else {
+        await snapshotChannel(channel, row.owner_id).catch(() => null);
       }
     } catch (err) {
       log.error({ err, channelId: row.channel_id }, 'Empty sweep error for tracked channel');
@@ -804,6 +838,14 @@ async function runInactiveCleanup(client) {
   }
 
   if (cleaned > 0) log.info({ cleaned }, 'Inactive auto-cleanup complete');
+
+  try {
+    const pruned = await db.pruneEvents(90);
+    if (pruned > 0) log.info({ pruned }, 'Pruned old temp voice events');
+  } catch (err) {
+    log.warn({ err }, 'Failed to prune temp voice events');
+  }
+
   return cleaned;
 }
 
@@ -862,14 +904,40 @@ const KIND_COLORS = {
 };
 
 async function logEvent(guild, opts) {
+  const { title, actor = null, actorId = null, channel = null, fields = [], kind = 'update' } = opts;
+
+  try {
+    const resolvedActorId = actor?.id || actorId || null;
+    const channelId = channel?.id || null;
+    const channelName = channel?.name || null;
+    const ownerId = opts.ownerId || (channelId ? getOwner(channelId) : null) || null;
+    await db.recordEvent({
+      eventType: eventTypeFromTitle(title),
+      channelId,
+      channelName,
+      actorId: resolvedActorId,
+      ownerId,
+      details: {
+        title,
+        kind: kind || 'update',
+        fields: fields || [],
+      },
+    });
+  } catch (err) {
+    log.warn({ err }, 'Failed to persist temp voice event');
+  }
+
+  if (channel?.id && kind !== 'destroy') {
+    const live = await guild.channels.fetch(channel.id).catch(() => null);
+    if (live) snapshotChannel(live).catch(() => null);
+  }
+
   const config = cachedConfig;
   if (!config?.log_channel_id) return;
 
   try {
     const logChannel = await guild.channels.fetch(config.log_channel_id).catch(() => null);
     if (!logChannel) return;
-
-    const { title, actor = null, actorId = null, channel = null, fields = [], kind = 'update' } = opts;
 
     let actorUser = actor;
     if (!actorUser && actorId) {
@@ -901,7 +969,7 @@ async function logEvent(guild, opts) {
 
     await logChannel.send({ embeds: [embed] });
   } catch {
-    // Silently fail -- don't break functionality over logging
+    // Silently fail -- don't break functionality over Discord logging
   }
 }
 

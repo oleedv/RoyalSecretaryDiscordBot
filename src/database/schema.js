@@ -586,6 +586,19 @@ export async function initSchema() {
   `);
   // last_activity must only move via explicit touchActivity(), not every row UPDATE.
   await query(`ALTER TABLE temp_channels MODIFY last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
+  await query(`ALTER TABLE temp_channels ADD COLUMN IF NOT EXISTS channel_name VARCHAR(100) NULL`);
+  await query(`ALTER TABLE temp_channels ADD COLUMN IF NOT EXISTS user_limit INT DEFAULT 0`);
+  await query(`ALTER TABLE temp_channels ADD COLUMN IF NOT EXISTS bitrate INT NULL`);
+  await query(`ALTER TABLE temp_channels ADD COLUMN IF NOT EXISTS region VARCHAR(20) NULL`);
+  await query(`ALTER TABLE temp_channels ADD COLUMN IF NOT EXISTS is_locked TINYINT(1) DEFAULT 0`);
+  await query(`ALTER TABLE temp_channels ADD COLUMN IF NOT EXISTS is_invisible TINYINT(1) DEFAULT 0`);
+  await query(`ALTER TABLE temp_channels ADD COLUMN IF NOT EXISTS is_chat_closed TINYINT(1) DEFAULT 0`);
+  await query(`ALTER TABLE temp_channels ADD COLUMN IF NOT EXISTS is_dnd TINYINT(1) DEFAULT 0`);
+  await query(`ALTER TABLE temp_channels ADD COLUMN IF NOT EXISTS member_count INT DEFAULT 0`);
+  await query(`ALTER TABLE temp_channels ADD COLUMN IF NOT EXISTS member_ids JSON NULL`);
+  await query(`ALTER TABLE temp_channels ADD COLUMN IF NOT EXISTS trusted_ids JSON NULL`);
+  await query(`ALTER TABLE temp_channels ADD COLUMN IF NOT EXISTS blocked_ids JSON NULL`);
+  await query(`ALTER TABLE temp_channels ADD COLUMN IF NOT EXISTS snapshot_at TIMESTAMP NULL`);
 
   await query(`
     CREATE TABLE IF NOT EXISTS temp_voice_presets (
@@ -601,6 +614,22 @@ export async function initSchema() {
       is_dnd TINYINT(1) DEFAULT 0,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (user_id, guild_id)
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS temp_voice_events (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      event_type VARCHAR(40) NOT NULL,
+      channel_id VARCHAR(20) NULL,
+      channel_name VARCHAR(100) NULL,
+      actor_id VARCHAR(30) NULL,
+      owner_id VARCHAR(20) NULL,
+      details JSON NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_tve_created (created_at),
+      INDEX idx_tve_channel (channel_id),
+      INDEX idx_tve_type (event_type)
     )
   `);
 

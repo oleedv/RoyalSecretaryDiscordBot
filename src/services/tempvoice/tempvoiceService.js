@@ -142,3 +142,66 @@ export async function updatePresetField(userId, guildId, field, value) {
     [userId, guildId, value],
   );
 }
+
+function jsonIds(ids) {
+  return JSON.stringify(Array.isArray(ids) ? ids.map(String) : []);
+}
+
+export async function updateChannelSnapshot(channelId, snap) {
+  await query(
+    `UPDATE temp_channels SET
+       channel_name = ?,
+       user_limit = ?,
+       bitrate = ?,
+       region = ?,
+       is_locked = ?,
+       is_invisible = ?,
+       is_chat_closed = ?,
+       is_dnd = ?,
+       member_count = ?,
+       member_ids = ?,
+       trusted_ids = ?,
+       blocked_ids = ?,
+       snapshot_at = CURRENT_TIMESTAMP
+     WHERE channel_id = ?`,
+    [
+      snap.channelName ?? null,
+      snap.userLimit ?? 0,
+      snap.bitrate ?? null,
+      snap.region ?? null,
+      snap.isLocked ? 1 : 0,
+      snap.isInvisible ? 1 : 0,
+      snap.isChatClosed ? 1 : 0,
+      snap.isDnd ? 1 : 0,
+      snap.memberCount ?? 0,
+      jsonIds(snap.memberIds),
+      jsonIds(snap.trustedIds),
+      jsonIds(snap.blockedIds),
+      channelId,
+    ],
+  );
+}
+
+export async function recordEvent({ eventType, channelId = null, channelName = null, actorId = null, ownerId = null, details = null }) {
+  await query(
+    `INSERT INTO temp_voice_events (event_type, channel_id, channel_name, actor_id, owner_id, details)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [
+      eventType,
+      channelId,
+      channelName,
+      actorId,
+      ownerId,
+      details == null ? null : JSON.stringify(details),
+    ],
+  );
+}
+
+export async function pruneEvents(days = 90) {
+  const n = Math.max(7, Math.floor(Number(days) || 90));
+  const result = await query(
+    'DELETE FROM temp_voice_events WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)',
+    [n],
+  );
+  return result?.affectedRows ?? 0;
+}
