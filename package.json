@@ -2,6 +2,7 @@
   "name": "royal-battalion-bot",
   "version": "2.39.0",
   "description": "Royal Battalion gaming community Discord bot",
+  "license": "MIT",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
