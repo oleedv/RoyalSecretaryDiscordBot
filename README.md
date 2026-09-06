@@ -1,555 +1,425 @@
 # Royal Secretary
 
-Discord bot for the **Royal Battalion** Squad gaming community. Runs tickets,
-recruitment, seeding calls, activity analytics, verification, temporary voice
-channels, game-server config monitoring, and live server status — all from a
-single long-running process.
+**The operations backbone of Royal Battalion — tickets, recruitment, seeding, and live Squad ops in one Discord process.**
 
-![Bun](https://img.shields.io/badge/Bun-runtime-f9f1e1?logo=bun&logoColor=000)
-![discord.js](https://img.shields.io/badge/discord.js_v14-5865F2?logo=discord&logoColor=fff)
-![MariaDB](https://img.shields.io/badge/MariaDB-003545?logo=mariadb)
-![Pino](https://img.shields.io/badge/Pino-log-222)
-![Claude AI](https://img.shields.io/badge/Claude_AI-d4a574?logo=anthropic&logoColor=000)
-![Socket.IO](https://img.shields.io/badge/Socket.IO-client-010101?logo=socketdotio&logoColor=fff)
-
----
-
-## Table of contents
-
-- [Overview](#overview)
-- [Architecture at a glance](#architecture-at-a-glance)
-- [Interaction lifecycle](#interaction-lifecycle)
-- [Features](#features)
-- [Tech stack](#tech-stack)
-- [Repository layout](#repository-layout)
-- [Boot sequence](#boot-sequence)
-- [Auto-loading conventions](#auto-loading-conventions)
-- [Database layer](#database-layer)
-- [Configuration](#configuration)
-- [Logging](#logging)
-- [External integrations](#external-integrations)
-- [Getting started](#getting-started)
-- [Docker and deployment](#docker-and-deployment)
-- [Extending the bot](#extending-the-bot)
-- [Gotchas](#gotchas)
-- [Conventions](#conventions)
+[![Version](https://img.shields.io/badge/version-2.39.0-1f6feb)](https://github.com/oleedv/RoyalSecretaryDiscordBot)
+[![Bun](https://img.shields.io/badge/Bun-runtime-000000?logo=bun&logoColor=f9f1e1)](https://bun.sh)
+[![discord.js](https://img.shields.io/badge/discord.js-v14-5865F2?logo=discord&logoColor=fff)](https://discord.js.org)
+[![MariaDB](https://img.shields.io/badge/MariaDB-003545?logo=mariadb&logoColor=fff)](https://mariadb.org)
+[![Pino](https://img.shields.io/badge/Pino-logging-222222)](https://getpino.io)
+[![Claude](https://img.shields.io/badge/Claude-AI-d4a574?logo=anthropic&logoColor=000)](https://www.anthropic.com)
+[![Socket.IO](https://img.shields.io/badge/Socket.IO-client-010101?logo=socketdotio&logoColor=fff)](https://socket.io)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ---
 
 ## Overview
 
-Royal Secretary is the authoritative back-office for a large Squad gaming
-community. One Bun process connects to Discord over the gateway, holds two
-MariaDB pools (its own data and a read-only SquadJS mirror), and opens
-outbound connections to a handful of third-party services.
+Royal Secretary is the Discord back-office for the **Royal Battalion** Squad community. One long-running [Bun](https://bun.sh) process connects to the Discord gateway, holds MariaDB pools for bot data and a read-only SquadJS mirror, and talks outbound to BattleMetrics, Steam, Claude, SFTP, and live game-server sockets.
 
-It exposes **no inbound HTTP surface**. Everything — slash commands, button
-clicks, DMs, reactions, voice joins — arrives through the Discord gateway and
-is dispatched through a thin event router into feature handlers and services.
+It exposes **no inbound HTTP surface**. Slash commands, buttons, DMs, reactions, and voice joins all arrive through the Discord gateway and are dispatched through a thin event router into feature handlers and services.
 
-Operational state lives in MariaDB. Transient data (voice sessions, cooldown
-maps, socket connections) is kept in memory and rebuilt from the database on
-startup.
+Operational state lives in MariaDB. Transient data (voice sessions, cooldowns, socket connections) stays in memory and is rebuilt from the database on startup.
 
 ---
 
-## Architecture at a glance
+## Architecture
 
+```mermaid
+flowchart TB
+  subgraph Cloud
+    GW["Discord Gateway"]
+  end
+
+  subgraph Process["Royal Secretary — single Bun process"]
+    BOT["src/bot.js — discord.js v14"]
+    CMD["src/commands — slash commands"]
+    EVT["src/events — thin routers"]
+    HDL["src/handlers — buttons / modals"]
+    SVC["src/services — domain logic"]
+    DBL["src/database — query / transaction"]
+  end
+
+  subgraph Data["MariaDB"]
+    SEC["secretary — full CRUD"]
+    SJS["SquadJS — read-only"]
+    WEB["website — optional"]
+  end
+
+  subgraph External["Outbound only"]
+    BM["BattleMetrics"]
+    ST["Steam"]
+    AI["Anthropic Claude"]
+    CBL["Community Ban List"]
+    SFTP["Game-server SFTP"]
+    SOCK["SquadJS Socket.IO"]
+  end
+
+  GW -->|WebSocket| BOT
+  BOT --> CMD
+  BOT --> EVT
+  EVT -->|customId / DM match| HDL
+  CMD --> SVC
+  HDL --> SVC
+  SVC --> DBL
+  DBL --> SEC
+  DBL --> SJS
+  DBL --> WEB
+  SVC --> BM
+  SVC --> ST
+  SVC --> AI
+  SVC --> CBL
+  SVC --> SFTP
+  SVC --> SOCK
 ```
-                 ┌───────────────────────────────────────────┐
-                 │             Discord Gateway               │
-                 └─────────────────┬─────────────────────────┘
-                                   │ WebSocket
-                   ┌───────────────▼────────────────┐
-                   │  src/bot.js  (discord.js v14)  │   auto-loads:
-                   │  - intents + partials          │   - commands/*.js
-                   │  - raw packet DM workaround    │   - events/*.js
-                   └──┬─────────────────────────┬───┘
-                      │                         │
-             ┌────────▼────────┐       ┌────────▼─────────┐
-             │ src/commands/   │       │  src/events/     │
-             │ slash commands  │       │  thin routers    │
-             └────────┬────────┘       └────────┬─────────┘
-                      │                         │ customId / DM match
-                      └──────────┬──────────────┘
-                                 │
-                       ┌─────────▼──────────┐
-                       │  src/handlers/     │  per-feature interaction
-                       │  buttons / modals  │  and message routers
-                       │  / messages        │
-                       └─────────┬──────────┘
-                                 │
-                       ┌─────────▼──────────┐
-                       │  src/services/     │  business logic,
-                       │  ticket/ prospect/ │  embeds, schedulers
-                       │  seeding/ ...      │
-                       └─┬──────────────┬───┘
-                         │              │
-              ┌──────────▼─────┐   ┌────▼───────────────────────┐
-              │ src/database/  │   │      External services     │
-              │  - secretary   │   │  BattleMetrics  Claude API │
-              │  - squadjs (r) │   │  Steam          CBL        │
-              │  - website (o) │   │  SFTP           SquadJS WS │
-              └────────────────┘   └────────────────────────────┘
+
+Every user interaction follows the same shape: **event → router → handler → service → database**, then an embed back to the channel.
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant Discord
+  participant Router as events/interactionCreate
+  participant Handler as handlers/ticketButtons
+  participant Service as services/ticket
+  participant DB as MariaDB
+
+  User->>Discord: Click Escalate
+  Discord->>Router: INTERACTION_CREATE
+  Router->>Router: 2s cooldown + safeReply
+  Router->>Handler: handleEscalate
+  Handler->>Service: escalateTicket()
+  Service->>DB: UPDATE tickets + ticket_events
+  Service-->>Handler: updated ticket + embed
+  Handler-->>User: channel embed + ephemeral confirm
 ```
 
-- `bot.js` owns the discord.js client and auto-loads the two flat
-  directories underneath it.
-- `events/` files are thin — they delegate to handlers by `customId` or
-  DM/category match.
-- `handlers/` know how to respond to a specific interaction; they call into
-  `services/` for real work.
-- `services/` hold domain logic, DB access, embed builders, and schedulers.
-- `database/` exposes `query()` / `transaction()` against three MariaDB pools
-  (one optional).
+Boot is fail-fast. Missing secrets or a down secretary database abort the process before login.
 
----
-
-## Interaction lifecycle
-
-Walking through a single click — *"staff hits Escalate on a ticket"* — makes
-the layering concrete.
-
-1. Discord delivers an `INTERACTION_CREATE` gateway packet with
-   `customId: "ticket_escalate_admin"`.
-2. `src/events/interactionCreate.js` is the registered listener. It looks up
-   the customId in its static map and finds
-   `ticketButtons.handleEscalate`.
-3. The router enforces a 2-second per-user cooldown and wraps the call in a
-   `safeReply` guard so a thrown error can never leave the user staring at a
-   spinning interaction.
-4. `src/handlers/ticketButtons.js:handleEscalate` runs. It reads the ticket
-   row, validates the staff member's role tier, and calls
-   `escalateTicket()` from `src/services/ticket/ticketService.js`.
-5. The service updates the ticket row, moves the channel between
-   categories, rebuilds the embed via `ticketEmbeds.js`, and writes an
-   entry to `ticket_events` via `database/connection.js`.
-6. Back in the handler, the new embed is rendered into the channel and an
-   ephemeral confirmation is sent to the staff member.
-7. The Pino logger emits a structured `info` event; it goes to the console
-   and simultaneously to the `bot_logs` table via the DB log transport.
-
-Every interaction follows this shape: **event → router → handler → service →
-database (+ embed → channel)**.
+```mermaid
+flowchart LR
+  A["Validate env"] --> B["Create MariaDB pools"]
+  B --> C["Ping pools"]
+  C --> D["initSchema migrations"]
+  D --> E["createBot + auto-load"]
+  E --> F["client.login"]
+  F --> G["SIGINT / SIGTERM shutdown"]
+```
 
 ---
 
 ## Features
 
-Each feature is a folder under `src/services/`. Handler files under
-`src/handlers/` wire interactions into them.
-
-### Support tickets — `src/services/ticket/`
-Five tiers (Normal, Community Officer, Admin Officer, Comp Team, Whitelist)
-backed by private channels. Users DM the bot or click the panel to open one.
-Text commands `!r`, `!close`, and `!logs` operate inside the ticket channel.
-Closing enters a 2-hour grace window during which a user reply auto-reopens.
-Full audit trail in `ticket_events`, anonymous replies, escalation between
-tiers, paginated transcripts.
-
-### Prospect recruitment — `src/services/prospect/`
-Two-part application modal (personal info, then game experience), with
-server-side validation of Steam ID, DOB, and Squad playtime. Mentors claim
-applications; the community votes via reactions with a configurable deadline.
-Claude evaluates the resume and player history. Acceptance assigns the team
-role automatically.
-
-### Squad seeding — `src/services/seeding/`
-Real-time player count pulled from SquadJS over Socket.IO. A scheduler posts
-a seeding call at a configured time; users opt in via buttons. Threshold
-crossings (default 40 players) start sessions, <20 resets them. Multiple
-SquadJS servers supported via `SQUADJS_SERVERS`.
-
-### Seed tracker — `src/services/seedTracker/`
-Monthly leaderboard, progression milestones, and whitelist-role rewards for
-high contributors. Auto-renews at month rollover.
-
-### Activity tracking — `src/services/activity/`
-Voice sessions (duration, mute, deaf, stream, video) and message counts,
-aggregated nightly into 30/60/90/365-day rolling windows. Voice sessions
-recovered from the DB on restart. Staff can view any member; members see
-only themselves.
-
-### Temporary voice — `src/services/tempvoice/`
-A trigger channel spawns a private voice room per user; the owner gets a
-control panel (rename, limit, lock, transfer) via `tempvoiceButtons.js`. Name
-filtering lives in `contentFilter.js`.
-
-### Verification — `src/services/verify/`
-Challenge-response flow behind a button on the entry panel. Correct answer
-grants the verified role.
-
-### Server status — `src/services/serverStatus/`
-BattleMetrics API integration: live player counts, layer, and server info
-posted to a status channel.
-
-### Config Guardian — `src/services/configGuardian/`
-Hourly SFTP poll of game-server config files. Line-by-line diff with
-sensitive-value masking, posted to Discord on change, backups stored locally.
-
-### Admin plumbing — `src/services/admin/`
-- `statusHeartbeat.js` — uptime, latency, and DB health written to
-  `bot_status` every 30s.
-- `messageLogger.js` — full guild message history persisted.
-- `logTransport.js` — Pino stream that persists info+ logs to `bot_logs`.
-- `actionProcessor.js` — polls a queue table for actions dispatched by the
-  companion web dashboard.
+| Area | What it does |
+|------|----------------|
+| **Support tickets** | Five tiers (Normal, Community Officer, Admin Officer, Comp Team, Whitelist). Open via DM or panel. `!r`, `!close`, `!logs` in-channel. Two-hour grace reopen, escalation, anonymous replies, transcripts. |
+| **Prospect recruitment** | Two-part application modal, Steam / DOB / playtime validation, mentor claim, community vote, Claude evaluation, automatic team-role assignment. |
+| **Seeding** | Live player counts from SquadJS over Socket.IO. Scheduled daily call, opt-in buttons, threshold sessions (default 40 / reset below 20). |
+| **Seed tracker** | Monthly leaderboard, progression milestones, whitelist-role rewards, auto-renew at month rollover. |
+| **Activity** | Voice sessions (duration, mute, deaf, stream, video) and message counts, rolled into 30/60/90/365-day windows. |
+| **Temporary voice** | Join a trigger channel, get a private room plus owner controls (rename, limit, lock, transfer). |
+| **Verification** | Challenge-response on the entry panel; correct answer grants the verified role. |
+| **Server status** | Live BattleMetrics player counts, layer, and server info — plus a compact quick-status embed. |
+| **Config Guardian** | Hourly SFTP poll of game-server configs. Line-by-line diff with secret masking, Discord alert, local backup. |
+| **Giveaways** | Monthly weighted game giveaway: start, manual entries, community vote, draw, cancel. |
+| **Clan reports** | Staff-only interactive dashboard over SquadJS combat stats. |
+| **Comms board** | Live comms-watch board posted to a channel. |
+| **Layer rotation** | Validates and highlights the current layer rotation embed. |
+| **Timestamps** | `/timestamp` builds a Discord timestamp in everyone's local time; `/timezone` remembers the user's zone. |
+| **AI assists** | Ticket suggestions, prospect resume evaluation, daily chat-moderation report. |
+| **Admin plumbing** | 30s heartbeat to `bot_status`, message history logger, Pino → `bot_logs`, web-dashboard action queue. |
 
 ---
 
-## Tech stack
+## Prerequisites
 
-| Component        | Technology              | Version |
-|------------------|-------------------------|---------|
-| Runtime          | Bun                     | latest  |
-| Discord          | discord.js              | 14.16   |
-| Database driver  | mariadb                 | 3.4     |
-| AI               | @anthropic-ai/sdk       | 0.39    |
-| Logging          | pino + pino-pretty      | 9.6     |
-| Real-time        | socket.io-client        | 4.8     |
-| SFTP             | ssh2-sftp-client        | 12.1    |
-| Image processing | sharp                   | 0.34    |
-| Diffing          | diff                    | 8.0     |
-| Git              | simple-git              | 3.35    |
+- [Bun](https://bun.sh) (runtime and package manager)
+- MariaDB 10.11+ reachable from the bot host
+- A Discord application with a bot user, a test guild, and these privileged intents enabled:
+  - Server Members Intent
+  - Message Content Intent
+- Optional: Anthropic, Steam, BattleMetrics, and SquadJS credentials for the features that use them
 
 ---
 
-## Repository layout
+## Installation
 
-```
-.
-├── src/
-│   ├── index.js                     Boot: validate config -> pools -> schema -> login
-│   ├── bot.js                       Client, intents, auto-loaders, raw-packet DM fix
-│   ├── config.js                    Merges .env secrets with settings.{env}.js
-│   ├── logger.js                    Pino multistream (console + DB)
-│   │
-│   ├── database/
-│   │   ├── connection.js            Pools, query(), transaction()
-│   │   └── schema.js                DDL + forward migrations
-│   │
-│   ├── commands/                    Slash commands (auto-loaded)
-│   ├── events/                      Discord event listeners (auto-loaded)
-│   ├── handlers/                    Per-feature button / modal / message routers
-│   ├── services/                    Domain logic per feature (see Features above)
-│   └── utils/                       Shared pure helpers (embeds, permissions, ids)
-│
-├── settings.js                      Loader that picks settings.{NODE_ENV}.js
-├── settings.development.js          Dev guild/channel/role IDs
-├── settings.staging.js              Staging guild/channel/role IDs
-├── settings.production.js           Production guild/channel/role IDs
-├── .env.example                     Secret template (see Configuration)
-│
-├── Dockerfile                       oven/bun:latest, non-root user
-├── docker-compose.yml               Local compose (bot + MariaDB)
-└── .github/workflows/
-    ├── deploy-staging.yml           main -> staging server
-    └── deploy-production.yml        production -> prod server
+```bash
+git clone https://github.com/oleedv/RoyalSecretaryDiscordBot.git
+cd RoyalSecretaryDiscordBot
+bun install
+cp .env.example .env
 ```
 
+Fill in the required secrets in `.env`:
+
+```env
+DISCORD_TOKEN=your-bot-token
+DISCORD_CLIENT_ID=your-application-id
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=royal
+DB_PASSWORD=secret
+DB_NAME=Royal_secretary_staging
+NODE_ENV=development
+LOG_FORMAT=pretty
+```
+
+Edit `settings.development.js` with the guild, channel, and role IDs for your test server. `settings.js` is a loader — it picks `settings.${NODE_ENV}.js`. Do not put secrets in the settings files.
+
+Register slash commands, then start the bot:
+
+```bash
+bun run deploy-commands
+bun run dev
+```
+
+`bun run dev` watches source files and restarts on change. Production:
+
+```bash
+bun run start
+```
+
+### Docker
+
+```bash
+docker compose up --build
+```
+
+The image is `oven/bun:latest`, runs as a non-root `botuser`, and copies only `settings.staging.js` / `settings.production.js` (development settings stay off the image). The compose file loads `.env` and maps `host.docker.internal` so the container can reach MariaDB on the host.
+
+CI builds the image, pushes it to GHCR, and restarts the target VPS:
+
+| Branch | Workflow | Target |
+|--------|----------|--------|
+| `main` | `.github/workflows/deploy-staging.yml` | Staging |
+| `production` | `.github/workflows/deploy-production.yml` | Production |
+
 ---
 
-## Boot sequence
+## Usage
 
-`src/index.js` performs these steps, in order; any failure in the first four
-is fatal:
+### Slash commands
 
-1. Validate required env vars (`DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DB_*`).
-2. Create MariaDB pools (secretary, squadjs, optional website).
-3. Ping every pool. Secretary failure aborts boot; website failure degrades.
-4. Run `initSchema()` — creates tables and applies forward migrations.
-5. `createBot()` — build the `Client` with explicit intents and partials,
-   install the raw-packet DM workaround, and auto-load `commands/` +
-   `events/`.
-6. `client.login(token)`.
-7. Print the startup banner with loaded counts and DB status.
-8. Register `SIGINT` / `SIGTERM` handlers that stop schedulers, flush logs,
-   close pools, and destroy the client.
+| Command | Who | Purpose |
+|---------|-----|---------|
+| `/ping` | Anyone | Round-trip and WebSocket latency |
+| `/activity [user] [days]` | Members (self) / staff (anyone) | Discord activity over a rolling window |
+| `/timestamp date time [timezone]` | Anyone | Discord timestamp in every viewer's local time |
+| `/timezone` | Anyone | View or clear the saved timezone |
+| `/ticket-setup` | Admin | Post the ticket panel |
+| `/prospect-setup` | Admin | Post the prospect application panel |
+| `/tempvoice-setup` | Admin | Configure the temp-voice trigger channel |
+| `/refresh-panels` | Admin | Re-post configured panels |
+| `/giveaway start\|add-entry\|leaderboard\|open-vote\|draw\|cancel` | Staff | Monthly game giveaway |
+| `/clanreport` | Staff | Interactive clan-report dashboard |
+| `/comms-board show\|stop` | Staff | Live comms board |
+| `/layer-rotation` | Admin | Re-post the layer rotation embed |
+| `/suggest` | Restricted | AI suggestion for the current ticket |
+| `/modreport` | Owner | Trigger the daily AI moderation report now |
 
----
+Ticket channels also accept text commands: `!r` (reply), `!close`, `!logs`.
 
-## Auto-loading conventions
+### Example: `/ping`
 
-Drop a file in, it gets registered. No manual wiring.
+```
+/ping
+→ Pong! Roundtrip: 47ms | WebSocket: 12ms
+```
 
-**Command** — `src/commands/example.js`:
+### Example: `/timestamp`
+
+```
+/timestamp date:2026-09-06 time:18:00 timezone:Europe/Oslo
+→ <t:1757178000:F>  —  Saturday, 6 September 2026 18:00
+```
+
+### Example: `/giveaway start`
+
+```
+/giveaway start prize:Helldivers 2 channel:#giveaways
+```
+
+### Add a slash command
+
+Drop a file in `src/commands/` — it is auto-loaded. No manual registry.
 
 ```js
 import { SlashCommandBuilder } from 'discord.js';
 
 export default {
-  data: new SlashCommandBuilder().setName('example').setDescription('...'),
-  async execute(interaction) { /* ... */ },
+  data: new SlashCommandBuilder()
+    .setName('example')
+    .setDescription('Does a thing'),
+
+  async execute(interaction) {
+    await interaction.reply({ content: 'Done.', flags: ['Ephemeral'] });
+  },
 };
 ```
 
-Register with Discord via `bun run deploy-commands` (guild-scoped when
-`config.guild.id` is set, otherwise global).
+Then register it with Discord:
 
-**Event** — `src/events/guildMemberAdd.js`:
+```bash
+bun run deploy-commands
+```
+
+Commands deploy guild-scoped when `config.guild.id` is set, otherwise globally.
+
+### Add an event listener
 
 ```js
 import { Events } from 'discord.js';
 
 export default {
   name: Events.GuildMemberAdd,
-  async execute(member) { /* ... */ },
+  async execute(member) {
+    // ...
+  },
 };
 ```
 
-Set `once: true` for one-shot listeners.
+Save it as `src/events/guildMemberAdd.js`. Set `once: true` for one-shot listeners.
 
-**Handler** — interaction routing happens in
-`src/events/interactionCreate.js`, which maps `customId` to handler
-functions:
+### Add a button handler
+
+1. Export a function from `src/handlers/<feature>Buttons.js`.
+2. Register the `customId` in the map in `src/events/interactionCreate.js`.
 
 ```js
 const buttonHandlers = {
-  ticket_create: ticketButtons.handleCreate,
   ticket_escalate_admin: ticketButtons.handleEscalate,
   // ...
 };
 ```
 
-The handler itself lives in `src/handlers/<feature>Buttons.js`:
+Dynamic ids (`logs_prev:<ticketId>`, `verify_answer_<questionId>`) use pattern matching after the static map misses.
 
-```js
-export async function handleEscalate(interaction) {
-  const ticket = await getTicketForChannel(interaction.channelId);
-  await escalateTicket(ticket, interaction.member);
-  await interaction.reply({ content: 'Escalated.', flags: ['Ephemeral'] });
-}
-```
+### Query the database
 
-Dynamic customIds (e.g. `logs_prev:<ticketId>`,
-`verify_answer_<questionId>`) use pattern matching after the static-map
-lookup misses.
-
----
-
-## Database layer
-
-Three pools against the same MariaDB server. All queries are parameterised;
-there is no ORM.
-
-| Pool        | Database              | Access    | Purpose                     |
-|-------------|-----------------------|-----------|-----------------------------|
-| `secretary` | `Royal_secretary*`    | Full CRUD | Bot's own tables            |
-| `squadjs`   | `SquadJS`             | Read-only | Shared game-server data     |
-| `website`   | `royal_battalion*`    | Read-only | Optional; disabled on fail  |
+All queries are parameterised. There is no ORM.
 
 ```js
 import { query, transaction } from './database/connection.js';
 
-// Defaults to the secretary pool.
 await query('SELECT * FROM tickets WHERE id = ?', [id]);
 
-// Explicit pool.
-await query('SELECT * FROM players WHERE steam_id = ?', [steamId], 'squadjs');
+await query(
+  'SELECT * FROM players WHERE steam_id = ?',
+  [steamId],
+  'squadjs',
+);
 
-// Transactions.
 await transaction(async (conn) => {
   await conn.query('INSERT INTO prospects (...) VALUES (?, ?)', [a, b]);
   await conn.query('INSERT INTO prospect_events (...) VALUES (?, ?)', [c, d]);
 }, 'secretary');
 ```
 
-DDL and forward migrations live in `src/database/schema.js` and run on
-startup.
+| Pool | Database | Access | Purpose |
+|------|----------|--------|---------|
+| `secretary` | `Royal_secretary*` | Full CRUD | Bot tables |
+| `squadjs` | `SquadJS` | Read-only | Shared game-server data |
+| `website` | `royal_battalion*` | Read-only | Optional; disabled on fail |
 
----
-
-## Configuration
-
-Two layers — secrets in `.env`, everything else in environment-specific
-JavaScript modules.
-
-### Secrets — `.env`
-
-`settings.js` picks `settings.${NODE_ENV}.js` (defaulting to `staging`). Copy
-`.env.example` to `.env` and populate the core variables:
-
-| Variable               | Required | Purpose                                       |
-|------------------------|----------|-----------------------------------------------|
-| `DISCORD_TOKEN`        | yes      | Bot token from the Discord developer portal   |
-| `DISCORD_CLIENT_ID`    | yes      | Application client ID (used for deployment)   |
-| `DB_HOST` / `DB_PORT`  | yes      | MariaDB host / port (port defaults to 3306)   |
-| `DB_USER` / `DB_PASSWORD` | yes   | MariaDB credentials                           |
-| `DB_NAME`              | yes      | Secretary database name                       |
-| `WEBSITE_DB_NAME`      | no       | Enables the optional website pool             |
-| `NODE_ENV`             | yes      | `development` / `staging` / `production`      |
-| `LOG_FORMAT`           | no       | `pretty` (dev) or JSON (prod default)         |
-| `LOG_LEVEL`            | no       | Pino level override                           |
-| `SQUADJS_SERVERS`      | no       | `name\|ws://host:port\|token\|serverId`, comma-separated (`serverId` = `squadjs_servers.id`; required for multi-server status stats) |
-| `ANTHROPIC_API_KEY`    | no       | Enables Claude features                       |
-
-Feature-specific secrets (BattleMetrics, Steam, SFTP, Git) are read from
-`process.env` at the point of use; set only what you need. See
-`src/config.js` for the full consolidated shape.
-
-### Non-secrets — `settings.{env}.js`
-
-Per-environment files hold Discord IDs (guild, channels, roles) and feature
-toggles (ticket categories, seeding thresholds, BattleMetrics server ID).
-Edit the file matching your `NODE_ENV`, **not** `settings.js` itself — the
-latter is just a loader.
-
----
-
-## Logging
-
-Pino with a multistream transport:
-
-- **Console** — pretty-printed when `LOG_FORMAT=pretty` (dev), JSON
-  otherwise (prod).
-- **Database** — `info`+ records streamed to the `bot_logs` table via
-  `src/services/admin/logTransport.js`. Flushed on shutdown.
-
-Child loggers carry a `module` tag:
+### Logging
 
 ```js
 import logger from './logger.js';
+
 const log = logger.child({ module: 'tickets' });
 log.info({ ticketId }, 'escalated');
 ```
 
-Level defaults to `info`; override with `LOG_LEVEL`.
+Pretty-print when `LOG_FORMAT=pretty`, JSON otherwise. `info`+ records also stream into `bot_logs`.
 
 ---
 
-## External integrations
+## Tech stack
 
-Everything is outbound. The bot opens no listening sockets.
+| Layer | Choice | Notes |
+|-------|--------|--------|
+| Runtime | [Bun](https://bun.sh) | ESM (`"type": "module"`), `bun test` |
+| Discord | [discord.js](https://discord.js.org) `^14.26` | Gateway client, slash commands, buttons, voice |
+| Database | [mariadb](https://github.com/mariadb-corporation/mariadb-connector-nodejs) `^3.5` | Three pools, parameterised SQL, schema on boot |
+| Logging | [pino](https://getpino.io) `^9` + [pino-pretty](https://github.com/pinojs/pino-pretty) | Console + `bot_logs` transport |
+| AI | [@anthropic-ai/sdk](https://github.com/anthropics/anthropic-sdk-typescript) `^0.39` | Prospect eval, ticket hints, mod reports |
+| Real-time | [socket.io-client](https://socket.io) `^4.8` | Live SquadJS player / layer updates |
+| Time | [luxon](https://moment.github.io/luxon/) `^3.7` | Timezones and `/timestamp` |
+| SFTP | [ssh2-sftp-client](https://github.com/theophilusx/ssh2-sftp-client) `^12.1` | Config Guardian |
+| Diffing | [diff](https://github.com/kpdecker/jsdiff) `^8` | Config file diffs |
+| Images | [sharp](https://sharp.pixelplumbing.com) `^0.34` | Embed image processing |
+| Git | [simple-git](https://github.com/steveukx/git-js) `^3.36` | Repo-side git operations |
+| Deploy | Docker + GitHub Actions + GHCR | `main` → staging, `production` → prod |
 
-| Service              | Protocol / SDK           | Purpose                              | Primary file                                     |
-|----------------------|--------------------------|--------------------------------------|--------------------------------------------------|
-| Discord              | discord.js gateway       | Bot runtime                          | `src/bot.js`                                     |
-| BattleMetrics        | REST                     | Server status, player flags, bans    | `src/services/battlemetricsService.js`           |
-| Community Ban List   | GraphQL                  | Cross-community ban checks           | `src/services/cblService.js`                     |
-| Steam                | REST                     | Steam ID / vanity URL resolution     | `src/services/steamService.js`                   |
-| Anthropic Claude     | `@anthropic-ai/sdk`      | Prospect evaluation, ticket AI hints | `src/services/ai/anthropicClient.js`             |
-| SquadJS              | Socket.IO client         | Live player / layer updates          | `src/services/seeding/seedingSocket.js`          |
-| Game-server SFTP     | `ssh2-sftp-client`       | Config-file monitoring               | `src/services/configGuardian/configGuardianService.js` |
-| MariaDB              | `mariadb` pool           | Persistence                          | `src/database/connection.js`                     |
+Configuration is two-layer:
 
----
+- **Secrets** — `.env` (`DISCORD_TOKEN`, `DB_*`, `ANTHROPIC_API_KEY`, `SQUADJS_SERVERS`, …)
+- **IDs and toggles** — `settings.development.js` / `settings.staging.js` / `settings.production.js`
 
-## Getting started
+`SQUADJS_SERVERS` is pipe-delimited and comma-separated:
 
-### Prerequisites
-
-- [Bun](https://bun.sh)
-- MariaDB server (local, Docker, or remote)
-- A Discord application with a bot user and a test guild
-
-### Local dev
-
-```bash
-bun install
-cp .env.example .env        # fill in DISCORD_TOKEN, DB_*, NODE_ENV=development
+```text
+production|ws://host:4000|token|1,battle|ws://host:4001|token|2
 ```
 
-Edit `settings.development.js` with the IDs of your test guild, channels,
-and roles. Then:
+The fourth field is `squadjs_servers.id` and is required for multi-server status.
 
-```bash
-bun run deploy-commands      # registers slash commands with Discord
-bun run dev                  # starts the bot with --watch
+---
+
+## How to contribute
+
+This bot runs a live community. Keep changes small, tested, and easy to review.
+
+1. Fork the repo (or branch from `main` if you have write access).
+2. Create a focused branch: `feat/ticket-timeout`, `fix/seed-tracker-renewal`.
+3. Match the existing style:
+   - ESM only — `import` / `export`, never `require`
+   - Parameterised SQL (`?` placeholders) for every query
+   - kebab-case files, camelCase identifiers, `UPPER_SNAKE` constants
+   - JSDoc where typing is load-bearing (no TypeScript)
+   - No emojis in code, commits, or generated content
+4. Put domain logic in `src/services/{feature}/`, interaction wiring in `src/handlers/`, and keep `src/events/` thin.
+5. Add or extend tests next to the code (`*.test.js`) and run:
+
+   ```bash
+   bun test
+   ```
+
+6. Commit with [Conventional Commits](https://www.conventionalcommits.org), one line:
+
+   ```text
+   feat(tickets): add force-close confirmation
+   fix(seed-tracker): skip same-day renewals
+   ```
+
+7. Open a pull request against `main`. Staging deploys from `main`; production deploys from the `production` branch.
+
+### Database changes
+
+Edit `src/database/schema.js`. Add the `CREATE TABLE IF NOT EXISTS` statement and any guarded `ALTER` for forward migrations. Schema runs on the next boot — there is no separate migrate command.
+
+### Things not to break
+
+- **Uncached DM fallback** in `src/bot.js` — ticket and prospect DM relay depend on it.
+- **Ticket close is not final** — a user reply within two hours reopens the ticket. Use force-close to end it immediately.
+- **`settings.js` is a loader** — edit the file that matches `NODE_ENV`.
+- **No inbound HTTP** — health is the heartbeat row in `bot_status`, not a webhook.
+
+---
+
+## License
+
+Released under the [MIT License](LICENSE).
+
+```
+Copyright (c) 2026 Royal Battalion
 ```
 
-If you need a local database, `docker compose up -d mariadb` brings one up
-and pre-creates the required schemas.
+You may use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of this software, provided the copyright notice and permission notice
+are included in all copies. The software is provided "as is", without warranty.
 
 ---
 
-## Docker and deployment
-
-Local build:
-
-```bash
-docker compose up --build
-```
-
-The `Dockerfile` uses `oven/bun:latest`, runs as a non-root `botuser`, and
-bundles `settings.staging.js` / `settings.production.js` (development
-settings are intentionally excluded from the image).
-
-### CI/CD
-
-GitHub Actions handle environment promotion:
-
-| Branch       | Workflow                              | Target   |
-|--------------|---------------------------------------|----------|
-| `main`       | `.github/workflows/deploy-staging.yml`    | Staging  |
-| `production` | `.github/workflows/deploy-production.yml` | Prod     |
-
-Each workflow builds the image, pushes it to GHCR, and triggers a pull +
-restart on the VPS via SSH. The production `docker-compose.{staging,prod}.yml`
-files live on the server, not in this repo.
-
----
-
-## Extending the bot
-
-### Add a slash command
-
-1. Create `src/commands/my-command.js` (see [Auto-loading](#auto-loading-conventions)).
-2. `bun run deploy-commands`.
-
-### Add an event listener
-
-Drop a file in `src/events/` — it's picked up on next start.
-
-### Add a button or modal handler
-
-1. Add the handler function to a file under `src/handlers/`.
-2. Register its `customId` in the router map in
-   `src/events/interactionCreate.js`. Use a static entry for a fixed
-   customId, or a pattern check for dynamic ones (`prefix:<id>`).
-
-### Add a database table or migration
-
-Edit `src/database/schema.js` — add the `CREATE TABLE IF NOT EXISTS`
-statement and any `ALTER` guard for forward migrations. Changes run on the
-next boot.
-
----
-
-## Gotchas
-
-- **Uncached DM workaround.** `src/bot.js` installs a `raw` gateway listener
-  that re-emits `MESSAGE_CREATE` when discord.js silently drops events for
-  uncached DM channels. The DM relay features (tickets, prospects) depend
-  on it. Do not remove.
-- **Ticket close is not final.** Closing a ticket starts a two-hour grace
-  window during which a user reply auto-reopens it. Use the `force_close`
-  button to end it immediately.
-- **Partial in-memory state.** Voice sessions, cooldowns, anonymous-mode
-  toggles, and socket connections live in memory. The bot rebuilds what it
-  can from the DB in the `ready` event on restart; anything without DB
-  persistence is lost.
-- **Dynamic customIds.** The router does static-map lookup first, then
-  pattern matching. If a new button uses a `prefix:<id>` pattern, add the
-  pattern branch in `interactionCreate.js`.
-- **`SQUADJS_SERVERS` is pipe-delimited, comma-separated.** One connection
-  per segment: `production|ws://host:port|token|1,battle|ws://...|token|2`.
-  The 4th field is `squadjs_servers.id` and is required for multi-server
-  (each status embed must query its own TPS / new-players stats).
-- **`settings.js` is a loader, not config.** Edit the file matching your
-  `NODE_ENV` (`settings.development.js` / `settings.staging.js` /
-  `settings.production.js`).
-- **No inbound HTTP.** The bot does not expose a webhook or health-check
-  endpoint. Health signal is the heartbeat row in `bot_status`.
-
----
-
-## Conventions
-
-- **ESM only** (`"type": "module"`) — `import` / `export`, never `require`.
-- **Parameterised SQL** (`?` placeholders) for every query.
-- **Conventional commits** (`feat:`, `fix:`, `chore:` …), one-line messages.
-- **File names** are kebab-case; identifiers are camelCase;
-  constants UPPER_SNAKE_CASE.
-- Explicit intents in `src/bot.js` — add new ones there when needed.
-- No TypeScript; use JSDoc where typing is load-bearing.
-- No emojis in code, commit messages, or generated content.
+Royal Battalion · Squad · [GitHub](https://github.com/oleedv/RoyalSecretaryDiscordBot)
