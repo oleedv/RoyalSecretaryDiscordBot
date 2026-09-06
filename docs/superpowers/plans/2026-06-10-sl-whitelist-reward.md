@@ -973,7 +973,7 @@ git commit -m "feat(sl-tracking): wire dispatchWarnCheck for in-game thanks + pr
 - [ ] **Step 1: SSH to the VPS.**
 
 ```bash
-ssh -i ~/.ssh/royal_infra oleed@54.38.242.227
+ssh user@your-server
 ```
 
 - [ ] **Step 2: Edit `config.squadjs-staging.json`.** Add a `webpage` connector block to `connectors` (Sequelize, pointed at `royal_battalion_staging` with a read-only user), and add an `sl-tracking` block to `plugins`:
@@ -1809,7 +1809,7 @@ Run these BEFORE merging staging → production.
 SSH and tail bot logs:
 
 ```bash
-ssh -i ~/.ssh/royal_infra oleed@54.38.242.227
+ssh user@your-server
 docker logs -f royal-secretary-bot-staging | grep sl-tracking
 docker logs -f squadjs-staging | grep -i sl-tracking
 ```

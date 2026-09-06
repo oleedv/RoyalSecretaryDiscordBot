@@ -1139,7 +1139,7 @@ git commit -m "feat(seedTracker): dynamic whitelist duration text, DB-driven sch
 
 ```
 # Each server: name|url|token|serverId  (serverId = the canonical squadjs_servers.id; comma-separate multiple servers)
-SQUADJS_SERVERS=production|ws://54.38.242.227:4000|your-token-here|1
+SQUADJS_SERVERS=production|ws://127.0.0.1:4000|your-token-here|1
 ```
 
 - [ ] **Step 6: Confirm no stale references remain.** Run: `grep -rn "seedingServer\|config.seedTracker" src settings.*.js`

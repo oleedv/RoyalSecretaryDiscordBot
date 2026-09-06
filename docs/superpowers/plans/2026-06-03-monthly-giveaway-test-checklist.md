@@ -13,7 +13,7 @@
 Run on the VPS — confirm the three new tables exist:
 
 ```bash
-ssh -i ~/.ssh/royal_infra oleed@54.38.242.227 \
+ssh user@your-server \
   "docker exec mariadb mariadb -u root -p\"\$MARIADB_ROOT_PASSWORD\" Royal_secretary_prod -e 'SHOW TABLES LIKE \"giveaway%\"'"
 ```
 
@@ -64,7 +64,7 @@ If your hours are <5 → ephemeral says "You need at least 5h played on RB in th
 
 DB check (optional):
 ```bash
-ssh -i ~/.ssh/royal_infra oleed@54.38.242.227 \
+ssh user@your-server \
   "docker exec mariadb mariadb -u root -p\"\$MARIADB_ROOT_PASSWORD\" Royal_secretary_prod \
    -e 'SELECT user_id, steam_id, manual_hours FROM giveaway_entries ORDER BY id DESC LIMIT 5'"
 ```
@@ -88,7 +88,7 @@ Expected ephemeral:
 
 DB check:
 ```bash
-ssh -i ~/.ssh/royal_infra oleed@54.38.242.227 \
+ssh user@your-server \
   "docker exec mariadb mariadb -u root -p\"\$MARIADB_ROOT_PASSWORD\" Royal_secretary_prod \
    -e 'SELECT user_id, manual_hours, manual_seed, added_by FROM giveaway_entries WHERE manual_hours IS NOT NULL'"
 ```
