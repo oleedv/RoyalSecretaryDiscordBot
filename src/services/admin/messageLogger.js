@@ -3,6 +3,10 @@ import { getReplyToId, getThreadMeta, isThreadChannel } from '../channelTranscri
 
 const REPLY_SNIPPET_MAX = 180;
 
+// 60-day moderation log. This process only writes; the ops retention job
+// deletes bot_messages older than MESSAGE_LOG_RETENTION_DAYS.
+export const MESSAGE_LOG_RETENTION_DAYS = 60;
+
 function snippet(text) {
   if (!text) return null;
   const trimmed = String(text).replace(/\s+/g, ' ').trim();
