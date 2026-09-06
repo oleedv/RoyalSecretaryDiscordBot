@@ -172,7 +172,7 @@ When something breaks, work through these in order.
 
 Slash commands are registered separately from code deploy. Re-run:
 ```bash
-ssh -i ~/.ssh/royal_infra oleed@54.38.242.227 \
+ssh user@your-server \
   "docker exec royal-secretary-bot-prod bun run deploy-commands"
 ```
 
