@@ -1,5 +1,9 @@
 import { query } from '../../database/connection.js';
 
+// 60-day moderation log. This process only writes; the ops retention job
+// deletes bot_messages older than MESSAGE_LOG_RETENTION_DAYS.
+export const MESSAGE_LOG_RETENTION_DAYS = 60;
+
 export function logMessage(message) {
   const isDm = !message.guild;
   const attachments = message.attachments.size > 0

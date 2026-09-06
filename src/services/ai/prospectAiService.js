@@ -143,13 +143,14 @@ function sanitize(value) {
   return String(value).replace(/[<>]/g, '')
 }
 
-function buildUserMessage(prospect, statsContext) {
+export function buildUserMessage(prospect, statsContext) {
+  // Date of birth is never sent to Anthropic. The form already rejects under-18s.
   return `Evaluate this prospect application:
 
 <application_data>
 Alias: ${sanitize(prospect.alias)}
 Country: ${sanitize(prospect.nationality)}
-Date of Birth: ${sanitize(prospect.date_of_birth)}
+Age: 18 or over
 Hours in Squad (self-reported): ${sanitize(prospect.squad_hours)}
 About Yourself: ${sanitize(prospect.about_yourself)}
 Previous Clan: ${sanitize(prospect.prev_clan)}

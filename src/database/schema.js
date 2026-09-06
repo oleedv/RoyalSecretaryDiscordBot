@@ -354,6 +354,8 @@ export async function initSchema() {
   `);
 
   // ── Admin / console tables ──
+  // bot_messages is a rolling 60-day moderation log (MESSAGE_LOG_RETENTION_DAYS).
+  // This process only inserts; the ops retention job purges expired rows.
 
   await query(`
     CREATE TABLE IF NOT EXISTS bot_messages (

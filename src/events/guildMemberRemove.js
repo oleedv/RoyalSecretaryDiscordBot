@@ -9,6 +9,10 @@ const log = logger.child({ module: 'memberRemove' });
 export default {
   name: Events.GuildMemberRemove,
 
+  // Leaving the guild is not a deletion request. Membership, ticket, prospect,
+  // whitelist, and moderation records are kept so staff can enforce bans, handle
+  // appeals, and detect ban evasion. Data-subject requests go through Discord
+  // as described in the public privacy policy.
   async execute(member) {
     const userId = member.id;
     const guild = member.guild;
