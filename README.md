@@ -413,7 +413,7 @@ Edit `src/database/schema.js`. Add the `CREATE TABLE IF NOT EXISTS` statement an
 Released under the [MIT License](LICENSE).
 
 ```
-Copyright (c) 2026 Royal Battalion
+Copyright (c) 2026 Ole Nørholm
 ```
 
 You may use, copy, modify, merge, publish, distribute, sublicense, and/or sell
